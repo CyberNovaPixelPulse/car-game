@@ -38,7 +38,16 @@ test("玩家拾取道具箱並使用兩秒加速，其他車手同步看見", as
     "aria-label",
     "道具箱可拾取",
   );
-  await host.keyboard.up("w");
+  // Leave the still-active second box before consuming the held item.
+  for (let i = 0; i < 80; i++) {
+    await driveStep(host, 0);
+    const [x, y] = (await host.getByTestId("car-0").getAttribute("transform"))!
+      .match(/-?\d+(?:\.\d+)?/g)!
+      .map(Number);
+    if (Math.hypot(x - bx, y - by) > 65) break;
+    await host.waitForTimeout(60);
+  }
+  for (const key of ["w", "s", "a", "d"]) await host.keyboard.up(key);
   await host.keyboard.press("Space");
   await expect(host.getByTestId("effects")).toContainText("道具加速");
   await expect(host.getByTestId("held-item")).toHaveText("空道具欄");

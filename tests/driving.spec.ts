@@ -26,10 +26,14 @@ test("持續直行離開路面後，車速會明顯降低", async ({ page }) => 
   await page.getByRole("button", { name: "自由練習" }).click();
   await page.keyboard.down("w");
   await expect
-    .poll(async () => Number(await page.getByTestId("speed").textContent()))
+    .poll(async () => Number(await page.getByTestId("speed").textContent()), {
+      intervals: [20, 50, 80],
+    })
     .toBeGreaterThan(200);
   await expect
-    .poll(async () => Number(await page.getByTestId("speed").textContent()))
+    .poll(async () => Number(await page.getByTestId("speed").textContent()), {
+      intervals: [20, 50, 80],
+    })
     .toBeLessThan(80);
   await page.keyboard.up("w");
 });

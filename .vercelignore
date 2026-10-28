@@ -1,0 +1,9 @@
+node_modules/**
+.git/**
+.vercel/**
+.env*
+test-results/**
+playwright-report/**
+dist/**
+public/wasm/**
+tests/**

@@ -2,6 +2,8 @@
 #include <SDL.h>
 #include <math.h>
 static SDL_Renderer *r;
+static SDL_Texture *background;
+static int background_attempted;
 static const int colors[5][3] = {{252, 112, 57},
                                  {118, 92, 212},
                                  {30, 161, 179},
@@ -38,9 +40,7 @@ EMSCRIPTEN_KEEPALIVE int game_init(void) {
   r = SDL_CreateRenderer(w, -1, SDL_RENDERER_ACCELERATED);
   return r != NULL;
 }
-EMSCRIPTEN_KEEPALIVE void game_draw(int local) {
-  if (!r)
-    return;
+static void draw_track(void) {
   color(172, 205, 146);
   SDL_RenderClear(r);
   color(191, 219, 164);
@@ -96,6 +96,26 @@ EMSCRIPTEN_KEEPALIVE void game_draw(int local) {
     color(91, 154, 107);
     ellipse(x - 4, y - 5, 9, 10);
   }
+}
+EMSCRIPTEN_KEEPALIVE void game_draw(int local) {
+  if (!r)
+    return;
+  if (!background_attempted) {
+    background_attempted = 1;
+    background = SDL_CreateTexture(r, SDL_PIXELFORMAT_RGBA8888,
+                                   SDL_TEXTUREACCESS_TARGET, 1200, 800);
+    if (background && SDL_SetRenderTarget(r, background) == 0) {
+      draw_track();
+      SDL_SetRenderTarget(r, NULL);
+    } else {
+      SDL_DestroyTexture(background);
+      background = NULL;
+    }
+  }
+  if (background)
+    SDL_RenderCopy(r, background, NULL, NULL);
+  else
+    draw_track();
   for (int i = 0; i < 4; i++) {
     ItemBox *b = &game.boxes[i];
     if (b->timer > 0)

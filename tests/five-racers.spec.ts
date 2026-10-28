@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
-import { player, createRoom, joinRoom, driveStep } from "./helpers";
+import {
+  player,
+  createRoom,
+  joinRoom,
+  driveStep,
+  releaseDriving,
+} from "./helpers";
 
 test("五人完整賽局包含甩尾、道具與同房再賽", async ({ browser }) => {
   const host = await player(browser, "橘子"),
@@ -27,11 +33,8 @@ test("五人完整賽局包含甩尾、道具與同房再賽", async ({ browser 
   ) {
     await Promise.all(
       pages.map(async (page, slot) => {
-        await driveStep(page, slot);
-        if (
-          (await page.getByTestId("held-item").count()) &&
-          (await page.getByTestId("held-item").textContent()) !== "空道具欄"
-        ) {
+        const held = await driveStep(page, slot);
+        if (held && held !== "空道具欄") {
           await page.keyboard.press("Space");
           used++;
         }
@@ -46,9 +49,22 @@ test("五人完整賽局包含甩尾、道具與同房再賽", async ({ browser 
       await host.waitForTimeout(450);
       await host.keyboard.up("Shift");
       await host.keyboard.up("d");
+      await releaseDriving(host);
       drifted = true;
     }
     await host.waitForTimeout(70);
+  }
+  if (!(await host.getByRole("heading", { name: "本場成績" }).isVisible())) {
+    console.log(
+      "Race UI at timeout",
+      await Promise.all(
+        pages.map(async (p) => ({
+          title: await p.locator("#panel-title").textContent(),
+          race: await p.locator("#race").textContent(),
+          message: await p.locator("#message").textContent(),
+        })),
+      ),
+    );
   }
   expect(used).toBeGreaterThan(0);
   expect(drifted).toBeTruthy();

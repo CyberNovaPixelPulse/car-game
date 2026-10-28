@@ -2,6 +2,8 @@
 
 用 C、SDL2 與 WebAssembly 製作的原創俯視派對賽車，桌面瀏覽器可玩。Vercel 提供靜態網站，房主瀏覽器執行 C 權威模擬，一般玩家透過 WebRTC 傳送操作。最多五人、三圈賽制，支援私人房間、甩尾、道具及同房再賽。
 
+[線上遊玩](https://car-game-necterelux.vercel.app)
+
 ## 本機啟動
 
 需要 Node.js 22 以上、Python 3.9 以上、Git，以及 Emscripten **4.0.15**。
@@ -42,7 +44,15 @@ npm run build
 
 ## 部署到 Vercel
 
-將儲存庫匯入 Vercel，設定已記錄於 `vercel.json`。建置會安裝鎖定的 Emscripten、編譯 C、檢查 TypeScript，再產生靜態網站。正式環境預設連到 [PeerJS Cloud](https://peerjs.com/server/cloud)，不需要另部署遊戲伺服器。
+部署設定已記錄於 `vercel.json`。建置會安裝鎖定的 Emscripten、編譯 C、檢查 TypeScript，再產生靜態網站。正式環境預設連到 [PeerJS Cloud](https://peerjs.com/server/cloud)，不需要另部署遊戲伺服器。
+
+本專案使用 Vercel CLI 部署，依帳號權限也可使用 Git 整合。先登入並連結自己的團隊與專案，核對目標後採封裝上傳，避免大量逐檔請求；`.vercelignore` 已排除依賴、測試產物與本機環境變數。
+
+```sh
+npx vercel@65.5.0 link
+npx vercel@65.5.0 project inspect
+npx vercel@65.5.0 deploy --archive=tgz --prod
+```
 
 若要自架信令服務，先複製 `.env.example` 並設定公開的 PeerServer 主機、埠、路徑與 TLS。TURN／STUN 可透過部署環境擴充；公共服務及網路 NAT 可能影響連線可用性。不要在前端環境變數放私人憑證。
 

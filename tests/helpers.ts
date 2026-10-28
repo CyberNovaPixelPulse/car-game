@@ -33,35 +33,46 @@ export async function startRace(host: Page, guest: Page, count = 2) {
   await expect(guest.getByTestId("countdown")).toBeVisible();
   await expect(guest.getByTestId("countdown")).toBeHidden();
 }
-/** Steer using the visible minimap; never call simulation internals. */
+/** Steer using only the visible minimap and HUD, with real keyboard events. */
+const drivingKeys = new WeakMap<Page, Set<string>>();
+export async function releaseDriving(page: Page) {
+  for (const key of ["w", "s", "a", "d"]) await page.keyboard.up(key);
+  drivingKeys.delete(page);
+}
 export async function driveStep(page: Page, slot: number) {
-  if (!(await page.getByTestId(`car-${slot}`).count())) return;
-  const marker = await page
-    .getByTestId(`car-${slot}`)
-    .getAttribute("transform");
-  if (!marker) return;
-  const [x, y, degrees] = marker.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
-  const [cx, cy, rx, ry] = await page
-    .locator("#course-map")
-    .evaluate((el) =>
-      ["cx", "cy", "rx", "ry"].map((key) => Number(el.getAttribute(key))),
-    );
-  const theta = Math.atan2((y - cy) / ry, (x - cx) / rx);
-  const tx = cx + rx * Math.cos(theta + 0.3),
+  const visible = await page.locator(".pit-panel").evaluate((panel, slot) => {
+    const car = panel.querySelector(`[data-testid="car-${slot}"]`),
+      track = panel.querySelector("#course-map");
+    if (!car || !track) return null;
+    return {
+      pose: car.getAttribute("transform")!,
+      course: ["cx", "cy", "rx", "ry"].map((k) =>
+        Number(track.getAttribute(k)),
+      ),
+      speed: Number(panel.querySelector('[data-testid="speed"]')?.textContent),
+      held: panel.querySelector('[data-testid="held-item"]')?.textContent,
+    };
+  }, slot);
+  if (!visible) return;
+  const [x, y, degrees] = visible.pose.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+  const [cx, cy, rx, ry] = visible.course;
+  const theta = Math.atan2((y - cy) / ry, (x - cx) / rx),
+    tx = cx + rx * Math.cos(theta + 0.3),
     ty = cy + ry * Math.sin(theta + 0.3);
   let error = Math.atan2(ty - y, tx - x) - (degrees * Math.PI) / 180;
   error = Math.atan2(Math.sin(error), Math.cos(error));
-  await page.keyboard.down("w");
-  if (error > 0.07) {
-    await page.keyboard.up("a");
-    await page.keyboard.down("d");
-  } else if (error < -0.07) {
-    await page.keyboard.up("d");
-    await page.keyboard.down("a");
-  } else {
-    await page.keyboard.up("a");
-    await page.keyboard.up("d");
-  }
+  const desired = new Set<string>([
+    visible.speed > 260 || Math.abs(error) > 0.8 ? "s" : "w",
+  ]);
+  if (error > 0.07) desired.add("d");
+  else if (error < -0.07) desired.add("a");
+  const previous = drivingKeys.get(page) || new Set<string>();
+  for (const key of previous)
+    if (!desired.has(key)) await page.keyboard.up(key);
+  for (const key of desired)
+    if (!previous.has(key)) await page.keyboard.down(key);
+  drivingKeys.set(page, desired);
+  return visible.held;
 }
 export async function acquire(
   page: Page,
@@ -71,10 +82,12 @@ export async function acquire(
 ) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
-    const held = await page.getByTestId("held-item").textContent();
-    if (held === name) return;
-    if (held !== "空道具欄") await page.keyboard.press("Space");
-    await driveStep(page, slot);
+    const held = await driveStep(page, slot);
+    if (held === name) {
+      await releaseDriving(page);
+      return;
+    }
+    if (held && held !== "空道具欄") await page.keyboard.press("Space");
     await page.waitForTimeout(70);
   }
   throw new Error(`未能從賽道取得 ${name}`);
