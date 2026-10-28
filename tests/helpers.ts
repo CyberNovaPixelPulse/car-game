@@ -27,8 +27,8 @@ export async function joinRoom(page: Page, code: string) {
   await page.getByRole("textbox", { name: "房間代碼" }).fill(code);
   await page.getByRole("button", { name: "加入", exact: true }).click();
 }
-export async function startRace(host: Page, guest: Page) {
-  await expect(guest.getByTestId("members").locator("li")).toHaveCount(2);
+export async function startRace(host: Page, guest: Page, count = 2) {
+  await expect(guest.getByTestId("members").locator("li")).toHaveCount(count);
   await host.getByRole("button", { name: "開始比賽" }).click();
   await expect(guest.getByTestId("countdown")).toBeVisible();
   await expect(guest.getByTestId("countdown")).toBeHidden();
@@ -41,9 +41,14 @@ export async function driveStep(page: Page, slot: number) {
     .getAttribute("transform");
   if (!marker) return;
   const [x, y, degrees] = marker.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
-  const theta = Math.atan2((y - 400) / 225, (x - 600) / 400);
-  const tx = 600 + 400 * Math.cos(theta + 0.3),
-    ty = 400 + 225 * Math.sin(theta + 0.3);
+  const [cx, cy, rx, ry] = await page
+    .locator("#course-map")
+    .evaluate((el) =>
+      ["cx", "cy", "rx", "ry"].map((key) => Number(el.getAttribute(key))),
+    );
+  const theta = Math.atan2((y - cy) / ry, (x - cx) / rx);
+  const tx = cx + rx * Math.cos(theta + 0.3),
+    ty = cy + ry * Math.sin(theta + 0.3);
   let error = Math.atan2(ty - y, tx - x) - (degrees * Math.PI) / 180;
   error = Math.atan2(Math.sin(error), Math.cos(error));
   await page.keyboard.down("w");

@@ -15,6 +15,7 @@ export interface CarView {
   slow: number;
 }
 export interface GameView {
+  track: { cx: number; cy: number; rx: number; ry: number };
   phase: number;
   time: number;
   cars: CarView[];

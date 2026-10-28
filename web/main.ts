@@ -5,7 +5,7 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <header class="topbar"><a href="/" class="brand"><span class="brand-mark">P<span>c</span></span><span>Pocket Circuit<small>口袋賽車場</small></span></a><span class="tag">好朋友，壞道具。</span><span class="edition">5 人派對競速</span></header>
 <main><section class="intro"><div><span class="track-label"><i></i> 太陽島環道</span><h1>小賽道，大亂鬥。</h1><p>揪朋友進房、甩個漂亮的彎，再送對手一點小驚喜。</p></div><div class="race-stamp">3<span>圈決勝負</span><b>一起出發！</b></div></section>
 <div class="play-layout"><section class="track-panel" aria-label="賽道"><div class="track-top"><span id="session-label">先來熱個身</span><span class="live-dot" id="engine-status">準備賽道中…</span></div><div class="canvas-wrap"><canvas id="game" width="1200" height="800" aria-label="太陽島賽道"></canvas><div class="island-label"><b>Sunbeam<br>Circuit</b><span>太陽島環道</span></div><div class="countdown" hidden></div></div><div class="track-bottom"><span>Sunbeam Circuit</span><span>一條賽道 · 無限次再戰</span></div></section>
-<aside><section class="pit-panel"><div class="panel-heading"><span class="flag-icon">⚑</span><h2 id="panel-title">準備上場？</h2></div><div id="menu"><label for="player-name">你的車手名</label><input id="player-name" maxlength="16" placeholder="例如：過彎不煞車" autocomplete="nickname"><button id="create" class="primary" disabled>建立私人房間 <span>＋</span></button><div class="join-row"><input id="room-code" aria-label="房間代碼" maxlength="6" placeholder="6 位房間代碼" autocapitalize="characters"><button id="join" class="secondary" disabled>加入</button></div><div class="divider"><span>想先熟悉手感？</span></div><button id="practice" class="practice" disabled>自由練習 <span>↗</span></button></div><div id="lobby" hidden></div><div id="race" hidden></div><p id="message" role="status" aria-live="polite"></p></section>
+<aside><section class="pit-panel"><div class="panel-heading"><span class="flag-icon">⚑</span><h2 id="panel-title">準備上場？</h2></div><div id="menu"><label for="player-name">你的車手名</label><input id="player-name" maxlength="16" placeholder="例如：過彎不煞車" autocomplete="nickname"><button id="create" class="primary" disabled>建立私人房間 <span>＋</span></button><div class="join-row"><input id="room-code" aria-label="房間代碼" maxlength="6" placeholder="6 位房間代碼" autocapitalize="characters"><button id="join" class="secondary" disabled>加入</button></div><div class="divider"><span>想先熟悉手感？</span></div><button id="practice" class="practice" disabled>自由練習 <span>↗</span></button></div><div id="lobby" hidden></div><div id="race" hidden></div><p id="message" role="status" aria-live="polite"></p><button id="reconnect" class="secondary wide" hidden>重新連線</button></section>
 <section class="controls"><h3>你的方向盤</h3><div><span><kbd>W</kbd><kbd>↑</kbd></span><span>加速</span></div><div><span><kbd>S</kbd><kbd>↓</kbd></span><span>煞車 / 倒車</span></div><div><span><kbd>A</kbd><kbd>D</kbd><kbd>←</kbd><kbd>→</kbd></span><span>轉向</span></div><div><kbd>Shift</kbd><span>按住甩尾，放開加速</span></div><div><kbd>Space</kbd><span>使用道具</span></div></section></aside></div>
 <footer><span>友誼第一，終點線第二。</span><span>原創小車 · 即開即玩</span></footer></main>`;
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
@@ -25,6 +25,7 @@ session.onError = (text) => {
   $("message").textContent = text;
 };
 function returnToMenu(message = "") {
+  $("reconnect").hidden = true;
   racing = false;
   practicing = false;
   resultsShown = false;
@@ -40,8 +41,16 @@ function returnToMenu(message = "") {
   $("message").textContent = message;
 }
 session.onEnded = returnToMenu;
+session.onRetryAvailable = () => {
+  $("reconnect").hidden = false;
+};
+$("reconnect").onclick = async () => {
+  $("reconnect").hidden = true;
+  await session.resumeSaved();
+};
 addEventListener("pagehide", () => session.leave(false));
 session.onRoom = (room) => {
+  $("reconnect").hidden = true;
   $("message").textContent = "";
   for (const member of room.members)
     engine?.connected(member.slot, member.connected);
@@ -86,7 +95,7 @@ function bindRaceLeave() {
 }
 function racePanel() {
   $("race").innerHTML =
-    '<div class="race-stats"><div><strong data-testid="lap">1 / 3</strong><span>目前圈數</span></div><div><strong data-testid="rank">1</strong><span>目前名次</span></div></div><div class="race-effects" data-testid="effects"></div><div class="speed"><strong data-testid="speed">0</strong><span>速度</span></div><div class="item-slot"><small>你的道具 · Space 使用</small><strong data-testid="held-item">空道具欄</strong></div><svg class="minimap" viewBox="0 0 1200 800" aria-label="賽道小地圖"><ellipse cx="600" cy="400" rx="400" ry="225" fill="none" stroke="#ded7ce" stroke-width="110"/><g id="effect-markers"></g><g id="boxes"></g><g id="markers"></g></svg><button id="race-leave" class="secondary wide">離開比賽</button>';
+    '<div class="race-stats"><div><strong data-testid="lap">1 / 3</strong><span>目前圈數</span></div><div><strong data-testid="rank">1</strong><span>目前名次</span></div></div><div class="race-effects" data-testid="effects"></div><div class="speed"><strong data-testid="speed">0</strong><span>速度</span></div><div class="item-slot"><small>你的道具 · Space 使用</small><strong data-testid="held-item">空道具欄</strong></div><svg class="minimap" viewBox="0 0 1200 800" aria-label="賽道小地圖"><ellipse id="course-map" fill="none" stroke="#ded7ce" stroke-width="110"/><g id="effect-markers"></g><g id="boxes"></g><g id="markers"></g></svg><button id="race-leave" class="secondary wide">離開比賽</button>';
   bindRaceLeave();
 }
 session.onStart = (mask, seed) => {
@@ -173,6 +182,7 @@ addEventListener("keyup", (event) => {
   setKeys();
 });
 addEventListener("blur", () => {
+  itemQueued = false;
   pressed.clear();
   setKeys();
 });
@@ -221,6 +231,10 @@ try {
     previous = now;
     engine.draw(slot);
     const view = engine.view();
+    const course = $("course-map");
+    if (course)
+      for (const key of ["cx", "cy", "rx", "ry"] as const)
+        course.setAttribute(key, String(view.track[key]));
     const speed = document.querySelector('[data-testid="speed"]');
     if (speed)
       speed.textContent = String(Math.round(view.cars[slot]?.speed || 0));

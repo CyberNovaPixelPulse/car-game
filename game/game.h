@@ -4,6 +4,11 @@
 #include <stdint.h>
 #define PLAYERS 5
 #define EFFECTS 32
+#define TRACK_CX 600
+#define TRACK_CY 400
+#define TRACK_RX 400.0f
+#define TRACK_RY 225.0f
+#define ROAD_HALF_WIDTH 76
 #define PI 3.14159265358979323846f
 enum { THROTTLE = 1, BRAKE = 2, LEFT = 4, RIGHT = 8, DRIFT = 16, ITEM = 32 };
 typedef struct {

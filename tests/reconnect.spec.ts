@@ -5,7 +5,16 @@ test("斷線變幽靈後可回到原席位；房主離線會結束比賽", async
     code = await createRoom(host),
     guest = await player(browser, "葡萄");
   await joinRoom(guest, code);
-  await startRace(host, guest);
+  const extra = [];
+  for (const name of ["薄荷", "布丁", "莓果"]) {
+    const p = await player(browser, name);
+    await joinRoom(p, code);
+    await expect(p.getByTestId("members").locator("li")).toHaveCount(
+      extra.length + 3,
+    );
+    extra.push(p);
+  }
+  await startRace(host, guest, 5);
   await guest.goto("about:blank");
   await expect(host.getByTestId("car-1")).toHaveAttribute(
     "aria-label",
@@ -19,7 +28,7 @@ test("斷線變幽靈後可回到原席位；房主離線會結束比賽", async
     "aria-label",
     /斷線幽靈車/,
   );
-  await expect(host.locator("#markers > g")).toHaveCount(2);
+  await expect(host.locator("#markers > g")).toHaveCount(5);
   await host.context().close();
   await expect(guest.getByRole("status")).toContainText("房主已離線", {
     timeout: 25000,
@@ -27,6 +36,7 @@ test("斷線變幽靈後可回到原席位；房主離線會結束比賽", async
   await expect(
     guest.getByRole("button", { name: "建立私人房間" }),
   ).toBeVisible();
+  for (const p of extra) await p.context().close();
   await guest.context().close();
 });
 test("未回到比賽者列為未完賽，已連線車手完賽後正常結算", async ({

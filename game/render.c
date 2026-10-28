@@ -49,33 +49,35 @@ EMSCRIPTEN_KEEPALIVE void game_draw(int local) {
     ellipse(x, y, 24, 12);
   }
   color(229, 225, 207);
-  ellipse(600, 400, 500, 325);
+  ellipse(TRACK_CX, TRACK_CY, TRACK_RX + 100, TRACK_RY + 100);
   color(244, 121, 96);
-  ellipse(600, 400, 491, 316);
+  ellipse(TRACK_CX, TRACK_CY, TRACK_RX + 91, TRACK_RY + 91);
   color(255, 246, 226);
   for (int i = 0; i < 80; i += 2) {
     float t = i * 2 * PI / 80;
-    SDL_Rect dot = {(int)(600 + 485 * cosf(t)) - 4,
-                    (int)(400 + 310 * sinf(t)) - 4, 9, 9};
+    SDL_Rect dot = {(int)(TRACK_CX + (TRACK_RX + 85) * cosf(t)) - 4,
+                    (int)(TRACK_CY + (TRACK_RY + 85) * sinf(t)) - 4, 9, 9};
     SDL_RenderFillRect(r, &dot);
   }
   color(76, 81, 105);
-  ellipse(600, 400, 478, 303);
+  ellipse(TRACK_CX, TRACK_CY, TRACK_RX + 78, TRACK_RY + 78);
   color(96, 100, 121);
   for (int i = 0; i < 96; i++) {
     float t = i * 2 * PI / 96;
-    SDL_RenderDrawLine(r, (int)(600 + 395 * cosf(t)),
-                       (int)(400 + 225 * sinf(t)), (int)(600 + 406 * cosf(t)),
-                       (int)(400 + 231 * sinf(t)));
+    SDL_RenderDrawLine(r, (int)(TRACK_CX + (TRACK_RX - 5) * cosf(t)),
+                       (int)(TRACK_CY + TRACK_RY * sinf(t)),
+                       (int)(TRACK_CX + (TRACK_RX + 6) * cosf(t)),
+                       (int)(TRACK_CY + (TRACK_RY + 6) * sinf(t)));
   }
   color(246, 239, 215);
-  ellipse(600, 400, 320, 147);
+  ellipse(TRACK_CX, TRACK_CY, TRACK_RX - 80, TRACK_RY - 78);
   color(191, 219, 164);
-  ellipse(600, 400, 307, 135);
+  ellipse(TRACK_CX, TRACK_CY, TRACK_RX - 93, TRACK_RY - 90);
   color(161, 196, 136);
-  ellipse(600, 407, 225, 74);
-  for (int x = 584; x < 616; x += 8)
-    for (int y = 101; y < 253; y += 8) {
+  ellipse(TRACK_CX, TRACK_CY + 7, TRACK_RX - 175, TRACK_RY - 151);
+  for (int x = TRACK_CX - 16; x < TRACK_CX + 16; x += 8)
+    for (int y = TRACK_CY - TRACK_RY - 74; y < TRACK_CY - TRACK_RY + 78;
+         y += 8) {
       int light = ((x + y) / 8) % 2;
       color(light ? 248 : 48, light ? 242 : 46, light ? 222 : 66);
       SDL_Rect sq = {x, y, 8, 8};
@@ -83,8 +85,9 @@ EMSCRIPTEN_KEEPALIVE void game_draw(int local) {
     }
   for (int i = 0; i < 16; i++) {
     int x = (i * 263 + 20) % 1200, y = (i * 127 + 25) % 800;
-    float t = atan2f((y - 400) / 225.0f, (x - 600) / 400.0f);
-    if (hypotf(x - (600 + 400 * cosf(t)), y - (400 + 225 * sinf(t))) < 120)
+    float t = atan2f((y - TRACK_CY) / TRACK_RY, (x - TRACK_CX) / TRACK_RX);
+    if (hypotf(x - (TRACK_CX + TRACK_RX * cosf(t)),
+               y - (TRACK_CY + TRACK_RY * sinf(t))) < 120)
       continue;
     color(135, 172, 118);
     ellipse(x + 3, y + 5, 17, 15);

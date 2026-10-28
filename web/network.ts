@@ -97,6 +97,7 @@ export class Session {
   onState: (data: string) => void = () => {};
   onInput: (slot: number, keys: number) => void = () => {};
   onEnded: (message: string) => void = () => {};
+  onRetryAvailable: () => void = () => {};
   get isHost() {
     return this.slot === 0;
   }
@@ -199,6 +200,10 @@ export class Session {
         saved as unknown as Credentials,
       );
     } catch (error) {
+      if (this.credentials) {
+        this.leave(false);
+        this.onRetryAvailable();
+      }
       this.onError((error as Error).message);
     }
   }

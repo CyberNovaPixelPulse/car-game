@@ -54,7 +54,7 @@ static void step_effects(float dt) {
         continue;
       if (hypotf(c->x - e->x, c->y - e->y) < 32) {
         c->slow = 1;
-        c->speed = fminf(c->speed, 90);
+        c->speed *= 0.35f;
         e->life = 0;
         break;
       }
@@ -69,16 +69,18 @@ EMSCRIPTEN_KEEPALIVE void game_reset(int mask, int seed, int practice) {
   game.seed = (uint32_t)seed;
   for (int i = 0; i < 4; i++) {
     float a = i == 0 ? -PI / 2 + 0.28f : (i - 1) * PI / 2;
-    game.boxes[i].x = 600 + 400 * cosf(a);
-    game.boxes[i].y = 400 + 225 * sinf(a);
+    game.boxes[i].x = TRACK_CX + TRACK_RX * cosf(a);
+    game.boxes[i].y = TRACK_CY + TRACK_RY * sinf(a);
   }
   for (int i = 0; i < PLAYERS; i++) {
     Car *c = &game.cars[i];
     c->present = (mask >> i) & 1;
     c->connected = 1;
-    c->x = 600 - i * 32;
-    c->y = 175 + (i % 2) * 28;
-    c->track_angle = atan2f((c->y - 400) / 225, (c->x - 600) / 400) + PI / 2;
+    c->x = TRACK_CX - i * 32;
+    c->y = TRACK_CY - TRACK_RY + (i % 2) * 28;
+    c->track_angle =
+        atan2f((c->y - TRACK_CY) / TRACK_RY, (c->x - TRACK_CX) / TRACK_RX) +
+        PI / 2;
     if (c->track_angle < 0)
       c->track_angle += 2 * PI;
     c->progress =
@@ -113,9 +115,10 @@ EMSCRIPTEN_KEEPALIVE void game_step(float dt) {
     if (!c->present || !c->connected || c->finished)
       continue;
     int key = c->input;
-    float theta = atan2f((c->y - 400) / 225, (c->x - 600) / 400);
-    float distance = hypotf(c->x - (600 + 400 * cosf(theta)),
-                            c->y - (400 + 225 * sinf(theta)));
+    float theta =
+        atan2f((c->y - TRACK_CY) / TRACK_RY, (c->x - TRACK_CX) / TRACK_RX);
+    float distance = hypotf(c->x - (TRACK_CX + TRACK_RX * cosf(theta)),
+                            c->y - (TRACK_CY + TRACK_RY * sinf(theta)));
     float steer = ((key & RIGHT) ? 1.0f : 0) - ((key & LEFT) ? 1.0f : 0);
     c->boost = fmaxf(0, c->boost - dt);
     c->slow = fmaxf(0, c->slow - dt);
@@ -142,18 +145,21 @@ EMSCRIPTEN_KEEPALIVE void game_step(float dt) {
         box->timer = 4;
       }
     }
-    float maxspeed = c->slow > 0     ? 90
-                     : distance < 76 ? (c->boost > 0 ? 460 : 340)
-                                     : 75;
-    if (c->boost > 0 && c->slow <= 0 && distance < 76)
-      c->speed = fmaxf(c->speed, 420);
-    if (key & THROTTLE)
-      c->speed += 220 * dt;
-    else if (!(key & BRAKE))
-      c->speed *= powf(0.55f, dt);
+    float maxspeed = distance < ROAD_HALF_WIDTH
+                         ? (c->boost > 0 && c->slow <= 0 ? 460 : 340)
+                         : 75;
+    float reverse_limit = 90;
+    if (c->slow > 0) {
+      maxspeed *= 0.35f;
+      reverse_limit *= 0.35f;
+    }
     if (key & BRAKE)
       c->speed -= 310 * dt;
-    c->speed = clamp(c->speed, -90, maxspeed);
+    else if ((key & THROTTLE) || c->boost > 0)
+      c->speed += (c->boost > 0 && c->slow <= 0 ? 620 : 220) * dt;
+    else
+      c->speed *= powf(0.55f, dt);
+    c->speed = clamp(c->speed, -reverse_limit, maxspeed);
     if (fabsf(c->speed) > 3)
       c->angle +=
           steer * (drifting ? 2.8f : 2.35f) * dt * (c->speed < 0 ? -1 : 1);
@@ -162,12 +168,14 @@ EMSCRIPTEN_KEEPALIVE void game_step(float dt) {
                          fminf(1, dt * (drifting ? 3 : 18));
     c->x = clamp(c->x + cosf(c->velocity_angle) * c->speed * dt, 30, 1170);
     c->y = clamp(c->y + sinf(c->velocity_angle) * c->speed * dt, 30, 770);
-    float track = atan2f((c->y - 400) / 225, (c->x - 600) / 400) + PI / 2;
+    float track =
+        atan2f((c->y - TRACK_CY) / TRACK_RY, (c->x - TRACK_CX) / TRACK_RX) +
+        PI / 2;
     if (track < 0)
       track += 2 * PI;
     float delta =
         atan2f(sinf(track - c->track_angle), cosf(track - c->track_angle));
-    if (distance < 76) {
+    if (distance < ROAD_HALF_WIDTH) {
       c->progress += delta;
       float gate = ((c->checkpoints + 1) % 4) * PI / 2;
       float to_gate = fmodf(gate - c->track_angle + 2 * PI, 2 * PI);
@@ -217,8 +225,11 @@ EMSCRIPTEN_KEEPALIVE void game_step(float dt) {
     game.phase = 2;
 }
 EMSCRIPTEN_KEEPALIVE const char *game_json(void) {
-  int n = snprintf(json, sizeof(json), "{\"phase\":%d,\"time\":%.3f,\"cars\":[",
-                   game.phase, game.time);
+  int n =
+      snprintf(json, sizeof(json),
+               "{\"phase\":%d,\"time\":%.3f,\"track\":{\"cx\":%d,\"cy\":%d,"
+               "\"rx\":%.0f,\"ry\":%.0f},\"cars\":[",
+               game.phase, game.time, TRACK_CX, TRACK_CY, TRACK_RX, TRACK_RY);
   for (int i = 0; i < PLAYERS; i++) {
     Car *c = &game.cars[i];
     n += snprintf(
