@@ -1,0 +1,32 @@
+{
+  "name": "pocket-circuit",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "relay": "tsx server/index.ts",
+    "build:wasm": "node scripts/build-wasm.mjs",
+    "build": "npm run build:wasm && tsc --noEmit && vite build",
+    "check": "tsc --noEmit",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "start": "tsx server/index.ts"
+  },
+  "dependencies": {
+    "express": "^5.3.0",
+    "peer": "^1.0.2",
+    "peerjs": "^1.5.5",
+    "tsx": "^4.20.6",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.18.0",
+    "@types/ws": "^8.18.1",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.1"
+  }
+}
