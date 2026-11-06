@@ -1,5 +1,13 @@
 export const LOAD = 16;
 export const FIRE = 4;
+export const STOP_JAM = 9;
+export const JAM_RULES = {
+  chance: 0.25,
+  progress: 0.4,
+  width: 0.24,
+  speed: 0.65,
+  retry: 1,
+} as const;
 export const WEAPON_TIMING = { load: 3, eject: 0.8 } as const;
 export interface ShellFlight {
   id: number;
@@ -25,6 +33,17 @@ export interface WeaponState {
   loadProgress: number;
   ejectAt: number;
   shotsFired: number;
+  randomState: number;
+  jamChecked: boolean;
+  jamPending: boolean;
+  jam: {
+    active: boolean;
+    needle: number;
+    direction: number;
+    zone: number;
+    retryAt: number;
+    result: "trying" | "failed" | "cleared";
+  };
   projectiles: ShellFlight[];
   targets: PracticeTarget[];
   impacts: { id: number; x: number; y: number; z: number; until: number }[];
@@ -42,12 +61,23 @@ interface Cover {
   depth: number;
   height: number;
 }
-export function createWeaponState(): WeaponState {
+export function createWeaponState(seed = 1): WeaponState {
   return {
     chamber: "empty",
     loadProgress: 0,
     ejectAt: 0,
     shotsFired: 0,
+    randomState: seed >>> 0,
+    jamChecked: false,
+    jamPending: false,
+    jam: {
+      active: false,
+      needle: 0,
+      direction: 1,
+      zone: 0,
+      retryAt: 0,
+      result: "trying",
+    },
     projectiles: [],
     impacts: [],
     targets: [
@@ -71,9 +101,26 @@ export function fireWeapon(w: WeaponState, pose: GunPose, now: number) {
     vz: dz * 32,
     age: 0,
   });
+  w.jamChecked = false;
+  w.jamPending = false;
   w.chamber = "ejecting";
   w.ejectAt = now + WEAPON_TIMING.eject;
   w.loadProgress = 0;
+}
+function random(w: WeaponState) {
+  w.randomState = (Math.imul(w.randomState, 1664525) + 1013904223) >>> 0;
+  return w.randomState / 4294967296;
+}
+export function stopJam(w: WeaponState, now: number) {
+  const j = w.jam;
+  if (!j.active || j.result !== "trying") return;
+  if (j.needle >= j.zone && j.needle <= j.zone + JAM_RULES.width) {
+    j.active = false;
+    j.result = "cleared";
+  } else {
+    j.result = "failed";
+    j.retryAt = now + JAM_RULES.retry;
+  }
 }
 /** Segment versus a box: catches a fast shell between two simulation frames. */
 function boxHit(from: number[], to: number[], low: number[], high: number[]) {
@@ -101,9 +148,42 @@ export function stepWeapon(
   cover: readonly Cover[],
 ) {
   if (w.chamber === "ejecting" && now >= w.ejectAt) w.chamber = "empty";
-  if (loading && (w.chamber === "empty" || w.chamber === "loading")) {
+  const j = w.jam;
+  if (j.active) {
+    if (j.result === "failed" && now >= j.retryAt) j.result = "trying";
+    if (j.result === "trying") {
+      j.needle += j.direction * dt * JAM_RULES.speed;
+      if (j.needle > 1) {
+        j.needle = 2 - j.needle;
+        j.direction = -1;
+      }
+      if (j.needle < 0) {
+        j.needle = -j.needle;
+        j.direction = 1;
+      }
+    }
+  }
+  if (
+    loading &&
+    !j.active &&
+    (w.chamber === "empty" || w.chamber === "loading")
+  ) {
+    if (!w.jamChecked) {
+      w.jamChecked = true;
+      w.jamPending = random(w) < JAM_RULES.chance;
+      j.result = "trying";
+    }
     w.chamber = "loading";
     w.loadProgress = Math.min(1, w.loadProgress + dt / WEAPON_TIMING.load);
+    if (w.jamPending && w.loadProgress >= JAM_RULES.progress) {
+      w.loadProgress = JAM_RULES.progress;
+      w.jamPending = false;
+      j.active = true;
+      j.needle = 0;
+      j.direction = 1;
+      j.zone = 0.12 + random(w) * 0.52;
+      j.result = "trying";
+    }
     if (w.loadProgress >= 1) w.chamber = "loaded";
   }
   w.impacts = w.impacts.filter((impact) => now < impact.until);
@@ -149,6 +229,17 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
     !!w &&
     ["empty", "loading", "loaded", "ejecting"].includes(w.chamber) &&
     [w.loadProgress, w.ejectAt, w.shotsFired].every(Number.isFinite) &&
+    Number.isInteger(w.randomState) &&
+    w.randomState >= 0 &&
+    w.randomState <= 0xffffffff &&
+    typeof w.jamChecked === "boolean" &&
+    typeof w.jamPending === "boolean" &&
+    !!w.jam &&
+    typeof w.jam.active === "boolean" &&
+    [w.jam.needle, w.jam.direction, w.jam.zone, w.jam.retryAt].every(
+      Number.isFinite,
+    ) &&
+    ["trying", "failed", "cleared"].includes(w.jam.result) &&
     Array.isArray(w.projectiles) &&
     w.projectiles.every((p) =>
       [p.id, p.x, p.y, p.z, p.vx, p.vy, p.vz, p.age].every(Number.isFinite),

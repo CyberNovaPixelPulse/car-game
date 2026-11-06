@@ -3,6 +3,8 @@ import type { GameCore, GameStart } from "./game-runtime";
 import {
   LOAD,
   FIRE,
+  STOP_JAM,
+  stopJam,
   createWeaponState,
   fireWeapon,
   stepWeapon,
@@ -44,10 +46,10 @@ export interface TankState {
     blocked: boolean;
   };
 }
-const initial = (): TankState => ({
+const initial = (seed = 1): TankState => ({
   version: 1,
   time: 0,
-  weapon: createWeaponState(),
+  weapon: createWeaponState(seed),
   turret: { yaw: 0, pitch: 0, yawRate: 0, pitchRate: 0 },
   tank: { x: 0, z: 0, yaw: 0, speed: 0, turnRate: 0, blocked: false },
 });
@@ -62,8 +64,8 @@ export class TankCore implements GameCore<TankState> {
   private controls = new Map<number, number>();
   present: (state: TankState, participant: number) => void = () => {};
   constructor(private roleOf: (participant: number) => CrewRole | undefined) {}
-  start(_options: GameStart) {
-    this.state = initial();
+  start(options: GameStart) {
+    this.state = initial(options.seed);
     this.controls.clear();
   }
   input(participant: number, keys: number) {
@@ -77,6 +79,10 @@ export class TankCore implements GameCore<TankState> {
     );
   }
   action(participant: number, action: number) {
+    if (this.roleOf(participant) === "loader" && action === STOP_JAM) {
+      stopJam(this.state.weapon, this.state.time);
+      return;
+    }
     if (this.roleOf(participant) !== "gunner") return;
     if (action === FIRE) {
       fireWeapon(

@@ -3,12 +3,23 @@ import { expect, type Browser, type Page } from "@playwright/test";
 export async function tankCrew(
   browser: Browser,
   hostRole: "loader" | "gunner" = "loader",
+  seed = 1000,
 ) {
   const pages: Page[] = [];
   for (const name of hostRole === "loader"
     ? ["裝填房主", "駕駛乘員", "砲手乘員"]
     : ["砲手房主", "駕駛乘員", "裝填乘員"]) {
     const context = await browser.newContext();
+    await context.addInitScript((seed) => {
+      const original = crypto.getRandomValues.bind(crypto);
+      crypto.getRandomValues = <T extends ArrayBufferView>(array: T): T => {
+        if (array instanceof Uint32Array && array.length === 1) {
+          array[0] = seed;
+          return array;
+        }
+        return original(array) as T;
+      };
+    }, seed);
     const page = await context.newPage();
     pages.push(page);
     await page.goto("/tank.html");

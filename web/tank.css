@@ -325,3 +325,46 @@ legend {
     )
     rotate(calc(var(--eject, 0) * 65deg));
 }
+
+.jam-game {
+  max-width: 520px;
+  margin: 18px auto;
+  text-align: left;
+}
+.jam-game[hidden] {
+  display: none;
+}
+.jam-game h3 {
+  font-size: 18px;
+  margin-bottom: 16px;
+}
+.jam-track {
+  position: relative;
+  height: 38px;
+  background: #252c2d;
+  border: 1px solid #b7b2a2;
+}
+.jam-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: #91ae8a;
+  color: #19221c;
+  border: 2px solid #e8e6dc;
+  text-align: center;
+  line-height: 34px;
+  font-weight: 700;
+}
+.jam-needle {
+  position: absolute;
+  top: -7px;
+  bottom: -7px;
+  width: 4px;
+  transform: translateX(-2px);
+  background: #fff8dc;
+  border: 1px solid #252c2d;
+}
+.jam-game p {
+  margin-top: 14px;
+  font-weight: 600;
+}
