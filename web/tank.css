@@ -266,3 +266,62 @@ legend {
     height: 300px;
   }
 }
+.weapon-status {
+  font-variant-numeric: tabular-nums;
+  padding: 12px 0;
+}
+.weapon-status p {
+  margin: 6px 0;
+}
+.weapon-status progress {
+  width: min(100%, 400px);
+  height: 14px;
+  accent-color: #91ae8a;
+}
+.breech-assembly {
+  position: relative;
+  height: 160px;
+  max-width: 520px;
+  margin: 24px 0;
+  overflow: hidden;
+  background: #252c2d;
+}
+.breech-tube {
+  position: absolute;
+  left: 0;
+  top: 30px;
+  width: 52%;
+  height: 92px;
+  background: #59615b;
+  border: 5px solid #879089;
+  border-radius: 0 24px 24px 0;
+}
+.breech-block {
+  position: absolute;
+  left: 42%;
+  top: 48px;
+  width: 21%;
+  height: 56px;
+  background: #1b2223;
+  border: 8px solid #9c9f91;
+}
+.loading-round {
+  position: absolute;
+  left: 76%;
+  top: 61px;
+  height: 30px;
+  width: 90px;
+  border-radius: 6px 20px 20px 6px;
+  background: #c6a65e;
+  transform: translateX(calc(var(--load, 0) * -140px));
+}
+.breech-assembly[data-chamber="empty"] .loading-round {
+  opacity: 0.4;
+}
+.breech-assembly[data-chamber="ejecting"] .loading-round {
+  transform: translate(
+      calc(var(--eject, 0) * 180px),
+      calc(var(--eject, 0) * 65px)
+    )
+    rotate(calc(var(--eject, 0) * 65deg));
+}
