@@ -1,10 +1,12 @@
 import * as THREE from "three";
+import { SmokeScene } from "./tank-smoke-scene";
 import { BATTLEFIELD, type TankState } from "./tank-core";
 
 /** The gunner's real 3D view; no renderer is created for the blind driver. */
 export class TankScene {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
+  private smoke = new SmokeScene(this.scene);
   private camera = new THREE.PerspectiveCamera(65, 1, 0.1, 180);
   private tank = new THREE.Group();
   private turret = new THREE.Group();
@@ -348,6 +350,7 @@ export class TankScene {
       }
       mesh.position.set(p.x, p.y, p.z);
     }
+    this.smoke.render(state.weapon.smoke, state.time);
     this.renderEffects(state);
     this.renderer.render(this.scene, this.camera);
   }

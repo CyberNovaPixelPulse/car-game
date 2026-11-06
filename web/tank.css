@@ -574,3 +574,28 @@ legend {
   background: #252c2d;
   padding: 18px 28px;
 }
+
+.smoke-status {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 1rem;
+  margin: 0;
+  padding: 0.3rem 0.6rem;
+  color: #e8e6dc;
+  background: #252c2d;
+  pointer-events: none;
+}
+
+.battle-viewport [data-testid="enemy-activity"] {
+  position: absolute;
+  left: 1rem;
+  bottom: 0.75rem;
+  max-width: 65%;
+  margin: 0;
+  padding: 0.3rem 0.6rem;
+  background: #252c2d;
+  color: #e8e6dc;
+}
+.battle-viewport [data-testid="enemy-activity"]:empty {
+  display: none;
+}
