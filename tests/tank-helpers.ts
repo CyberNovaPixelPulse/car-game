@@ -5,12 +5,17 @@ export async function tankCrew(
   hostRole: "loader" | "gunner" = "loader",
   lobbyWaitMs = 0,
   seed = 1000,
+  recordVideoDir?: string,
 ) {
   const pages: Page[] = [];
   for (const name of hostRole === "loader"
     ? ["裝填房主", "駕駛乘員", "砲手乘員"]
     : ["砲手房主", "駕駛乘員", "裝填乘員"]) {
-    const context = await browser.newContext();
+    const context = await browser.newContext({
+      recordVideo: recordVideoDir
+        ? { dir: recordVideoDir, size: { width: 1280, height: 720 } }
+        : undefined,
+    });
     await context.addInitScript((seed) => {
       const original = crypto.getRandomValues.bind(crypto);
       crypto.getRandomValues = <T extends ArrayBufferView>(array: T): T => {
