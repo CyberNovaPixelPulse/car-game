@@ -10,6 +10,7 @@ export interface GameStart {
 export interface GameCore<View> {
   start(options: GameStart): void;
   input(participant: number, keys: number): void;
+  action?(participant: number, action: number): void;
   connected(participant: number, connected: boolean): void;
   step(dt: number): void;
   draw(participant: number): void;
@@ -34,6 +35,8 @@ export class GameRuntime<View> {
     private session: Session,
   ) {
     session.onInput = (participant, keys) => core.input(participant, keys);
+    session.onAction = (participant, action) =>
+      core.action?.(participant, action);
     session.onState = (snapshot) => {
       try {
         core.restore(snapshot);
@@ -78,6 +81,13 @@ export class GameRuntime<View> {
 
   queueInput(keys: number) {
     this.queued |= keys;
+  }
+
+  /** Discrete actions keep their multiplicity; held input remains coalesced. */
+  action(action: number) {
+    if (this.mode !== "online") return;
+    if (this.session.isHost) this.core.action?.(this.session.slot, action);
+    else this.session.action(action);
   }
 
   clearInput() {

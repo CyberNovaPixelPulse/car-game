@@ -7,6 +7,8 @@ export class TankScene {
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(65, 1, 0.1, 180);
   private tank = new THREE.Group();
+  private turret = new THREE.Group();
+  private elevation = new THREE.Group();
   private observer: ResizeObserver;
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -103,8 +105,11 @@ export class TankScene {
       0,
       2.15,
       -0.3,
-      this.tank,
+      this.turret,
     );
+    this.tank.add(this.turret);
+    this.turret.add(this.elevation);
+    this.elevation.position.set(0, 2.48, -0.3);
     for (const side of [-1, 1]) {
       mesh(
         new THREE.BoxGeometry(0.58, 1.1, 6.1),
@@ -130,9 +135,9 @@ export class TankScene {
       new THREE.CylinderGeometry(0.105, 0.13, 4, 16),
       steel,
       0,
-      2.48,
-      -3,
-      this.tank,
+      0,
+      -2.7,
+      this.elevation,
     );
     barrel.rotation.x = Math.PI / 2;
     this.scene.add(this.tank);
@@ -151,11 +156,14 @@ export class TankScene {
     const t = state.tank;
     this.tank.position.set(t.x, 0, t.z);
     this.tank.rotation.y = -t.yaw;
-    this.camera.position.set(t.x, 2.85, t.z + 0.2);
+    this.turret.rotation.y = -state.turret.yaw;
+    this.elevation.rotation.x = state.turret.pitch;
+    const heading = t.yaw + state.turret.yaw;
+    this.camera.position.set(t.x, 2.85, t.z);
     this.camera.lookAt(
-      t.x + Math.sin(t.yaw) * 40,
-      2.4,
-      t.z - Math.cos(t.yaw) * 40,
+      t.x + Math.sin(heading) * Math.cos(state.turret.pitch) * 40,
+      2.85 + Math.sin(state.turret.pitch) * 40,
+      t.z - Math.cos(heading) * Math.cos(state.turret.pitch) * 40,
     );
     this.renderer.render(this.scene, this.camera);
   }

@@ -114,6 +114,7 @@ export class Session {
   onStart: (mask: number, seed: number) => void = () => {};
   onState: (data: string) => void = () => {};
   onInput: (slot: number, keys: number) => void = () => {};
+  onAction: (slot: number, action: number) => void = () => {};
   onEnded: (message: string) => void = () => {};
   onRetryAvailable: () => void = () => {};
   get isHost() {
@@ -396,6 +397,19 @@ export class Session {
         ) {
           member.sequence = Number(data.sequence);
           this.onInput(assigned, Number(data.keys));
+        } else if (
+          data.type === "action" &&
+          this.game === "tank" &&
+          this.playing &&
+          data.epoch === this.room?.epoch &&
+          Number.isSafeInteger(data.sequence) &&
+          Number(data.sequence) > member.sequence &&
+          Number.isInteger(data.action) &&
+          Number(data.action) >= 0 &&
+          Number(data.action) <= 63
+        ) {
+          member.sequence = Number(data.sequence);
+          this.onAction(assigned, Number(data.action));
         } else if (data.type === "crew") {
           this.updateCrew(assigned, data.role, data.ready);
         }
@@ -619,6 +633,15 @@ export class Session {
         epoch: this.room.epoch,
         sequence: this.sequence++,
         keys,
+      });
+  }
+  action(action: number) {
+    if (this.game === "tank" && this.uplink?.open && this.room && this.playing)
+      this.uplink.send({
+        type: "action",
+        epoch: this.room.epoch,
+        sequence: this.sequence++,
+        action,
       });
   }
   state(payload: string) {

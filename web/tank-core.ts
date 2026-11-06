@@ -2,6 +2,15 @@ import type { CrewRole } from "./crew";
 import type { GameCore, GameStart } from "./game-runtime";
 
 export const DRIVE = { forward: 1, reverse: 2, left: 4, right: 8 } as const;
+export const AIM = { left: 0, right: 1, up: 2, down: 3 } as const;
+export const AIMING = {
+  impulse: 0.18,
+  maxYawRate: 0.85,
+  maxPitchRate: 0.5,
+  drag: 0.23,
+  minPitch: -0.18,
+  maxPitch: 0.5,
+} as const;
 export const BATTLEFIELD = {
   limit: 42,
   tankRadius: 3.4,
@@ -15,6 +24,7 @@ export const BATTLEFIELD = {
 export interface TankState {
   version: 1;
   time: number;
+  turret: { yaw: number; pitch: number; yawRate: number; pitchRate: number };
   tank: {
     x: number;
     z: number;
@@ -27,6 +37,7 @@ export interface TankState {
 const initial = (): TankState => ({
   version: 1,
   time: 0,
+  turret: { yaw: 0, pitch: 0, yawRate: 0, pitchRate: 0 },
   tank: { x: 0, z: 0, yaw: 0, speed: 0, turnRate: 0, blocked: false },
 });
 const approach = (value: number, target: number, amount: number) =>
@@ -50,12 +61,41 @@ export class TankCore implements GameCore<TankState> {
       this.roleOf(participant) === "driver" ? keys & 15 : 0,
     );
   }
+  action(participant: number, action: number) {
+    if (this.roleOf(participant) !== "gunner") return;
+    const t = this.state.turret;
+    const clamp = (v: number, max: number) => Math.max(-max, Math.min(max, v));
+    if (action === AIM.left || action === AIM.right)
+      t.yawRate = clamp(
+        t.yawRate + (action === AIM.right ? 1 : -1) * AIMING.impulse,
+        AIMING.maxYawRate,
+      );
+    else if (action === AIM.up || action === AIM.down)
+      t.pitchRate = clamp(
+        t.pitchRate + (action === AIM.up ? 1 : -1) * AIMING.impulse,
+        AIMING.maxPitchRate,
+      );
+  }
   connected(participant: number, connected: boolean) {
     if (!connected) this.controls.delete(participant);
   }
   step(elapsed: number) {
     const dt = Math.max(0, Math.min(elapsed, 0.05));
     this.state.time += dt;
+    const turret = this.state.turret;
+    turret.yaw =
+      (turret.yaw + turret.yawRate * dt + Math.PI * 2) % (Math.PI * 2);
+    turret.pitch = Math.max(
+      AIMING.minPitch,
+      Math.min(AIMING.maxPitch, turret.pitch + turret.pitchRate * dt),
+    );
+    if (
+      (turret.pitch === AIMING.minPitch && turret.pitchRate < 0) ||
+      (turret.pitch === AIMING.maxPitch && turret.pitchRate > 0)
+    )
+      turret.pitchRate = 0;
+    turret.yawRate = approach(turret.yawRate, 0, AIMING.drag * dt);
+    turret.pitchRate = approach(turret.pitchRate, 0, AIMING.drag * dt);
     const t = this.state.tank;
     let keys = 0;
     for (const [participant, held] of this.controls)
@@ -106,8 +146,13 @@ export class TankCore implements GameCore<TankState> {
     if (
       next.version !== 1 ||
       !next.tank ||
+      !next.turret ||
       ![
         next.time,
+        next.turret.yaw,
+        next.turret.pitch,
+        next.turret.yawRate,
+        next.turret.pitchRate,
         next.tank.x,
         next.tank.z,
         next.tank.yaw,

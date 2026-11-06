@@ -1,7 +1,7 @@
 import { Session, type Room } from "./network";
 import { CREW_ROLES, ROLE_LABELS, ROLE_TASKS } from "./crew";
 import { GameRuntime } from "./game-runtime";
-import { TankCore, DRIVE } from "./tank-core";
+import { TankCore, DRIVE, AIM } from "./tank-core";
 import { TankScene } from "./tank-scene";
 import "./tank.css";
 
@@ -114,7 +114,7 @@ function station(room: Room) {
   scene?.dispose();
   scene = undefined;
   stationRole = role;
-  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><p>${ROLE_TASKS[role]}</p>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong></p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p>車內裝填工作區</p><p class="note">主炮裝填與武器操作尚未接入。目前請協助隊友確認分工。</p></div>'}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
+  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><p>${ROLE_TASKS[role]}</p>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong> · 砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p><p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note">連點 A／D 左右、W／S 上下；反方向連點可煞停。按住只推動一次。</p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p>車內裝填工作區</p><p class="note">主炮裝填與武器操作尚未接入。目前請協助隊友確認分工。</p></div>'}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
   if (role === "gunner") {
     try {
       scene = new TankScene(content.querySelector("canvas")!);
@@ -147,6 +147,17 @@ core.present = (state) => {
   const heading = content.querySelector('[data-testid="hull-heading"]');
   if (heading)
     heading.textContent = `${Math.round((state.tank.yaw * 180) / Math.PI) % 360}°`;
+  const degrees = (angle: number) => ((angle * 180) / Math.PI).toFixed(1);
+  const readouts: Record<string, string> = {
+    "turret-heading": `${degrees((state.tank.yaw + state.turret.yaw) % (Math.PI * 2))}°`,
+    "turret-pitch": `${degrees(state.turret.pitch)}°`,
+    "turret-yaw-rate": `${degrees(state.turret.yawRate)}°/s`,
+    "turret-pitch-rate": `${degrees(state.turret.pitchRate)}°/s`,
+  };
+  for (const [name, text] of Object.entries(readouts)) {
+    const el = content.querySelector(`[data-testid="${name}"]`);
+    if (el) el.textContent = text;
+  }
   scene?.render(state);
 };
 const driveKeys: Record<string, number> = {
@@ -156,7 +167,21 @@ const driveKeys: Record<string, number> = {
   d: DRIVE.right,
 };
 window.addEventListener("keydown", (event) => {
-  if (runtime.mode !== "online" || stationRole !== "driver") return;
+  if (runtime.mode !== "online") return;
+  if (stationRole === "gunner") {
+    const aimKeys: Record<string, number> = {
+      a: AIM.left,
+      d: AIM.right,
+      w: AIM.up,
+      s: AIM.down,
+    };
+    const action = aimKeys[event.key.toLowerCase()];
+    if (action === undefined) return;
+    event.preventDefault();
+    if (!event.repeat) runtime.action(action);
+    return;
+  }
+  if (stationRole !== "driver") return;
   const key = driveKeys[event.key.toLowerCase()];
   if (!key) return;
   event.preventDefault();
