@@ -223,6 +223,22 @@ export class TankScene {
       eye + Math.sin(aim.pitch) * 40,
       eyeZ - Math.cos(heading) * Math.cos(aim.pitch) * 40,
     );
+    for (const [id, mesh] of this.targetMeshes) {
+      if (!state.weapon.targets.some((target) => target.id === id)) {
+        this.scene.remove(mesh);
+        mesh.traverse((part) => {
+          if (part instanceof THREE.Mesh) {
+            part.geometry.dispose();
+            for (const material of Array.isArray(part.material)
+              ? part.material
+              : [part.material])
+              material.dispose();
+          }
+        });
+        this.targetMeshes.delete(id);
+        this.enemyTurrets.delete(id);
+      }
+    }
     for (const target of state.weapon.targets) {
       let mesh = this.targetMeshes.get(target.id);
       if (!mesh) {
