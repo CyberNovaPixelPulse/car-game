@@ -8,6 +8,9 @@ export const JAM_RULES = {
   speed: 0.65,
   retry: 1,
 } as const;
+export const CROUCH = 32;
+/** Fixed gameplay rule: ejected cases disable only the loader for five seconds. */
+export const LOADER_STUN_SECONDS = 5;
 export const WEAPON_TIMING = { load: 3, eject: 0.8 } as const;
 export interface ShellFlight {
   id: number;
@@ -30,6 +33,8 @@ export interface PracticeTarget {
 }
 export interface WeaponState {
   chamber: "empty" | "loading" | "loaded" | "ejecting";
+  crouching: boolean;
+  stunnedUntil: number;
   loadProgress: number;
   ejectAt: number;
   shotsFired: number;
@@ -64,6 +69,8 @@ interface Cover {
 export function createWeaponState(seed = 1): WeaponState {
   return {
     chamber: "empty",
+    crouching: false,
+    stunnedUntil: 0,
     loadProgress: 0,
     ejectAt: 0,
     shotsFired: 0,
@@ -113,7 +120,7 @@ function random(w: WeaponState) {
 }
 export function stopJam(w: WeaponState, now: number) {
   const j = w.jam;
-  if (!j.active || j.result !== "trying") return;
+  if (!loaderCanWork(w, now) || !j.active || j.result !== "trying") return;
   if (j.needle >= j.zone && j.needle <= j.zone + JAM_RULES.width) {
     j.active = false;
     j.result = "cleared";
@@ -122,6 +129,10 @@ export function stopJam(w: WeaponState, now: number) {
     j.retryAt = now + JAM_RULES.retry;
   }
 }
+export function loaderCanWork(w: WeaponState, now: number) {
+  return !w.crouching && now >= w.stunnedUntil;
+}
+
 /** Segment versus a box: catches a fast shell between two simulation frames. */
 function boxHit(from: number[], to: number[], low: number[], high: number[]) {
   let enter = 0,
@@ -147,9 +158,12 @@ export function stepWeapon(
   now: number,
   cover: readonly Cover[],
 ) {
-  if (w.chamber === "ejecting" && now >= w.ejectAt) w.chamber = "empty";
+  if (w.chamber === "ejecting" && now >= w.ejectAt) {
+    w.chamber = "empty";
+    if (!w.crouching) w.stunnedUntil = w.ejectAt + LOADER_STUN_SECONDS;
+  }
   const j = w.jam;
-  if (j.active) {
+  if (j.active && loaderCanWork(w, now)) {
     if (j.result === "failed" && now >= j.retryAt) j.result = "trying";
     if (j.result === "trying") {
       j.needle += j.direction * dt * JAM_RULES.speed;
@@ -165,6 +179,7 @@ export function stepWeapon(
   }
   if (
     loading &&
+    loaderCanWork(w, now) &&
     !j.active &&
     (w.chamber === "empty" || w.chamber === "loading")
   ) {
@@ -227,8 +242,11 @@ export function stepWeapon(
 export function validWeapon(w: WeaponState | undefined): w is WeaponState {
   return (
     !!w &&
+    typeof w.crouching === "boolean" &&
     ["empty", "loading", "loaded", "ejecting"].includes(w.chamber) &&
-    [w.loadProgress, w.ejectAt, w.shotsFired].every(Number.isFinite) &&
+    [w.loadProgress, w.ejectAt, w.shotsFired, w.stunnedUntil].every(
+      Number.isFinite,
+    ) &&
     Number.isInteger(w.randomState) &&
     w.randomState >= 0 &&
     w.randomState <= 0xffffffff &&

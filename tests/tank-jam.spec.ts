@@ -23,7 +23,7 @@ async function stopAt(page: Page, success: boolean) {
 test("卡彈保留進度；放開 R 不清除；停針成功後續裝同一發", async ({
   browser,
 }) => {
-  const crew = await tankCrew(browser, "loader", 2);
+  const crew = await tankCrew(browser, "loader", 0, 2);
   try {
     await crew.loader.keyboard.down("r");
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText("卡彈");
@@ -39,6 +39,25 @@ test("卡彈保留進度；放開 R 不清除；停針成功後續裝同一發",
     await crew.loader.keyboard.down("r");
     await crew.loader.waitForTimeout(400);
     await expect(crew.gunner.getByTestId("chamber-state")).toHaveText("卡彈");
+    await crew.loader.keyboard.down("c");
+    await expect(crew.loader.getByTestId("loader-status")).toHaveText(
+      "蹲下避險・無法工作",
+    );
+    const crouchedNeedle = await crew.loader
+      .getByTestId("jam-needle")
+      .boundingBox();
+    await crew.loader.keyboard.press("Space");
+    await crew.loader.waitForTimeout(300);
+    await expect(crew.loader.getByTestId("jam-result")).toHaveText(
+      "按空白鍵停針",
+    );
+    expect((await crew.loader.getByTestId("jam-needle").boundingBox())!.x).toBe(
+      crouchedNeedle!.x,
+    );
+    await expect(crew.loader.getByTestId("load-progress")).toHaveText(
+      progress!,
+    );
+    await crew.loader.keyboard.up("c");
     await stopAt(crew.loader, true);
     await expect(crew.loader.getByTestId("jam-result")).toHaveText(
       "解除成功，繼續裝填",
@@ -52,7 +71,16 @@ test("卡彈保留進度；放開 R 不清除；停針成功後續裝同一發",
     });
     await crew.gunner.keyboard.press("Space");
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText("空膛");
+    await expect(crew.loader.getByTestId("loader-status")).toContainText(
+      "暈眩",
+    );
     await crew.loader.keyboard.down("r");
+    await crew.loader.keyboard.press("Space");
+    await crew.loader.waitForTimeout(300);
+    await expect(crew.loader.getByTestId("loader-status")).toContainText(
+      "暈眩",
+    );
+    await expect(crew.loader.getByTestId("load-progress")).toHaveText("0");
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText("卡彈");
     await crew.loader.keyboard.up("r");
     expect(
@@ -72,7 +100,7 @@ test("卡彈保留進度；放開 R 不清除；停針成功後續裝同一發",
 test("客端裝填手失敗停針凍結一秒，重試沿用目標和進度，砲手不能代解", async ({
   browser,
 }) => {
-  const crew = await tankCrew(browser, "gunner", 1);
+  const crew = await tankCrew(browser, "gunner", 0, 1);
   try {
     await crew.loader.keyboard.down("r");
     await expect(crew.gunner.getByTestId("chamber-state")).toHaveText("卡彈");

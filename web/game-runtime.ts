@@ -57,6 +57,8 @@ export class GameRuntime<View> {
         (slot) => mask & (1 << slot),
       );
       core.start({ participants, seed, practice: false });
+      this.previous = performance.now();
+      this.lastNetwork = 0;
       this.onStart();
     };
   }
@@ -73,6 +75,8 @@ export class GameRuntime<View> {
     this.mode = mode;
     this.clearInput();
     this.core.start({ participants: [0], seed: 1, practice: true });
+    this.previous = performance.now();
+    this.lastNetwork = 0;
   }
 
   setInput(held: number) {

@@ -2,6 +2,7 @@ import type { CrewRole } from "./crew";
 import type { GameCore, GameStart } from "./game-runtime";
 import {
   LOAD,
+  CROUCH,
   FIRE,
   STOP_JAM,
   stopJam,
@@ -74,7 +75,7 @@ export class TankCore implements GameCore<TankState> {
       this.roleOf(participant) === "driver"
         ? keys & 15
         : this.roleOf(participant) === "loader"
-          ? keys & LOAD
+          ? keys & (LOAD | CROUCH)
           : 0,
     );
   }
@@ -113,11 +114,27 @@ export class TankCore implements GameCore<TankState> {
     if (!connected) this.controls.delete(participant);
   }
   step(elapsed: number) {
-    const dt = Math.max(0, Math.min(elapsed, 0.05));
+    if (!Number.isFinite(elapsed) || elapsed <= 0) return;
+    // Preserve elapsed gameplay time under slow rendering. Small physics steps
+    // prevent tunnelling without lengthening loader timers at low frame rates.
+    let remaining = elapsed;
+    while (remaining > 0) {
+      const dt = Math.min(remaining, 0.05);
+      this.advance(dt);
+      remaining -= dt;
+    }
+  }
+  private advance(dt: number) {
     this.state.time += dt;
     let loading = false;
+    this.state.weapon.crouching = false;
     for (const [participant, held] of this.controls)
-      if (this.roleOf(participant) === "loader") loading = Boolean(held & LOAD);
+      if (this.roleOf(participant) === "loader") {
+        loading = Boolean(held & LOAD);
+        this.state.weapon.crouching =
+          this.state.time >= this.state.weapon.stunnedUntil &&
+          Boolean(held & CROUCH);
+      }
     stepWeapon(
       this.state.weapon,
       loading,
