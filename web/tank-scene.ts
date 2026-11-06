@@ -10,7 +10,9 @@ export class TankScene {
   private turret = new THREE.Group();
   private elevation = new THREE.Group();
   private observer: ResizeObserver;
-  private targetMeshes = new Map<number, THREE.Mesh>();
+  private targetMeshes = new Map<number, THREE.Group>();
+  private enemyTurrets = new Map<number, THREE.Group>();
+  private enemyProjectiles = new Map<number, THREE.Mesh>();
   private projectileMeshes = new Map<number, THREE.Mesh>();
   private mgTracers = new Map<number, THREE.Line>();
   private impactMeshes = new Map<number, THREE.Mesh>();
@@ -222,21 +224,129 @@ export class TankScene {
     for (const target of state.weapon.targets) {
       let mesh = this.targetMeshes.get(target.id);
       if (!mesh) {
-        mesh = new THREE.Mesh(
-          new THREE.BoxGeometry(target.width, target.height, target.depth),
-          new THREE.MeshStandardMaterial({ color: 0x9b7954, roughness: 0.9 }),
+        mesh = new THREE.Group();
+        const paint = new THREE.MeshStandardMaterial({
+          color: target.kind === "tiger" ? 0x807761 : 0x6d7158,
+          roughness: 0.85,
+          metalness: 0.25,
+        });
+        const steel = new THREE.MeshStandardMaterial({
+          color: 0x353a36,
+          roughness: 0.9,
+        });
+        const part = (
+          w: number,
+          h: number,
+          d: number,
+          x: number,
+          y: number,
+          z: number,
+          parent: THREE.Group,
+          material = paint,
+        ) => {
+          const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+          body.position.set(x, y, z);
+          body.castShadow = true;
+          body.receiveShadow = true;
+          parent.add(body);
+          return body;
+        };
+        part(target.width - 0.5, 1.2, target.depth, 0, 1.1, 0, mesh);
+        for (const side of [-1, 1]) {
+          part(
+            0.5,
+            1.1,
+            target.depth,
+            side * (target.width / 2 - 0.25),
+            0.65,
+            0,
+            mesh,
+            steel,
+          );
+          for (let n = 0; n < 6; n++) {
+            const wheel = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.43, 0.43, 0.55, 10),
+              paint,
+            );
+            wheel.rotation.z = Math.PI / 2;
+            wheel.position.set(
+              side * (target.width / 2 - 0.2),
+              0.7,
+              -target.depth / 2 + 0.6 + (n * (target.depth - 1.2)) / 5,
+            );
+            mesh.add(wheel);
+          }
+          if (target.kind === "panzer")
+            part(
+              0.08,
+              0.9,
+              target.depth * 0.88,
+              (side * target.width) / 2,
+              1.35,
+              0,
+              mesh,
+            );
+        }
+        const turret = new THREE.Group();
+        mesh.add(turret);
+        part(
+          target.width * 0.66,
+          1,
+          target.kind === "tiger" ? 2.5 : 2.1,
+          0,
+          2.2,
+          0,
+          turret,
         );
-        mesh.position.set(target.x, target.height / 2, target.z);
-        mesh.castShadow = true;
+        part(
+          0.18,
+          0.18,
+          target.kind === "tiger" ? 4.2 : 3.4,
+          0,
+          2.45,
+          -2.6,
+          turret,
+          steel,
+        );
+        this.enemyTurrets.set(target.id, turret);
         this.scene.add(mesh);
         this.targetMeshes.set(target.id, mesh);
       }
-      (mesh.material as THREE.MeshStandardMaterial).color.setHex(
-        target.hp <= 0 ? 0x36312c : target.hp < 200 ? 0x66513c : 0x9b7954,
+      mesh.position.set(target.x, 0, target.z);
+      mesh.rotation.y = -target.yaw;
+      this.enemyTurrets.get(target.id)!.rotation.y = -(
+        target.turretYaw - target.yaw
       );
-      mesh.scale.y = target.hp > 0 ? 1 : 0.12;
-      mesh.position.y =
-        target.hp > 0 ? target.height / 2 : target.height * 0.06;
+      mesh.scale.y = target.hp > 0 ? 1 : 0.25;
+      mesh.traverse((object) => {
+        if (object instanceof THREE.Mesh) {
+          const material = object.material as THREE.MeshStandardMaterial;
+          material.emissive.setHex(
+            target.hp <= 0
+              ? 0x100c08
+              : target.phase === "warning"
+                ? 0x793512
+                : 0,
+          );
+        }
+      });
+    }
+    for (const [id, mesh] of this.enemyProjectiles)
+      if (!state.battle.projectiles.some((p) => p.id === id)) {
+        this.removeEffect(mesh);
+        this.enemyProjectiles.delete(id);
+      }
+    for (const p of state.battle.projectiles) {
+      let mesh = this.enemyProjectiles.get(p.id);
+      if (!mesh) {
+        mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.18, 8, 6),
+          new THREE.MeshBasicMaterial({ color: 0xff9e48 }),
+        );
+        this.scene.add(mesh);
+        this.enemyProjectiles.set(p.id, mesh);
+      }
+      mesh.position.set(p.x, p.y, p.z);
     }
     this.renderEffects(state);
     this.renderer.render(this.scene, this.camera);
