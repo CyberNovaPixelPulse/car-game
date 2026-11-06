@@ -278,54 +278,6 @@ legend {
   height: 14px;
   accent-color: #91ae8a;
 }
-.breech-assembly {
-  position: relative;
-  height: 160px;
-  max-width: 520px;
-  margin: 24px 0;
-  overflow: hidden;
-  background: #252c2d;
-}
-.breech-tube {
-  position: absolute;
-  left: 0;
-  top: 30px;
-  width: 52%;
-  height: 92px;
-  background: #59615b;
-  border: 5px solid #879089;
-  border-radius: 0 24px 24px 0;
-}
-.breech-block {
-  position: absolute;
-  left: 42%;
-  top: 48px;
-  width: 21%;
-  height: 56px;
-  background: #1b2223;
-  border: 8px solid #9c9f91;
-}
-.loading-round {
-  position: absolute;
-  left: 76%;
-  top: 61px;
-  height: 30px;
-  width: 90px;
-  border-radius: 6px 20px 20px 6px;
-  background: #c6a65e;
-  transform: translateX(calc(var(--load, 0) * -140px));
-}
-.breech-assembly[data-chamber="empty"] .loading-round {
-  opacity: 0.4;
-}
-.breech-assembly[data-chamber="ejecting"] .loading-round {
-  transform: translate(
-      calc(var(--eject, 0) * 180px),
-      calc(var(--eject, 0) * 65px)
-    )
-    rotate(calc(var(--eject, 0) * 65deg));
-}
-
 .jam-game {
   max-width: 520px;
   margin: 18px auto;
@@ -379,14 +331,6 @@ legend {
   font-variant-numeric: tabular-nums;
   color: #ffcfb4;
 }
-.loader-workspace[data-posture="stunned"] .breech-assembly {
-  outline: 2px solid #c17754;
-}
-.loader-workspace[data-posture="crouching"] .breech-assembly {
-  transform: translateY(-16px);
-  opacity: 0.65;
-}
-
 .mg-workspace[hidden],
 .loading-workspace[hidden] {
   display: none;
@@ -420,4 +364,151 @@ legend {
   width: min(220px, 100%);
   height: 12px;
   accent-color: #d6ac64;
+}
+
+/* The enclosed workspace is the scene; its operational overlays stay in view. */
+.crew-shell:has(.battle-station[data-role="loader"]) {
+  max-width: none;
+  padding: 12px 18px;
+}
+.crew-shell:has(.battle-station[data-role="loader"]) > header {
+  display: none;
+}
+.battle-station[data-role="loader"] {
+  position: relative;
+  padding: 12px;
+  border-radius: 0;
+}
+.battle-station[data-role="loader"] > h2 {
+  font-size: 18px;
+  margin: 0 0 6px;
+}
+.battle-station[data-role="loader"] > p:first-of-type {
+  display: none;
+}
+.battle-station[data-role="loader"] > p:nth-of-type(2) {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  margin: 0;
+  font-size: 14px;
+}
+.loader-workspace {
+  padding: 0;
+  position: relative;
+}
+.loader-workspace > p {
+  margin: 2px 0;
+  font-size: 14px;
+}
+.loader-workspace > .ejection-warning {
+  font-size: 18px;
+  height: 30px;
+  margin: 0;
+}
+.interior-viewport {
+  position: relative;
+  height: max(300px, calc(100dvh - 228px));
+  background: #171e1c;
+}
+.interior-viewport canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.loading-workspace > .note {
+  margin: 6px 0 0;
+  max-width: none;
+  line-height: 1.5;
+}
+.battle-station[data-role="loader"] .weapon-status {
+  position: absolute;
+  bottom: 108px;
+  left: 24px;
+  right: 24px;
+  padding: 8px 12px;
+  background: #252c2d;
+  width: fit-content;
+  max-width: calc(100% - 48px);
+  font-size: 14px;
+}
+.battle-station[data-role="loader"] .weapon-status p {
+  margin: 0;
+  line-height: 1.5;
+}
+.battle-station[data-role="loader"] .weapon-status p:first-child {
+  max-width: 62ch;
+}
+.battle-station[data-role="loader"] .weapon-status progress {
+  height: 12px;
+  width: 280px;
+  max-width: 100%;
+}
+.battle-station[data-role="loader"] #station-leave {
+  margin-top: 8px;
+  padding: 5px 12px;
+  font-size: 13px;
+}
+.battle-station[data-role="loader"] .jam-game {
+  position: absolute;
+  top: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #252c2d;
+  padding: 14px 18px;
+  width: min(520px, calc(100% - 36px));
+  margin: 0;
+}
+.battle-station[data-role="loader"] .jam-game h3 {
+  margin: 0 0 14px;
+}
+.battle-station[data-role="loader"] .jam-game p {
+  margin: 10px 0 0;
+}
+.loader-workspace[data-posture="stunned"] .interior-viewport {
+  outline: 2px solid #c16d5c;
+  outline-offset: -2px;
+}
+.battle-station[data-role="loader"] .mg-workspace .battle-viewport {
+  height: max(300px, calc(100dvh - 300px));
+}
+.battle-station[data-role="loader"] .mg-workspace > p {
+  margin: 2px 0;
+  line-height: 1.45;
+  font-size: 14px;
+}
+.battle-station[data-role="loader"]:has(.mg-workspace:not([hidden]))
+  .weapon-status {
+  position: static;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  max-width: 100%;
+  padding: 5px 0;
+}
+@media (max-width: 600px) {
+  .crew-shell:has(.battle-station[data-role="loader"]) {
+    padding: 8px;
+  }
+  .battle-station[data-role="loader"] > p:nth-of-type(2) {
+    position: static;
+    margin-bottom: 6px;
+  }
+  .battle-station[data-role="loader"] .weapon-status {
+    position: static;
+    max-width: 100%;
+    padding: 8px 0;
+  }
+  .loader-workspace > .ejection-warning {
+    height: auto;
+    min-height: 30px;
+  }
+  .interior-viewport {
+    height: 340px;
+  }
+}
+.battle-station[data-role="loader"] #station-sound {
+  margin: 8px 10px 0 0;
+  padding: 5px 12px;
+  font-size: 13px;
 }

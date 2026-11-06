@@ -1,0 +1,79 @@
+{
+  "provider": "Poly Haven",
+  "license": "CC0-1.0",
+  "checked_date": "2026-11-06",
+  "usage": "Subtle normal and roughness variation only; no historic paint-color assertion. All models are original procedural geometry.",
+  "assets": [
+    {
+      "id": "green_metal_rust",
+      "name": "Green Metal Rust",
+      "asset_page": "https://polyhaven.com/a/green_metal_rust",
+      "authors": {
+        "Rob Tuytel": "All"
+      },
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "provider_license_url": "https://polyhaven.com/license",
+      "info_api": "https://api.polyhaven.com/info/green_metal_rust",
+      "files_api": "https://api.polyhaven.com/files/green_metal_rust",
+      "usage": "局部磨損漆面與車內金屬候選；顏色不是英軍歷史軍漆色號，避免全車鏽蝕過重。",
+      "metadata_dimensions_raw": [
+        1000,
+        1000
+      ],
+      "maps": [
+        {
+          "map": "nor_gl",
+          "role": "normal/OpenGL (+Y)",
+          "resolution": "1k",
+          "format": "png",
+          "filename": "green_metal_rust/green_metal_rust_nor_gl_1k.png",
+          "local_path": "/tmp/car-game-to-spec/visual-assets/green_metal_rust/green_metal_rust_nor_gl_1k.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/green_metal_rust/green_metal_rust_nor_gl_1k.png",
+          "bytes": 3138439,
+          "md5": "53b6f7c4b33c41d65fac42f71f26ac80",
+          "sha256": "7d6cdd15a058eda5992643696a9d422191239364de4ab33f945bba0e6e1e2cc4",
+          "color_space": "linear/non-color",
+          "pixel_width": 1024,
+          "pixel_height": 1024,
+          "shipping_path": "public/assets/interior/green_metal_rust_nor_gl_1k.png",
+          "note": "Original source pixel data. File metadata additionally embeds the origin via impeccable embed-prompt; source sha256 refers to downloaded original, before metadata embedding."
+        },
+        {
+          "map": "Rough",
+          "role": "roughness (grayscale)",
+          "resolution": "1k",
+          "format": "jpg",
+          "filename": "green_metal_rust/green_metal_rust_rough_1k.jpg",
+          "local_path": "/tmp/car-game-to-spec/visual-assets/green_metal_rust/green_metal_rust_rough_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/green_metal_rust/green_metal_rust_rough_1k.jpg",
+          "bytes": 124360,
+          "md5": "22cb8ebbd84cd90667a2734114fc4732",
+          "sha256": "f214f22608dd75aa3e7b4da8bffac97c344cbacbc50f49ba0beb0236701a622c",
+          "color_space": "linear/non-color",
+          "pixel_width": 1024,
+          "pixel_height": 1024,
+          "shipping_path": "public/assets/interior/green_metal_rust_rough_1k.jpg",
+          "note": "Original source pixel data. File metadata additionally embeds the origin via impeccable embed-prompt; source sha256 refers to downloaded original, before metadata embedding."
+        },
+        {
+          "map": "Diffuse",
+          "role": "color/baseColor",
+          "resolution": "1k",
+          "format": "jpg",
+          "filename": "green_metal_rust/green_metal_rust_diff_1k.jpg",
+          "local_path": "/tmp/car-game-to-spec/visual-assets/green_metal_rust/green_metal_rust_diff_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/green_metal_rust/green_metal_rust_diff_1k.jpg",
+          "bytes": 212088,
+          "md5": "f69d8c507961f0629019652162090917",
+          "sha256": "4509ab0cb1cf6bf9b9f970450a41f83ebd9bff178006deae568ff34b404856fc",
+          "color_space": "sRGB",
+          "pixel_width": 1024,
+          "pixel_height": 1024,
+          "shipping_path": "public/assets/interior/green_metal_rust_diff_1k.jpg",
+          "note": "Original source pixel data, origin additionally embedded in metadata."
+        }
+      ]
+    }
+  ]
+}

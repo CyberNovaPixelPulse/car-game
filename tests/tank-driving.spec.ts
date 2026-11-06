@@ -11,7 +11,12 @@ test("非房主駕駛操控同車，砲手可看戰場但駕駛與裝填手看�
       crew.gunner.getByRole("img", { name: "主炮戰場視野" }),
     ).toBeVisible();
     await expect(crew.driver.locator("canvas")).toHaveCount(0);
-    await expect(crew.loader.locator("canvas")).toHaveCount(0);
+    await expect(
+      crew.loader.getByRole("img", { name: /戰場視野/ }),
+    ).toHaveCount(0);
+    await expect(
+      crew.loader.getByRole("img", { name: "車內炮膛與彈藥架" }),
+    ).toBeVisible();
     await crew.gunner.keyboard.down("w");
     await crew.gunner.waitForTimeout(500);
     await crew.gunner.keyboard.up("w");
