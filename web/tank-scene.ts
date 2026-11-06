@@ -3,6 +3,7 @@ import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
 import { type TankState } from "./tank-core";
 import { VehicleModel, buildBrowning } from "./tank-vehicle-model";
 import { buildNormandy } from "./tank-environment";
+import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import { disposeArt } from "./tank-art-materials";
 import { SmokeScene } from "./tank-smoke-scene";
 
@@ -17,7 +18,10 @@ export class TankScene {
   private scene = new THREE.Scene();
   private smoke = new SmokeScene(this.scene);
   private camera = new THREE.PerspectiveCamera(65, 1, 0.1, 180);
-  private player = new VehicleModel("sherman");
+  private assets = new ArtPreparation();
+  private player = new VehicleModel("sherman", this.assets.manager);
+  private width = 0;
+  private height = 0;
   private tank = this.player.root;
   private turret = this.player.turret;
   private elevation = this.player.elevation;
@@ -55,7 +59,7 @@ export class TankScene {
       far: 110,
     });
     this.scene.add(sun);
-    new HDRLoader().load(
+    new HDRLoader(this.assets.manager).load(
       "/art/sky/kloofendal_48d_partly_cloudy_puresky_1k.hdr",
       (texture) => {
         if (this.disposed) {
@@ -70,7 +74,7 @@ export class TankScene {
         this.scene.backgroundIntensity = 0.8;
       },
     );
-    buildNormandy(this.scene);
+    buildNormandy(this.scene, this.assets.manager);
     this.scene.add(this.tank);
     if (this.view === "machine-gun") {
       const steel = new THREE.MeshStandardMaterial({
@@ -100,9 +104,14 @@ export class TankScene {
     this.resize();
   }
   private resize() {
-    const width = Math.max(1, this.canvas.clientWidth),
-      height = Math.max(1, this.canvas.clientHeight);
-    // A shared desktop budget bounds software WebGL work without changing world detail or HUD pixels.
+    // Hidden/detached retained canvases keep their real buffer. Never reallocate at 1px.
+    const w = this.canvas.clientWidth,
+      h = this.canvas.clientHeight;
+    const width = w || this.width || 1024,
+      height = h || this.height || 576;
+    if (width === this.width && height === this.height) return;
+    this.width = width;
+    this.height = height;
     this.renderer.setPixelRatio(
       Math.min(devicePixelRatio, 1.5, 1024 / width, 576 / height),
     );
@@ -110,6 +119,18 @@ export class TankScene {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.lastVisual = "";
+  }
+  async prepare(state: TankState) {
+    await this.assets.wait();
+    if (this.disposed) throw new Error("視野準備已取消。");
+    this.render(state); // Instantiate authority-provided vehicle art, without advancing any rules.
+    await this.assets.wait();
+    if (this.disposed) throw new Error("視野準備已取消。");
+    await this.renderer.compileAsync(this.scene, this.camera);
+    if (this.disposed) throw new Error("視野準備已取消。");
+    this.lastVisual = "";
+    this.render(state);
+    await finishPreparation(this.renderer, () => this.disposed);
   }
   render(state: TankState) {
     const t = state.tank;
@@ -184,7 +205,7 @@ export class TankScene {
     for (const target of state.weapon.targets) {
       let model = this.enemyModels.get(target.id);
       if (!model) {
-        model = new VehicleModel(target.kind);
+        model = new VehicleModel(target.kind, this.assets.manager);
         this.enemyModels.set(target.id, model);
         this.targetMeshes.set(target.id, model.root);
         this.scene.add(model.root);

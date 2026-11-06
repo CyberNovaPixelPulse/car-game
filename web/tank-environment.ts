@@ -3,8 +3,11 @@ import { BATTLEFIELD } from "./tank-core";
 import { batchFixedParts, box, part, surfaceMaps } from "./tank-art-materials";
 
 /** A compressed Caen countryside, not a reconstruction of a named engagement. */
-export function buildNormandy(scene: THREE.Scene) {
-  const soilMaps = surfaceMaps("farm_soil", 38);
+export function buildNormandy(
+  scene: THREE.Scene,
+  manager?: THREE.LoadingManager,
+) {
+  const soilMaps = surfaceMaps("farm_soil", 38, "terrain", true, manager);
   const earth = new THREE.MeshStandardMaterial({
     color: 0x9b947b,
     ...soilMaps,
@@ -13,7 +16,7 @@ export function buildNormandy(scene: THREE.Scene) {
   });
   const grass = new THREE.MeshStandardMaterial({
     color: 0x7d8259,
-    ...surfaceMaps("farm_soil", 52),
+    ...surfaceMaps("farm_soil", 52, "terrain", true, manager),
     roughness: 1,
     normalScale: new THREE.Vector2(0.22, 0.22),
   });
@@ -45,7 +48,7 @@ export function buildNormandy(scene: THREE.Scene) {
       new THREE.PlaneGeometry(0.65, 102),
       new THREE.MeshStandardMaterial({
         color: 0x817b63,
-        ...surfaceMaps("farm_soil", 32),
+        ...surfaceMaps("farm_soil", 32, "terrain", true, manager),
         roughness: 1,
       }),
       x,
@@ -57,7 +60,7 @@ export function buildNormandy(scene: THREE.Scene) {
   }
   const fieldMat = new THREE.MeshStandardMaterial({
     color: 0x8d805c,
-    ...surfaceMaps("farm_soil", 13),
+    ...surfaceMaps("farm_soil", 13, "terrain", true, manager),
     roughness: 1,
     normalScale: new THREE.Vector2(0.5, 0.5),
   });
@@ -78,7 +81,13 @@ export function buildNormandy(scene: THREE.Scene) {
     field.rotation.x = -Math.PI / 2;
     field.castShadow = false;
   }
-  const stoneMaps = surfaceMaps("old_stone_wall_02", 1);
+  const stoneMaps = surfaceMaps(
+    "old_stone_wall_02",
+    1,
+    "terrain",
+    true,
+    manager,
+  );
   const stone = new THREE.MeshStandardMaterial({
     ...stoneMaps,
     color: 0xd2cbb4,

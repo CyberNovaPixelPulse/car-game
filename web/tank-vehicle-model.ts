@@ -13,6 +13,7 @@ interface RunningGear {
   links: THREE.InstancedMesh;
   side: number;
   wheels: THREE.Object3D[];
+  wheelInstances?: THREE.InstancedMesh[];
   phase: number;
 }
 
@@ -28,7 +29,10 @@ export class VehicleModel {
   private length: number;
   private trackX: number;
   private matrix = new THREE.Object3D();
-  constructor(readonly kind: Kind) {
+  constructor(
+    readonly kind: Kind,
+    manager?: THREE.LoadingManager,
+  ) {
     const sherman = kind === "sherman",
       tiger = kind === "tiger";
     this.length = sherman ? 6.1 : tiger ? 6 : 5.5;
@@ -38,7 +42,7 @@ export class VehicleModel {
       color: sherman ? 0x8c956e : tiger ? 0xb2a17b : 0xb5a581,
       roughness: 0.86,
       metalness: 0.12,
-      ...surfaceMaps("green_metal_rust", 1.4, "metal", sherman),
+      ...surfaceMaps("green_metal_rust", 1.4, "metal", sherman, manager),
       normalScale: new THREE.Vector2(0.22, 0.22),
     });
     if (!sherman) {
@@ -109,7 +113,8 @@ export class VehicleModel {
         steel,
         78,
       );
-      links.castShadow = links.receiveShadow = true;
+      links.castShadow = false;
+      links.receiveShadow = true;
       links.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       this.root.add(links);
       const wheels: THREE.Object3D[] = [];
@@ -552,8 +557,34 @@ export class VehicleModel {
       pintle.rotation.z = 0.02;
       buildBrowning(this.turret, steel, paint, 0.48, 3.22, 0.12);
     }
-    for (const gear of this.gear)
+    for (const gear of this.gear) {
       for (const wheel of gear.wheels) batchFixedParts(wheel);
+      // Each axle uses identical local geometry. Preserve each axle transform,
+      // but submit its rubber, painted hub and rotating spokes in three batches.
+      gear.wheelInstances = gear.wheels[0].children
+        .filter((object): object is THREE.Mesh => object instanceof THREE.Mesh)
+        .map((source) => {
+          const mesh = new THREE.InstancedMesh(
+            source.geometry.clone(),
+            source.material,
+            gear.wheels.length,
+          );
+          mesh.castShadow = false;
+          mesh.receiveShadow = true;
+          mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+          this.root.add(mesh);
+          return mesh;
+        });
+      const retired = new Set<THREE.BufferGeometry>();
+      for (const wheel of gear.wheels)
+        for (const child of [...wheel.children]) {
+          if (child instanceof THREE.Mesh) {
+            retired.add(child.geometry);
+            wheel.remove(child);
+          }
+        }
+      for (const geometry of retired) geometry.dispose();
+    }
     batchFixedParts(this.elevation);
     batchFixedParts(this.turret);
     batchFixedParts(this.root);
@@ -618,7 +649,20 @@ export class VehicleModel {
         g.links.computeBoundingSphere();
         g.links.boundingSphere!.radius += 0.2;
       }
-      for (const wheel of g.wheels) wheel.rotation.x = -g.phase / 0.4;
+      for (let i = 0; i < g.wheels.length; i++) {
+        const wheel = g.wheels[i];
+        wheel.rotation.x = -g.phase / 0.4;
+        wheel.updateMatrix();
+        for (const mesh of g.wheelInstances ?? [])
+          mesh.setMatrixAt(i, wheel.matrix);
+      }
+      for (const mesh of g.wheelInstances ?? []) {
+        mesh.instanceMatrix.needsUpdate = true;
+        if (!mesh.boundingSphere) {
+          mesh.computeBoundingSphere();
+          mesh.boundingSphere!.radius += 0.1;
+        }
+      }
     }
   }
   dispose() {

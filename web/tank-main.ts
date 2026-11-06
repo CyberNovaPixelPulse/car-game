@@ -2,7 +2,7 @@ import { smokeBlocks, smokeSight } from "./tank-smoke";
 import { ENEMY_LABELS } from "./tank-enemies";
 import { MG_FIRE } from "./tank-machine-gun";
 import { Session, type Room } from "./network";
-import { CREW_ROLES, ROLE_LABELS, ROLE_TASKS } from "./crew";
+import { CREW_ROLES, ROLE_LABELS, ROLE_TASKS, type CrewRole } from "./crew";
 import { GameRuntime } from "./game-runtime";
 import { TankCore, DRIVE, AIM } from "./tank-core";
 import { TankScene } from "./tank-scene";
@@ -36,6 +36,86 @@ let scene: TankScene | undefined;
 let interiorScene: TankInteriorScene | undefined;
 let mgCanvas: HTMLCanvasElement | undefined;
 let stationRole: string | undefined;
+interface PreparedViews {
+  role: CrewRole;
+  code: string;
+  exterior?: TankScene;
+  exteriorCanvas?: HTMLCanvasElement;
+  interior?: TankInteriorScene;
+  interiorCanvas?: HTMLCanvasElement;
+}
+let prepared: PreparedViews | undefined;
+let preparing = false;
+let preparationVersion = 0;
+function clearViews() {
+  preparationVersion++;
+  preparing = false;
+  for (const view of new Set([scene, prepared?.exterior])) view?.dispose();
+  for (const view of new Set([interiorScene, prepared?.interior]))
+    view?.dispose();
+  for (const canvas of [
+    mgCanvas,
+    prepared?.exteriorCanvas,
+    prepared?.interiorCanvas,
+  ])
+    canvas?.remove();
+  scene = undefined;
+  interiorScene = undefined;
+  mgCanvas = undefined;
+  prepared = undefined;
+}
+function artCanvas(label: string) {
+  const canvas = document.createElement("canvas");
+  canvas.setAttribute("aria-label", label);
+  canvas.setAttribute("role", "img");
+  return canvas;
+}
+async function prepareVote(room: Room, role: CrewRole) {
+  clearViews();
+  const version = ++preparationVersion;
+  preparing = true;
+  const views: PreparedViews = { role, code: room.code };
+  prepared = views;
+  lobby(room);
+  try {
+    // Let the real pending status paint before doing expensive graphics work.
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+    if (version !== preparationVersion) return;
+    if (role === "gunner") {
+      views.exteriorCanvas = artCanvas("主炮戰場視野");
+      views.exterior = new TankScene(views.exteriorCanvas);
+      await views.exterior.prepare(core.view());
+    } else if (role === "loader") {
+      views.interiorCanvas = artCanvas("車內炮膛與彈藥架");
+      views.interior = new TankInteriorScene(views.interiorCanvas);
+      views.exteriorCanvas = artCanvas("機槍戰場視野");
+      views.exterior = new TankScene(views.exteriorCanvas, "machine-gun");
+      // Both actual views are prepared before the loader's existing ready vote.
+      await views.interior.prepare(core.view());
+      await views.exterior.prepare(core.view());
+    }
+    const current = session.room;
+    const currentRole = current?.members.find(
+      (member) => member.slot === session.slot,
+    )?.role;
+    if (
+      version !== preparationVersion ||
+      current?.code !== room.code ||
+      currentRole !== role ||
+      current.phase !== "lobby"
+    )
+      return;
+    preparing = false;
+    session.setReady(true);
+  } catch (e) {
+    if (version !== preparationVersion) return;
+    clearViews();
+    if (session.room?.phase === "lobby") lobby(session.room);
+    error(e);
+  }
+}
 let held = 0;
 let warningAudio: AudioContext | undefined;
 let soundEnabled = true;
@@ -86,11 +166,7 @@ function menu() {
   runtime.mode = "idle";
   runtime.clearInput();
   held = 0;
-  interiorScene?.dispose();
-  interiorScene = undefined;
-  scene?.dispose();
-  scene = undefined;
-  mgCanvas = undefined;
+  clearViews();
   stationRole = undefined;
   content.innerHTML = `<h2>與隊友集合</h2><form id="crew-create"><label for="crew-name">乘員名稱</label><input id="crew-name" maxlength="16" autocomplete="nickname" required><button type="submit">建立房間</button></form><form id="crew-join"><label for="crew-code">房間代碼</label><div class="join-line"><input id="crew-code" maxlength="6" autocomplete="off" autocapitalize="characters" required><button type="submit">加入房間</button></div></form><p class="note">需要三位玩家、三台電腦與實體鍵盤。</p>`;
   const name = () => {
@@ -140,7 +216,7 @@ function lobby(room: Room) {
     },
   ).join(
     "",
-  )}</fieldset><div class="room-actions"><button id="crew-ready" ${!me?.role ? "disabled" : ""}>${me?.ready ? "取消準備" : "準備"}</button>${session.isHost ? `<button id="crew-start" ${complete ? "" : "disabled"}>開始戰鬥</button>` : "<p>全員準備後，由房主開始戰鬥。</p>"}<button class="secondary" id="crew-leave">離開房間</button></div><p class="note">${
+  )}</fieldset><div class="room-actions"><button id="crew-ready" ${!me?.role ? "disabled" : ""}>${me?.ready || preparing ? "取消準備" : "準備"}</button>${session.isHost ? `<button id="crew-start" ${complete ? "" : "disabled"}>開始戰鬥</button>` : "<p>全員準備後，由房主開始戰鬥。</p>"}<button class="secondary" id="crew-leave">離開房間</button></div>${preparing ? '<p role="status">正在準備工作畫面，完成後才會標示已準備；可取消或改選職位。</p>' : ""}<p class="note">${
     complete
       ? "三個職位已就緒。"
       : `等待 ${
@@ -157,8 +233,13 @@ function lobby(room: Room) {
         session.chooseRole(button.dataset.role as (typeof CREW_ROLES)[number]);
       };
     });
-  document.querySelector<HTMLButtonElement>("#crew-ready")!.onclick = () =>
-    session.setReady(!me?.ready);
+  document.querySelector<HTMLButtonElement>("#crew-ready")!.onclick = () => {
+    if (preparing || me?.ready) {
+      clearViews();
+      if (me?.ready) session.setReady(false);
+      else if (session.room) lobby(session.room);
+    } else if (me?.role) void prepareVote(room, me.role);
+  };
   const start = document.querySelector<HTMLButtonElement>("#crew-start");
   if (start) start.onclick = () => session.start();
   document.querySelector<HTMLButtonElement>("#crew-leave")!.onclick = () => {
@@ -170,11 +251,8 @@ function lobby(room: Room) {
 function station(room: Room) {
   const role = room.members.find((m) => m.slot === session.slot)?.role;
   if (!role || stationRole === role) return;
-  interiorScene?.dispose();
-  interiorScene = undefined;
-  scene?.dispose();
-  scene = undefined;
-  mgCanvas = undefined;
+  const ready = prepared?.role === role && prepared.code === room.code;
+  if (!ready) clearViews();
   stationRole = role;
   mechanicalAudio.reset();
   soundedShot = 0;
@@ -186,9 +264,17 @@ function station(room: Room) {
     if (jamPanel)
       content.querySelector(".loading-workspace")!.prepend(jamPanel);
     try {
-      interiorScene = new TankInteriorScene(
-        content.querySelector(".interior-viewport canvas")!,
-      );
+      if (ready && prepared?.interior && prepared.interiorCanvas) {
+        content
+          .querySelector(".interior-viewport canvas")!
+          .replaceWith(prepared.interiorCanvas);
+        interiorScene = prepared.interior;
+        scene = prepared.exterior;
+        mgCanvas = prepared.exteriorCanvas;
+      } else
+        interiorScene = new TankInteriorScene(
+          content.querySelector(".interior-viewport canvas")!,
+        );
     } catch {
       message.textContent =
         "無法啟動 3D 車內工作區，請使用支援 WebGL2 的瀏覽器重新加入。";
@@ -215,7 +301,10 @@ function station(room: Room) {
     content.querySelector(".mg-workspace .battle-viewport")!.append(mgHud);
   if (role === "gunner") {
     try {
-      scene = new TankScene(content.querySelector("canvas")!);
+      if (ready && prepared?.exterior && prepared.exteriorCanvas) {
+        content.querySelector("canvas")!.replaceWith(prepared.exteriorCanvas);
+        scene = prepared.exterior;
+      } else scene = new TankScene(content.querySelector("canvas")!);
     } catch {
       message.textContent =
         "無法啟動 3D 戰場，請使用支援 WebGL2 的瀏覽器重新加入。";
@@ -573,12 +662,16 @@ runtime.onRoom = (room) => {
     runtime.mode = "idle";
     runtime.clearInput();
     held = 0;
-    interiorScene?.dispose();
-    interiorScene = undefined;
+    const role = room.members.find(
+      (member) => member.slot === session.slot,
+    )?.role;
+    // Ordinary neighbours' ready updates must keep this renderer warm.
+    if (
+      stationRole ||
+      (prepared && (prepared.role !== role || prepared.code !== room.code))
+    )
+      clearViews();
     mechanicalAudio.reset();
-    scene?.dispose();
-    scene = undefined;
-    mgCanvas = undefined;
     stationRole = undefined;
     lobby(room);
   } else station(room);
@@ -587,5 +680,8 @@ runtime.onStart = () => {
   if (session.room) station(session.room);
 };
 runtime.onRestoreError = error;
-window.addEventListener("pagehide", () => session.leave(false));
+window.addEventListener("pagehide", () => {
+  clearViews();
+  session.leave(false);
+});
 menu();

@@ -7,8 +7,9 @@ export function surfaceMaps(
   repeat: number,
   folder = "terrain",
   includeColor = true,
+  manager?: THREE.LoadingManager,
 ) {
-  const loader = new THREE.TextureLoader();
+  const loader = new THREE.TextureLoader(manager);
   const load = (suffix: string, color = false) => {
     const texture = loader.load(
       `${folder === "metal" ? "/assets/interior" : `/art/${folder}`}/${id}_${suffix}_1k.${suffix === "nor_gl" ? "png" : "jpg"}`,
@@ -129,11 +130,12 @@ export function batchFixedParts(parent: THREE.Object3D) {
       continue;
     object.geometry.computeBoundingBox();
     const size = object.geometry.boundingBox!.getSize(new THREE.Vector3());
-    // Fine fasteners still receive sunlight; only solid silhouettes need a shadow pass.
+    // Hulls, turrets and masonry cast the sun shadow. Wheel hubs and fasteners
+    // remain visible and lit without multiplying the silhouette shadow pass.
     const shadow =
       object.castShadow &&
       Math.max(size.x, size.y, size.z) > 0.6 &&
-      size.x * size.y * size.z > 0.035;
+      size.x * size.y * size.z > 1.0;
     const key = object.material.uuid + ":" + shadow;
     let batch = batches.get(key);
     if (!batch) {
