@@ -30,6 +30,7 @@ test("裝填中斷可續接，砲手就緒後射擊靶標，再退殼裝下一�
     await expect(crew.gunner.getByTestId("chamber-state")).toHaveText(
       "主炮就緒",
     );
+    await crew.loader.keyboard.down("c");
     await crew.gunner.keyboard.press("Space");
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText(
       "正在退殼",
@@ -39,6 +40,7 @@ test("裝填中斷可續接，砲手就緒後射擊靶標，再退殼裝下一�
       "正前靶 100/200",
     );
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText("空膛");
+    await crew.loader.keyboard.up("c");
     await crew.loader.keyboard.down("r");
     await expect(crew.gunner.getByTestId("chamber-state")).toHaveText(
       "主炮就緒",
@@ -71,6 +73,7 @@ test("只有裝填手能裝彈、只有砲手能射擊，連點不會複製同�
     await crew.driver.keyboard.press("Space");
     await crew.gunner.waitForTimeout(150);
     await expect(crew.gunner.getByTestId("shot-count")).toHaveText("0");
+    await crew.loader.keyboard.down("c");
     await crew.gunner.keyboard.press("Space");
     await crew.gunner.keyboard.press("Space");
     await crew.gunner.keyboard.press("Space");
@@ -81,6 +84,8 @@ test("只有裝填手能裝彈、只有砲手能射擊，連點不會複製同�
     await crew.loader.waitForTimeout(200);
     await expect(crew.loader.getByTestId("load-progress")).toHaveText("0");
     await expect(crew.gunner.getByTestId("shot-count")).toHaveText("1");
+    await expect(crew.loader.getByTestId("chamber-state")).toHaveText("空膛");
+    await crew.loader.keyboard.up("c");
     await expect(crew.gunner.getByTestId("chamber-state")).toHaveText(
       "主炮就緒",
     );

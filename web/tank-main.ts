@@ -3,7 +3,16 @@ import { CREW_ROLES, ROLE_LABELS, ROLE_TASKS } from "./crew";
 import { GameRuntime } from "./game-runtime";
 import { TankCore, DRIVE, AIM } from "./tank-core";
 import { TankScene } from "./tank-scene";
-import { LOAD, FIRE, SELECT_HE, SELECT_AP, SHELL_LABELS } from "./tank-weapons";
+import {
+  LOAD,
+  FIRE,
+  SELECT_HE,
+  SELECT_AP,
+  SHELL_LABELS,
+  CROUCH,
+  STOP_JAM,
+  JAM_RULES,
+} from "./tank-weapons";
 import "./tank.css";
 
 const app = document.querySelector<HTMLDivElement>("#tank-app")!;
@@ -19,6 +28,40 @@ const runtime = new GameRuntime(core, session);
 let scene: TankScene | undefined;
 let stationRole: string | undefined;
 let held = 0;
+let warningAudio: AudioContext | undefined;
+let soundedShot = 0;
+let soundedStun = 0;
+function unlockWarningAudio() {
+  warningAudio ??= new AudioContext();
+  void warningAudio.resume().catch(() => {});
+}
+window.addEventListener("pointerdown", unlockWarningAudio);
+window.addEventListener("keydown", unlockWarningAudio);
+function warningTone(hit: boolean) {
+  const audio = warningAudio;
+  if (!audio || audio.state !== "running") return;
+  for (const offset of hit ? [0] : [0, 0.18]) {
+    const oscillator = audio.createOscillator();
+    const gain = audio.createGain();
+    const start = audio.currentTime + offset;
+    oscillator.type = "triangle";
+    oscillator.frequency.setValueAtTime(hit ? 170 : 740, start);
+    oscillator.frequency.exponentialRampToValueAtTime(
+      hit ? 70 : 490,
+      start + 0.13,
+    );
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(0.16, start + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.16);
+    oscillator.connect(gain).connect(audio.destination);
+    oscillator.start(start);
+    oscillator.stop(start + 0.18);
+    oscillator.onended = () => {
+      oscillator.disconnect();
+      gain.disconnect();
+    };
+  }
+}
 const escape = (text: string) => {
   const el = document.createElement("span");
   el.textContent = text;
@@ -115,7 +158,9 @@ function station(room: Room) {
   scene?.dispose();
   scene = undefined;
   stationRole = role;
-  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><p>${ROLE_TASKS[role]}</p><p>共用坦克血量 <strong data-testid="tank-health">100/100</strong></p>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong> · 砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p><p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note">連點 A／D 左右、W／S 上下；反方向連點可煞停。按住只推動一次。</p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p>車內裝填工作區</p><div class="breech-assembly" aria-label="主炮砲膛與退殼工作區"><div class="breech-tube"></div><div class="breech-block"></div><div class="loading-round"></div></div><p class="note">按 1 選高爆彈、2 選穿甲彈。按住 R 裝填，放開可暫停；開始裝填後鎖定該發彈種。等待砲手開火、退殼後再裝下一發。</p></div>'}${role !== "driver" ? '<div class="weapon-status"><p>選擇：<strong data-testid="selected-shell">高爆彈</strong> · 高爆／穿甲／煙霧備彈無限（煙霧功能待加入）</p><p>膛內：<strong data-testid="chamber-shell">無</strong></p><p data-testid="chamber-state">空膛</p><p>裝填進度 <strong data-testid="load-progress">0</strong>%</p><progress aria-label="裝填進度" max="100" value="0"></progress><p>已發射 <strong data-testid="shot-count">0</strong> 發</p></div>' : ""}${role === "gunner" ? '<p data-testid="target-status">前方練習靶：完好</p><p data-testid="flight-status"></p><p class="note">主炮就緒後，按空白鍵開火。</p>' : ""}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
+  soundedShot = 0;
+  soundedStun = 0;
+  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><p>${ROLE_TASKS[role]}</p><p>共用坦克血量 <strong data-testid="tank-health">100/100</strong></p>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong> · 砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p><p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note">連點 A／D 左右、W／S 上下；反方向連點可煞停。按住只推動一次。</p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p>車內裝填工作區</p><p class="ejection-warning" data-testid="ejection-warning" role="status"></p><p><span data-testid="loader-status">站立・可以工作</span> <strong class="stun-timer" data-testid="stun-remaining"></strong></p><div class="breech-assembly" aria-label="主炮砲膛與退殼工作區"><div class="breech-tube"></div><div class="breech-block"></div><div class="loading-round"></div></div><section class="jam-game" aria-label="卡彈排除" hidden><h3>卡彈：停在目標區</h3><div class="jam-track"><span class="jam-zone" data-testid="jam-zone">目標</span><span class="jam-needle" data-testid="jam-needle"></span></div><p data-testid="jam-result">按空白鍵停針</p></section><p class="note">按 1 選高爆彈、2 選穿甲彈。按住 R 裝填，放開可暫停；開始裝填後鎖定該發彈種。等待砲手開火、退殼後再裝下一發。按住 C 蹲下避開彈殼，放開起身；蹲下時無法工作。</p></div>'}${role !== "driver" ? '<div class="weapon-status"><p>選擇：<strong data-testid="selected-shell">高爆彈</strong> · 高爆／穿甲／煙霧備彈無限（煙霧功能待加入）</p><p>膛內：<strong data-testid="chamber-shell">無</strong></p><p data-testid="chamber-state">空膛</p><p>裝填進度 <strong data-testid="load-progress">0</strong>%</p><progress aria-label="裝填進度" max="100" value="0"></progress><p>已發射 <strong data-testid="shot-count">0</strong> 發</p></div>' : ""}${role === "gunner" ? '<p data-testid="target-status">前方練習靶：完好</p><p data-testid="flight-status"></p><p class="note">主炮就緒後，按空白鍵開火。</p>' : ""}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
   if (role === "gunner") {
     try {
       scene = new TankScene(content.querySelector("canvas")!);
@@ -160,6 +205,24 @@ core.present = (state) => {
     if (el) el.textContent = text;
   }
   const weapon = state.weapon;
+  const stunned = state.time < weapon.stunnedUntil;
+  if (stationRole === "loader") {
+    if (weapon.chamber === "ejecting" && weapon.shotsFired !== soundedShot) {
+      warningTone(false);
+      soundedShot = weapon.shotsFired;
+    }
+    if (stunned && weapon.stunnedUntil !== soundedStun) {
+      warningTone(true);
+      soundedStun = weapon.stunnedUntil;
+    }
+    const workspace = content.querySelector<HTMLElement>(".loader-workspace");
+    if (workspace)
+      workspace.dataset.posture = stunned
+        ? "stunned"
+        : weapon.crouching
+          ? "crouching"
+          : "standing";
+  }
   const weaponText = {
     empty: "空膛",
     loading: "裝填中",
@@ -172,7 +235,19 @@ core.present = (state) => {
     "chamber-shell": weapon.chamberShell
       ? `${SHELL_LABELS[weapon.chamberShell]}（已鎖定）`
       : "無",
-    "chamber-state": weaponText[weapon.chamber],
+    "loader-status": stunned
+      ? "彈殼命中・暈眩，全部操作暫停"
+      : weapon.crouching
+        ? "蹲下避險・無法工作"
+        : weapon.stunnedUntil > 0 && state.time < weapon.stunnedUntil + 2
+          ? "已恢復・可以工作"
+          : "站立・可以工作",
+    "stun-remaining": stunned
+      ? `${(Math.ceil((weapon.stunnedUntil - state.time) * 10) / 10).toFixed(1)} 秒`
+      : "",
+    "ejection-warning":
+      weapon.chamber === "ejecting" ? "彈殼即將退出！按住 C 蹲下避開" : "",
+    "chamber-state": weapon.jam.active ? "卡彈" : weaponText[weapon.chamber],
     "load-progress": String(Math.round(weapon.loadProgress * 100)),
     "shot-count": String(weapon.shotsFired),
     "target-status": weapon.targets
@@ -204,6 +279,23 @@ core.present = (state) => {
       String(Math.max(0, 1 - (weapon.ejectAt - state.time) / 0.8)),
     );
   }
+  const jam = content.querySelector<HTMLElement>(".jam-game");
+  if (jam) {
+    jam.querySelector("h3")!.textContent =
+      weapon.jam.result === "cleared" ? "故障已排除" : "卡彈：停在目標區";
+    jam.hidden = !weapon.jam.active && weapon.jam.result !== "cleared";
+    const zone = jam.querySelector<HTMLElement>(".jam-zone")!;
+    zone.style.left = `${weapon.jam.zone * 100}%`;
+    zone.style.width = `${JAM_RULES.width * 100}%`;
+    jam.querySelector<HTMLElement>(".jam-needle")!.style.left =
+      `${weapon.jam.needle * 100}%`;
+    jam.querySelector<HTMLElement>('[data-testid="jam-result"]')!.textContent =
+      weapon.jam.result === "cleared"
+        ? "解除成功，繼續裝填"
+        : weapon.jam.result === "failed"
+          ? `未命中，重試倒數 ${Math.max(0, weapon.jam.retryAt - state.time).toFixed(1)} 秒`
+          : "按空白鍵停針";
+  }
   scene?.render(state);
 };
 const driveKeys: Record<string, number> = {
@@ -218,6 +310,11 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     if (!event.repeat)
       runtime.action(event.key === "1" ? SELECT_HE : SELECT_AP);
+    return;
+  }
+  if (stationRole === "loader" && event.code === "Space") {
+    event.preventDefault();
+    if (!event.repeat) runtime.action(STOP_JAM);
     return;
   }
   if (stationRole === "gunner") {
@@ -239,7 +336,9 @@ window.addEventListener("keydown", (event) => {
     stationRole === "loader"
       ? event.key.toLowerCase() === "r"
         ? LOAD
-        : 0
+        : event.key.toLowerCase() === "c"
+          ? CROUCH
+          : 0
       : driveKeys[event.key.toLowerCase()];
   if (!key) return;
   event.preventDefault();
@@ -248,7 +347,11 @@ window.addEventListener("keydown", (event) => {
 });
 window.addEventListener("keyup", (event) => {
   const key =
-    event.key.toLowerCase() === "r" ? LOAD : driveKeys[event.key.toLowerCase()];
+    event.key.toLowerCase() === "r"
+      ? LOAD
+      : event.key.toLowerCase() === "c"
+        ? CROUCH
+        : driveKeys[event.key.toLowerCase()];
   if (!key) return;
   held &= ~key;
   runtime.setInput(held);

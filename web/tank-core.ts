@@ -2,9 +2,13 @@ import type { CrewRole } from "./crew";
 import type { GameCore, GameStart } from "./game-runtime";
 import {
   LOAD,
+  CROUCH,
   FIRE,
   SELECT_HE,
   SELECT_AP,
+  STOP_JAM,
+  stopJam,
+  loaderCanWork,
   createWeaponState,
   fireWeapon,
   stepWeapon,
@@ -47,10 +51,10 @@ export interface TankState {
     blocked: boolean;
   };
 }
-const initial = (): TankState => ({
+const initial = (seed = 1): TankState => ({
   version: 1,
   time: 0,
-  weapon: createWeaponState(),
+  weapon: createWeaponState(seed),
   turret: { yaw: 0, pitch: 0, yawRate: 0, pitchRate: 0 },
   tank: { hp: 100, x: 0, z: 0, yaw: 0, speed: 0, turnRate: 0, blocked: false },
 });
@@ -65,17 +69,21 @@ export class TankCore implements GameCore<TankState> {
   private controls = new Map<number, number>();
   present: (state: TankState, participant: number) => void = () => {};
   constructor(private roleOf: (participant: number) => CrewRole | undefined) {}
-  start(_options: GameStart) {
-    this.state = initial();
+  start(options: GameStart) {
+    this.state = initial(options.seed);
     this.controls.clear();
   }
   input(participant: number, keys: number) {
+    if (this.roleOf(participant) === "loader") {
+      const w = this.state.weapon;
+      w.crouching = this.state.time >= w.stunnedUntil && Boolean(keys & CROUCH);
+    }
     this.controls.set(
       participant,
       this.roleOf(participant) === "driver"
         ? keys & 15
         : this.roleOf(participant) === "loader"
-          ? keys & LOAD
+          ? keys & (LOAD | CROUCH)
           : 0,
     );
   }
@@ -85,8 +93,12 @@ export class TankCore implements GameCore<TankState> {
       (action === SELECT_HE || action === SELECT_AP)
     ) {
       const w = this.state.weapon;
-      if (w.chamberShell === null)
+      if (loaderCanWork(w, this.state.time) && w.chamberShell === null)
         w.selectedShell = action === SELECT_HE ? "he" : "ap";
+      return;
+    }
+    if (this.roleOf(participant) === "loader" && action === STOP_JAM) {
+      stopJam(this.state.weapon, this.state.time);
       return;
     }
     if (this.roleOf(participant) !== "gunner") return;
@@ -119,11 +131,27 @@ export class TankCore implements GameCore<TankState> {
     if (!connected) this.controls.delete(participant);
   }
   step(elapsed: number) {
-    const dt = Math.max(0, Math.min(elapsed, 0.05));
+    if (!Number.isFinite(elapsed) || elapsed <= 0) return;
+    // Preserve elapsed gameplay time under slow rendering. Small physics steps
+    // prevent tunnelling without lengthening loader timers at low frame rates.
+    let remaining = elapsed;
+    while (remaining > 0) {
+      const dt = Math.min(remaining, 0.05);
+      this.advance(dt);
+      remaining -= dt;
+    }
+  }
+  private advance(dt: number) {
     this.state.time += dt;
     let loading = false;
+    this.state.weapon.crouching = false;
     for (const [participant, held] of this.controls)
-      if (this.roleOf(participant) === "loader") loading = Boolean(held & LOAD);
+      if (this.roleOf(participant) === "loader") {
+        loading = Boolean(held & LOAD);
+        this.state.weapon.crouching =
+          this.state.time >= this.state.weapon.stunnedUntil &&
+          Boolean(held & CROUCH);
+      }
     stepWeapon(
       this.state.weapon,
       loading,
