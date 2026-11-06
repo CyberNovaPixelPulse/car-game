@@ -83,7 +83,7 @@ test("機槍連射小傷害，五秒過熱且切模式不能繞過三秒冷卻",
     expect(overheatedAt - burstAt).toBeLessThan(6200);
     const hp = Number(
       (await crew.gunner.getByTestId("target-status").textContent())!.match(
-        /正前靶 (\d+)/,
+        /四號 H 型 (\d+)/,
       )![1],
     );
     expect(hp).toBeGreaterThan(100);

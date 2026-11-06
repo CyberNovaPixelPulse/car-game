@@ -40,10 +40,10 @@ test("裝填手選彈經連線同步，開裝後鎖定至發射且保留進度",
 });
 
 for (const [key, direct, adjacent] of [
-  ["1", 100, 140],
-  ["2", 20, 200],
+  ["1", 100, 360],
+  ["2", 20, 360],
 ] as const) {
-  test(`${key === "1" ? "高爆範圍" : "穿甲直接高傷"}以真實靶標呈現`, async ({
+  test(`${key === "1" ? "高爆直接命中" : "穿甲直接高傷"}以敵車呈現，掩體後虎式不受波及`, async ({
     browser,
   }) => {
     const c = await tankCrew(browser);
@@ -56,10 +56,10 @@ for (const [key, direct, adjacent] of [
       await c.loader.keyboard.up("r");
       await c.gunner.keyboard.press("Space");
       await expect(c.gunner.getByTestId("target-status")).toContainText(
-        `正前靶 ${direct}/200`,
+        `四號 H 型 ${direct}/200`,
       );
       await expect(c.gunner.getByTestId("target-status")).toContainText(
-        `鄰近靶 ${adjacent}/200`,
+        `虎式 I 型 ${adjacent}/360`,
       );
       await c.gunner.screenshot({
         path: `/tmp/car-game-to-spec/visual17/${key === "1" ? "he" : "ap"}-impact.png`,
@@ -75,7 +75,7 @@ for (const [key, direct, adjacent] of [
   });
 }
 
-test("近距高爆會傷靶而不傷共用坦克，仍可裝填下一發擊毀", async ({
+test("近距高爆會傷敵而不傷共用坦克，仍可裝填下一發擊毀", async ({
   browser,
 }) => {
   const c = await tankCrew(browser);
@@ -89,12 +89,15 @@ test("近距高爆會傷靶而不傷共用坦克，仍可裝填下一發擊毀",
     await c.loader.keyboard.down("r");
     await expect(c.gunner.getByTestId("chamber-state")).toHaveText("主炮就緒");
     await c.loader.keyboard.up("r");
+    const healthBefore = await c.gunner
+      .getByTestId("tank-health")
+      .textContent();
     await c.gunner.keyboard.press("Space");
     await expect(c.gunner.getByTestId("target-status")).toContainText(
-      "正前靶 100/200",
+      "四號 H 型 100/200",
     );
     for (const p of [c.driver, c.loader, c.gunner])
-      await expect(p.getByTestId("tank-health")).toHaveText("100/100");
+      await expect(p.getByTestId("tank-health")).toHaveText(healthBefore!);
     await c.gunner.screenshot({
       path: "/tmp/car-game-to-spec/visual17/near-he.png",
       fullPage: true,
@@ -104,7 +107,7 @@ test("近距高爆會傷靶而不傷共用坦克，仍可裝填下一發擊毀",
     await c.loader.keyboard.up("r");
     await c.gunner.keyboard.press("Space");
     await expect(c.gunner.getByTestId("target-status")).toContainText(
-      "正前靶 0/200 · 已擊毀",
+      "四號 H 型 0/200 · 已擊毀",
     );
     await expect(c.gunner.getByTestId("shot-count")).toHaveText("2");
   } finally {
@@ -195,10 +198,10 @@ test("穿甲彈在卡彈與蹲下期間保持鎖定，排除故障後仍射出�
     );
     await c.gunner.keyboard.press("Space");
     await expect(c.gunner.getByTestId("target-status")).toContainText(
-      "正前靶 20/200",
+      "四號 H 型 20/200",
     );
     await expect(c.gunner.getByTestId("target-status")).toContainText(
-      "鄰近靶 200/200",
+      "虎式 I 型 360/360",
     );
   } finally {
     await c.close();
