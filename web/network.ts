@@ -1,3 +1,4 @@
+import { isCrewRole, type CrewRole } from "./crew";
 import Peer, { type DataConnection, type PeerOptions } from "peerjs";
 
 export const COLORS = ["#fc7039", "#765cd4", "#1ea1b3", "#efbb31", "#e1669f"];
@@ -5,11 +6,14 @@ export interface Member {
   slot: number;
   name: string;
   connected: boolean;
+  role?: CrewRole | null;
+  ready?: boolean;
 }
 export interface Room {
   code: string;
   members: Member[];
-  phase: "lobby" | "racing" | "results";
+  phase: "lobby" | "racing" | "battle" | "results";
+  game: "race" | "tank";
   epoch: string;
 }
 interface HostMember extends Member {
@@ -24,7 +28,7 @@ interface Credentials {
   token: string;
   epoch: string;
 }
-const storageKey = "pocket-circuit-seat-v1";
+
 const record = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null;
 const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -48,15 +52,16 @@ function options(): PeerOptions {
     ...(local ? { config: { iceServers: [] } } : {}),
   };
 }
-function validRoom(value: unknown): value is Room {
+function validRoom(value: unknown, game: "race" | "tank"): value is Room {
   if (
     !record(value) ||
     typeof value.code !== "string" ||
     !/^[A-Z2-9]{6}$/.test(value.code) ||
-    !["lobby", "racing", "results"].includes(String(value.phase)) ||
+    !["lobby", "racing", "battle", "results"].includes(String(value.phase)) ||
+    value.game !== game ||
     typeof value.epoch !== "string" ||
     !Array.isArray(value.members) ||
-    value.members.length > 5
+    value.members.length > (game === "tank" ? 3 : 5)
   )
     return false;
   const slots = new Set<number>();
@@ -65,10 +70,13 @@ function validRoom(value: unknown): value is Room {
       !record(member) ||
       !Number.isInteger(member.slot) ||
       Number(member.slot) < 0 ||
-      Number(member.slot) > 4 ||
+      Number(member.slot) >= (game === "tank" ? 3 : 5) ||
       typeof member.name !== "string" ||
       member.name.length > 16 ||
       typeof member.connected !== "boolean" ||
+      (game === "tank" &&
+        (typeof member.ready !== "boolean" ||
+          (member.role !== null && !isCrewRole(member.role)))) ||
       slots.has(Number(member.slot))
     )
       return false;
@@ -77,6 +85,16 @@ function validRoom(value: unknown): value is Room {
   });
 }
 export class Session {
+  constructor(readonly game: "race" | "tank" = "race") {}
+  private get storageKey() {
+    return `${this.game === "tank" ? "tank-crew" : "pocket-circuit"}-seat-v1`;
+  }
+  private get peerPrefix() {
+    return this.game === "tank" ? "tank-crew-v1" : "pocket-circuit-v1";
+  }
+  private get playing() {
+    return this.room?.phase === "racing" || this.room?.phase === "battle";
+  }
   slot = 0;
   room?: Room;
   private peer?: Peer;
@@ -104,7 +122,7 @@ export class Session {
 
   private save() {
     if (this.credentials)
-      sessionStorage.setItem(storageKey, JSON.stringify(this.credentials));
+      sessionStorage.setItem(this.storageKey, JSON.stringify(this.credentials));
   }
   private async open(id?: string): Promise<Peer> {
     const peer = id ? new Peer(id, options()) : new Peer(options());
@@ -146,7 +164,7 @@ export class Session {
       const code = roomCode();
       let peer: Peer;
       try {
-        peer = await this.open(`pocket-circuit-v1-${code}`);
+        peer = await this.open(`${this.peerPrefix}-${code}`);
       } catch (error) {
         if (attempt < 2 && (error as Error).message.includes("代碼衝突")) {
           this.leave();
@@ -154,11 +172,19 @@ export class Session {
         }
         throw error;
       }
-      this.room = { code, members: [], phase: "lobby", epoch: "" };
+      this.room = {
+        code,
+        members: [],
+        phase: "lobby",
+        epoch: "",
+        game: this.game,
+      };
       this.members.set(0, {
         slot: 0,
         name: name.trim().slice(0, 16),
         connected: true,
+        role: null,
+        ready: false,
         token: crypto.randomUUID(),
         sequence: -1,
         seen: Date.now(),
@@ -180,9 +206,9 @@ export class Session {
   async resumeSaved() {
     let saved: unknown;
     try {
-      saved = JSON.parse(sessionStorage.getItem(storageKey) || "null");
+      saved = JSON.parse(sessionStorage.getItem(this.storageKey) || "null");
     } catch {
-      sessionStorage.removeItem(storageKey);
+      sessionStorage.removeItem(this.storageKey);
     }
     if (
       !record(saved) ||
@@ -213,7 +239,7 @@ export class Session {
     this.credentials = resume;
     const peer = await this.open();
     const generation = this.generation;
-    const link = peer.connect(`pocket-circuit-v1-${code}`, {
+    const link = peer.connect(`${this.peerPrefix}-${code}`, {
       reliable: true,
       serialization: "json",
     });
@@ -257,9 +283,9 @@ export class Session {
           data.type === "welcome" &&
           Number.isInteger(data.slot) &&
           Number(data.slot) > 0 &&
-          Number(data.slot) < 5 &&
+          Number(data.slot) < (this.game === "tank" ? 3 : 5) &&
           typeof data.token === "string" &&
-          validRoom(data.room)
+          validRoom(data.room, this.game)
         ) {
           clearTimeout(timer);
           welcomed = true;
@@ -281,10 +307,16 @@ export class Session {
           }
           this.watch();
           resolve();
-        } else if (data.type === "room" && validRoom(data.room) && welcomed) {
+        } else if (
+          data.type === "room" &&
+          validRoom(data.room, this.game) &&
+          welcomed
+        ) {
           this.room = data.room;
           this.onRoom(this.room);
-        } else if (data.type === "error" && typeof data.message === "string")
+        } else if (data.type === "notice" && typeof data.message === "string")
+          this.onError(data.message);
+        else if (data.type === "error" && typeof data.message === "string")
           fail(data.message, !!resume);
         else if (data.type === "ended") {
           this.leave();
@@ -299,7 +331,7 @@ export class Session {
           this.room
         ) {
           this.room.epoch = data.epoch;
-          this.room.phase = "racing";
+          this.room.phase = this.game === "tank" ? "battle" : "racing";
           this.sequence = 0;
           this.receivedSequence = -1;
           if (this.credentials) {
@@ -354,8 +386,8 @@ export class Session {
         member.seen = Date.now();
         if (
           data.type === "input" &&
-          this.room?.phase === "racing" &&
-          data.epoch === this.room.epoch &&
+          this.playing &&
+          data.epoch === this.room?.epoch &&
           Number.isSafeInteger(data.sequence) &&
           Number(data.sequence) > member.sequence &&
           Number.isInteger(data.keys) &&
@@ -364,6 +396,8 @@ export class Session {
         ) {
           member.sequence = Number(data.sequence);
           this.onInput(assigned, Number(data.keys));
+        } else if (data.type === "crew") {
+          this.updateCrew(assigned, data.role, data.ready);
         }
         return;
       }
@@ -378,8 +412,8 @@ export class Session {
         );
         if (
           !member ||
-          this.room?.phase !== "racing" ||
-          data.epoch !== this.room.epoch ||
+          !this.playing ||
+          data.epoch !== this.room?.epoch ||
           !this.latestState
         ) {
           deny("原本的賽局已結束或已更換，請重新加入。");
@@ -406,18 +440,28 @@ export class Session {
       }
       if (data.type !== "join") return;
       if (this.room?.phase !== "lobby") {
-        deny("比賽已開始，請等下一場再加入。");
+        deny(
+          this.game === "tank"
+            ? "戰鬥已開始，請等下一場再加入。"
+            : "比賽已開始，請等下一場再加入。",
+        );
         return;
       }
       const name =
         typeof data.name === "string" ? data.name.trim().slice(0, 16) : "";
       if (!name) {
-        deny("請輸入車手名。");
+        deny(this.game === "tank" ? "請輸入乘員名稱。" : "請輸入車手名。");
         return;
       }
-      const slot = [1, 2, 3, 4].find((i) => !this.members.has(i));
+      const slot = (this.game === "tank" ? [1, 2] : [1, 2, 3, 4]).find(
+        (i) => !this.members.has(i),
+      );
       if (slot === undefined) {
-        deny("房間已滿，最多五位車手。");
+        deny(
+          this.game === "tank"
+            ? "房間已滿，最多三名乘員。"
+            : "房間已滿，最多五位車手。",
+        );
         return;
       }
       clearTimeout(timer);
@@ -426,6 +470,8 @@ export class Session {
         slot,
         name,
         connected: true,
+        role: null,
+        ready: false,
         token: crypto.randomUUID(),
         link,
         sequence: -1,
@@ -458,7 +504,13 @@ export class Session {
   private publishRoom() {
     if (!this.room) return;
     this.room.members = [...this.members.values()]
-      .map(({ slot, name, connected }) => ({ slot, name, connected }))
+      .map(({ slot, name, connected, role, ready }) => ({
+        slot,
+        name,
+        connected,
+        role,
+        ready,
+      }))
       .sort((a, b) => a.slot - b.slot);
     this.onRoom(this.room);
     this.broadcast({ type: "room", room: this.room });
@@ -492,17 +544,63 @@ export class Session {
         this.uplink.close();
     }, 1000);
   }
+  chooseRole(role: CrewRole) {
+    if (this.isHost) this.updateCrew(this.slot, role, undefined);
+    else if (this.room?.phase === "lobby")
+      this.uplink?.send({ type: "crew", role });
+  }
+  setReady(ready: boolean) {
+    if (this.isHost) this.updateCrew(this.slot, undefined, ready);
+    else if (this.room?.phase === "lobby")
+      this.uplink?.send({ type: "crew", ready });
+  }
+  private updateCrew(slot: number, role: unknown, ready: unknown) {
+    if (this.game !== "tank" || this.room?.phase !== "lobby") return;
+    const member = this.members.get(slot);
+    if (!member?.connected) return;
+    const notice = (message: string) => {
+      if (slot === 0) this.onError(message);
+      else member.link?.send({ type: "notice", message });
+    };
+    if (isCrewRole(role)) {
+      if (
+        [...this.members.values()].some(
+          (m) => m.slot !== slot && m.role === role,
+        )
+      ) {
+        notice("這個職位已有人擔任，請選擇其他職位。");
+        return;
+      }
+      if (member.role !== role) {
+        member.role = role;
+        member.ready = false;
+      }
+    }
+    if (typeof ready === "boolean") {
+      if (!member.role) {
+        notice("請先選擇職位再準備。");
+        return;
+      }
+      member.ready = ready;
+    }
+    this.publishRoom();
+  }
   start() {
     if (
       !this.isHost ||
       !this.room ||
-      this.room.phase === "racing" ||
-      [...this.members.values()].filter((m) => m.connected).length < 2
+      this.playing ||
+      [...this.members.values()].filter((m) => m.connected).length < 2 ||
+      (this.game === "tank" &&
+        (this.members.size !== 3 ||
+          [...this.members.values()].some(
+            (m) => !m.connected || !m.role || !m.ready,
+          )))
     )
       return;
     for (const [slot, member] of this.members)
       if (!member.connected) this.members.delete(slot);
-    this.room.phase = "racing";
+    this.room.phase = this.game === "tank" ? "battle" : "racing";
     this.room.epoch = crypto.randomUUID();
     this.sequence = 0;
     this.stateSequence = 0;
@@ -515,7 +613,7 @@ export class Session {
     this.onStart(mask, seed);
   }
   input(keys: number) {
-    if (this.uplink?.open && this.room?.phase === "racing")
+    if (this.uplink?.open && this.room && this.playing)
       this.uplink.send({
         type: "input",
         epoch: this.room.epoch,
@@ -524,7 +622,7 @@ export class Session {
       });
   }
   state(payload: string) {
-    if (this.isHost && this.room?.phase === "racing") {
+    if (this.isHost && this.room && this.playing) {
       this.latestState = payload;
       this.broadcast({
         type: "state",
@@ -535,7 +633,7 @@ export class Session {
     }
   }
   finish(payload: string) {
-    if (this.isHost && this.room?.phase === "racing") {
+    if (this.isHost && this.room && this.playing) {
       this.state(payload);
       this.room.phase = "results";
       this.publishRoom();
@@ -552,7 +650,7 @@ export class Session {
     this.members.clear();
     this.room = undefined;
     if (clearCredentials) {
-      sessionStorage.removeItem(storageKey);
+      sessionStorage.removeItem(this.storageKey);
       this.credentials = undefined;
     }
   }
