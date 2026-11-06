@@ -3,7 +3,7 @@ import { CREW_ROLES, ROLE_LABELS, ROLE_TASKS } from "./crew";
 import { GameRuntime } from "./game-runtime";
 import { TankCore, DRIVE, AIM } from "./tank-core";
 import { TankScene } from "./tank-scene";
-import { LOAD, FIRE } from "./tank-weapons";
+import { LOAD, FIRE, SELECT_HE, SELECT_AP, SHELL_LABELS } from "./tank-weapons";
 import "./tank.css";
 
 const app = document.querySelector<HTMLDivElement>("#tank-app")!;
@@ -115,7 +115,7 @@ function station(room: Room) {
   scene?.dispose();
   scene = undefined;
   stationRole = role;
-  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><p>${ROLE_TASKS[role]}</p>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong> · 砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p><p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note">連點 A／D 左右、W／S 上下；反方向連點可煞停。按住只推動一次。</p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p>車內裝填工作區</p><div class="breech-assembly" aria-label="主炮砲膛與退殼工作區"><div class="breech-tube"></div><div class="breech-block"></div><div class="loading-round"></div></div><p class="note">按住 R 裝填高爆彈，放開可暫停。等待砲手開火、退殼後再裝下一發。</p></div>'}${role !== "driver" ? '<div class="weapon-status"><p>彈種：高爆彈 · 備彈充足</p><p data-testid="chamber-state">空膛</p><p>裝填進度 <strong data-testid="load-progress">0</strong>%</p><progress aria-label="裝填進度" max="100" value="0"></progress><p>已發射 <strong data-testid="shot-count">0</strong> 發</p></div>' : ""}${role === "gunner" ? '<p data-testid="target-status">前方練習靶：完好</p><p data-testid="flight-status"></p><p class="note">主炮就緒後，按空白鍵開火。</p>' : ""}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
+  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><p>${ROLE_TASKS[role]}</p><p>共用坦克血量 <strong data-testid="tank-health">100/100</strong></p>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong> · 砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p><p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note">連點 A／D 左右、W／S 上下；反方向連點可煞停。按住只推動一次。</p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p>車內裝填工作區</p><div class="breech-assembly" aria-label="主炮砲膛與退殼工作區"><div class="breech-tube"></div><div class="breech-block"></div><div class="loading-round"></div></div><p class="note">按 1 選高爆彈、2 選穿甲彈。按住 R 裝填，放開可暫停；開始裝填後鎖定該發彈種。等待砲手開火、退殼後再裝下一發。</p></div>'}${role !== "driver" ? '<div class="weapon-status"><p>選擇：<strong data-testid="selected-shell">高爆彈</strong> · 高爆／穿甲／煙霧備彈無限（煙霧功能待加入）</p><p>膛內：<strong data-testid="chamber-shell">無</strong></p><p data-testid="chamber-state">空膛</p><p>裝填進度 <strong data-testid="load-progress">0</strong>%</p><progress aria-label="裝填進度" max="100" value="0"></progress><p>已發射 <strong data-testid="shot-count">0</strong> 發</p></div>' : ""}${role === "gunner" ? '<p data-testid="target-status">前方練習靶：完好</p><p data-testid="flight-status"></p><p class="note">主炮就緒後，按空白鍵開火。</p>' : ""}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
   if (role === "gunner") {
     try {
       scene = new TankScene(content.querySelector("canvas")!);
@@ -167,12 +167,20 @@ core.present = (state) => {
     ejecting: "正在退殼",
   };
   const updates: Record<string, string> = {
+    "tank-health": `${state.tank.hp}/100`,
+    "selected-shell": SHELL_LABELS[weapon.selectedShell],
+    "chamber-shell": weapon.chamberShell
+      ? `${SHELL_LABELS[weapon.chamberShell]}（已鎖定）`
+      : "無",
     "chamber-state": weaponText[weapon.chamber],
     "load-progress": String(Math.round(weapon.loadProgress * 100)),
     "shot-count": String(weapon.shotsFired),
-    "target-status": weapon.targets.every((target) => target.hp <= 0)
-      ? "命中確認：靶標已擊毀"
-      : "前方練習靶：完好",
+    "target-status": weapon.targets
+      .map(
+        (t, i) =>
+          `${i === 0 ? "正前靶" : "鄰近靶"} ${t.hp}/200 · ${t.hp <= 0 ? "已擊毀" : t.hp === 200 ? "完好" : "受損"}`,
+      )
+      .join("；"),
     "flight-status": weapon.projectiles.length
       ? "砲彈飛行中"
       : weapon.impacts.length
@@ -206,6 +214,12 @@ const driveKeys: Record<string, number> = {
 };
 window.addEventListener("keydown", (event) => {
   if (runtime.mode !== "online") return;
+  if (stationRole === "loader" && ["1", "2"].includes(event.key)) {
+    event.preventDefault();
+    if (!event.repeat)
+      runtime.action(event.key === "1" ? SELECT_HE : SELECT_AP);
+    return;
+  }
   if (stationRole === "gunner") {
     const aimKeys: Record<string, number> = {
       a: AIM.left,

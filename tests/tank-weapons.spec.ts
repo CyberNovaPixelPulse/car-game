@@ -36,7 +36,7 @@ test("裝填中斷可續接，砲手就緒後射擊靶標，再退殼裝下一�
     );
     await expect(crew.gunner.getByTestId("shot-count")).toHaveText("1");
     await expect(crew.gunner.getByTestId("target-status")).toContainText(
-      "已擊毀",
+      "正前靶 100/200",
     );
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText("空膛");
     await crew.loader.keyboard.down("r");
