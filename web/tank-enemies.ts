@@ -56,7 +56,7 @@ function nextPoint(
 ) {
   const start = [enemy.x, enemy.z],
     goal = [tank.x, tank.z];
-  const radius = enemy.width / 2 + 0.35;
+  const radius = Math.hypot(enemy.width, enemy.depth) / 2 + 0.2;
   const clear = (a: number[], b: number[]) =>
     !cover.some(
       (c) =>
@@ -154,9 +154,10 @@ export function stepEnemies(
         dz = -Math.cos(e.turretYaw);
       b.projectiles.push({
         id: ++b.shots,
-        x: e.x + dx * 3.4,
+        // Sweep from the firing hull: a muzzle projecting past a nearby wall must not skip it.
+        x: e.x,
         y: 2.4,
-        z: e.z + dz * 3.4,
+        z: e.z,
         vx: dx * 23,
         vz: dz * 23,
         damage: e.kind === "tiger" ? 28 : 16,

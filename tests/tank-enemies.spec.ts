@@ -12,6 +12,11 @@ test("敵車接近並預告開火，敵彈扣除三人共用血量直至一致�
     await expect(c.gunner.getByTestId("enemy-warning")).toContainText("瞄準", {
       timeout: 20000,
     });
+    await expect(c.gunner.getByTestId("enemy-warning")).toBeInViewport();
+    await c.gunner.screenshot({
+      path: "/tmp/car-game-to-spec/visual21/enemy-warning.png",
+      fullPage: false,
+    });
     await expect(c.gunner.getByTestId("tank-health")).not.toHaveText(
       "100/100",
       { timeout: 20000 },
@@ -26,6 +31,14 @@ test("敵車接近並預告開火，敵彈扣除三人共用血量直至一致�
       );
       await expect(page.getByTestId("tank-health")).toHaveText("0/100");
     }
+    await c.driver.screenshot({
+      path: "/tmp/car-game-to-spec/visual21/defeat-driver.png",
+      fullPage: true,
+    });
+    await c.gunner.screenshot({
+      path: "/tmp/car-game-to-spec/visual21/defeat-gunner.png",
+      fullPage: true,
+    });
   } finally {
     await c.close();
   }
@@ -40,10 +53,6 @@ for (const [key, remaining] of [
   }) => {
     const c = await tankCrew(browser);
     try {
-      await expect(c.gunner.getByTestId("tank-health")).not.toHaveText(
-        "100/100",
-        { timeout: 20000 },
-      );
       await c.loader.keyboard.press(key);
       for (const hp of [remaining, 0]) {
         await c.loader.keyboard.down("r");
@@ -51,6 +60,13 @@ for (const [key, remaining] of [
           "主炮就緒",
         );
         await c.loader.keyboard.up("r");
+        const beforeAttack = await c.gunner
+          .getByTestId("tank-health")
+          .textContent();
+        await expect(c.gunner.getByTestId("tank-health")).not.toHaveText(
+          beforeAttack!,
+          { timeout: 20000 },
+        );
         const before = await c.gunner.getByTestId("tank-health").textContent();
         await c.loader.keyboard.down("c");
         await c.gunner.keyboard.press("Space");
@@ -112,7 +128,10 @@ test("乘員可繞到固定石牆後擋住敵火，己方炮火也不能穿牆�
     await c.loader.keyboard.down("c");
     await c.gunner.keyboard.press("Space");
     await expect(c.gunner.getByTestId("flight-status")).toHaveText("砲彈命中");
-    await c.gunner.screenshot({path:"/tmp/car-game-to-spec/visual21/cover-fire.png",fullPage:true});
+    await c.gunner.screenshot({
+      path: "/tmp/car-game-to-spec/visual21/cover-fire.png",
+      fullPage: true,
+    });
     await c.gunner.waitForTimeout(4000);
     for (const p of [c.gunner, c.loader, c.driver])
       await expect(p.getByTestId("tank-health")).toHaveText(health!);
@@ -124,6 +143,17 @@ test("乘員可繞到固定石牆後擋住敵火，己方炮火也不能穿牆�
     );
     await c.gunner.screenshot({
       path: "/tmp/car-game-to-spec/visual21/cover.png",
+      fullPage: true,
+    });
+    // Cover delays the enemy; its normal flank must eventually expose this position.
+    await expect(c.gunner.getByTestId("enemy-warning")).toContainText("瞄準", {
+      timeout: 12000,
+    });
+    await expect(c.gunner.getByTestId("tank-health")).not.toHaveText(health!, {
+      timeout: 12000,
+    });
+    await c.gunner.screenshot({
+      path: "/tmp/car-game-to-spec/visual21/cover-flanked.png",
       fullPage: true,
     });
   } finally {
@@ -150,7 +180,17 @@ test("虎式繞過前牆接近，重裝耐打且可用兩發穿甲擊毀", async
       "四號 H 型 0/200",
     );
     await c.gunner.waitForTimeout(23000);
-    for (let i = 0; i < 3; i++) await c.gunner.keyboard.press("d");
+    for (let i = 0; i < 3; i++) await c.gunner.keyboard.press("a");
+    await expect
+      .poll(async () =>
+        Number(
+          (await c.gunner.getByTestId("turret-heading").textContent())!.replace(
+            "°",
+            "",
+          ),
+        ),
+      )
+      .toBeGreaterThan(300);
     await expect(c.gunner.getByTestId("turret-yaw-rate")).toHaveText("0.0°/s");
     await c.gunner.screenshot({
       path: "/tmp/car-game-to-spec/visual21/tiger-approach.png",
@@ -167,6 +207,46 @@ test("虎式繞過前牆接近，重裝耐打且可用兩發穿甲擊毀", async
     await expect(c.gunner.getByTestId("battle-result")).toBeHidden();
     await c.gunner.screenshot({
       path: "/tmp/car-game-to-spec/visual21/tiger-wreck.png",
+      fullPage: true,
+    });
+  } finally {
+    await c.close();
+  }
+});
+
+test("敵彈先扣血後，裝填手機槍會實傷敵車並保留己方血量與虎式上限", async ({
+  browser,
+}) => {
+  const c = await tankCrew(browser, "gunner");
+  try {
+    await expect(c.gunner.getByTestId("tank-health")).not.toHaveText(
+      "100/100",
+      { timeout: 20000 },
+    );
+    const health = await c.gunner.getByTestId("tank-health").textContent();
+    await c.loader.keyboard.press("Tab");
+    await c.loader.keyboard.down("Space");
+    await expect
+      .poll(async () =>
+        Number(await c.loader.getByTestId("mg-shot-count").textContent()),
+      )
+      .toBeGreaterThanOrEqual(12);
+    await c.loader.keyboard.up("Space");
+    await expect(c.loader.getByTestId("mg-target-status")).toContainText(
+      "虎式 I 型 360/360",
+    );
+    await expect
+      .poll(async () => {
+        const text = await c.loader
+          .getByTestId("mg-target-status")
+          .textContent();
+        return Number(text!.match(/四號 H 型 (\d+)\/200/)?.[1]);
+      })
+      .toBeLessThan(195);
+    for (const p of [c.gunner, c.loader, c.driver])
+      await expect(p.getByTestId("tank-health")).toHaveText(health!);
+    await c.loader.screenshot({
+      path: "/tmp/car-game-to-spec/visual21/mg-enemy-damage.png",
       fullPage: true,
     });
   } finally {

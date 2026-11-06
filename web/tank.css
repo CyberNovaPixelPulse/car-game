@@ -438,3 +438,20 @@ legend {
   height: 12px;
   accent-color: #d6ac64;
 }
+
+.battle-viewport [data-testid="enemy-warning"] {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  margin: 0;
+  padding: 8px 12px;
+  background: #252c2d;
+  color: #ffe3a3;
+  font-size: 1rem;
+  line-height: 1.5;
+  pointer-events: none;
+}
+.battle-viewport [data-testid="enemy-warning"]:empty {
+  display: none;
+}
