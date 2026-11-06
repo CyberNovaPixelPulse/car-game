@@ -1,7 +1,12 @@
 import * as THREE from "three";
 
 /** Local CC0 maps, never a runtime dependency on the asset provider. */
-export function surfaceMaps(id: string, repeat: number, folder = "terrain") {
+export function surfaceMaps(
+  id: string,
+  repeat: number,
+  folder = "terrain",
+  includeColor = true,
+) {
   const loader = new THREE.TextureLoader();
   const load = (suffix: string, color = false) => {
     const texture = loader.load(
@@ -14,7 +19,7 @@ export function surfaceMaps(id: string, repeat: number, folder = "terrain") {
     return texture;
   };
   return {
-    map: load("diff", true),
+    map: includeColor ? load("diff", true) : null,
     normalMap: load("nor_gl"),
     roughnessMap: load("rough"),
   };
@@ -78,4 +83,27 @@ export function hullGeometry(
   geometry.dispose();
   flat.computeVertexNormals();
   return flat;
+}
+
+/** Dispose one exclusive resource owner. Sharing within that owner is released once.
+ * Vehicle models never borrow geometry/materials/textures from other models. */
+export function disposeArt(root: THREE.Object3D) {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  const textures = new Set<THREE.Texture>();
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    geometries.add(object.geometry);
+    for (const material of Array.isArray(object.material)
+      ? object.material
+      : [object.material]) {
+      materials.add(material);
+      const m = material as THREE.MeshStandardMaterial;
+      for (const texture of [m.map, m.normalMap, m.roughnessMap])
+        if (texture) textures.add(texture);
+    }
+  });
+  for (const texture of textures) texture.dispose();
+  for (const material of materials) material.dispose();
+  for (const geometry of geometries) geometry.dispose();
 }

@@ -1,5 +1,11 @@
 import * as THREE from "three";
-import { box, hullGeometry, part, surfaceMaps } from "./tank-art-materials";
+import {
+  box,
+  disposeArt,
+  hullGeometry,
+  part,
+  surfaceMaps,
+} from "./tank-art-materials";
 
 type Kind = "sherman" | "panzer" | "tiger";
 interface RunningGear {
@@ -17,6 +23,7 @@ export class VehicleModel {
   private gear: RunningGear[] = [];
   private paint: THREE.MeshStandardMaterial;
   private lastPose?: { x: number; z: number; yaw: number };
+  private condition = "";
   private length: number;
   private trackX: number;
   private matrix = new THREE.Object3D();
@@ -30,7 +37,7 @@ export class VehicleModel {
       color: sherman ? 0x8c956e : tiger ? 0xb2a17b : 0xb5a581,
       roughness: 0.86,
       metalness: 0.12,
-      ...surfaceMaps("green_metal_rust", 1.4, "metal"),
+      ...surfaceMaps("green_metal_rust", 1.4, "metal", sherman),
       normalScale: new THREE.Vector2(0.22, 0.22),
     });
     if (!sherman) {
@@ -601,11 +608,20 @@ export class VehicleModel {
         g.links.setMatrixAt(i, this.matrix.matrix);
       }
       g.links.instanceMatrix.needsUpdate = true;
-      g.links.computeBoundingSphere();
+      if (!g.links.boundingSphere) {
+        g.links.computeBoundingSphere();
+        g.links.boundingSphere!.radius += 0.2;
+      }
       for (const wheel of g.wheels) wheel.rotation.x = -g.phase / 0.4;
     }
   }
+  dispose() {
+    disposeArt(this.root);
+  }
   setCondition(alive: boolean, warning: boolean) {
+    const condition = `${alive}:${warning}`;
+    if (this.condition === condition) return;
+    this.condition = condition;
     this.paint.emissive.setHex(alive ? (warning ? 0x39200b : 0) : 0x080603);
     this.paint.color.setHex(
       alive
@@ -619,6 +635,8 @@ export class VehicleModel {
   }
 }
 
+/** M2-style Browning .50: receiver, barrel support, pintle/trunnion and spade grips.
+ * The shared root stays on -Z; first-person pose belongs to the independent MG camera. */
 export function buildBrowning(
   parent: THREE.Object3D,
   steel: THREE.Material,
@@ -630,16 +648,75 @@ export function buildBrowning(
   const gun = new THREE.Group();
   gun.position.set(x, y, z);
   parent.add(gun);
-  part(gun, box(0.16, 0.19, 0.54), steel, 0, 0, -0.19);
-  const jacket = part(
-    gun,
-    new THREE.CylinderGeometry(0.043, 0.05, 0.46, 12, 1, true),
-    steel,
-    0,
-    0,
-    -0.69,
-  );
-  jacket.rotation.x = Math.PI / 2;
+  const dark = new THREE.MeshStandardMaterial({
+    color: 0x141b19,
+    roughness: 0.95,
+  });
+  const brass = new THREE.MeshStandardMaterial({
+    color: 0x9e8550,
+    metalness: 0.72,
+    roughness: 0.58,
+  });
+  const worn = new THREE.MeshStandardMaterial({
+    color: 0x777e74,
+    metalness: 0.72,
+    roughness: 0.56,
+  });
+  // Top cover hinge, charging handle, rivet rows and left-hand feedway.
+  part(gun, box(0.17, 0.185, 0.52), steel, 0, 0, -0.2);
+  part(gun, box(0.18, 0.018, 0.42), worn, 0, 0.103, -0.22);
+  part(gun, box(0.135, 0.03, 0.13), steel, 0, 0.125, -0.08);
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 6; i++) {
+      const rivet = part(
+        gun,
+        new THREE.CylinderGeometry(0.009, 0.009, 0.008, 6),
+        worn,
+        side * 0.089,
+        0.045,
+        -0.02 - i * 0.075,
+      );
+      rivet.rotation.z = Math.PI / 2;
+    }
+    part(gun, box(0.025, 0.032, 0.18), worn, side * 0.095, -0.01, -0.24);
+  }
+  part(gun, box(0.055, 0.035, 0.03), steel, 0.13, 0.01, -0.14);
+  part(gun, box(0.03, 0.07, 0.035), worn, 0.17, 0.03, -0.14);
+  part(gun, box(0.13, 0.065, 0.18), dark, -0.14, 0.02, -0.15);
+  part(gun, box(0.22, 0.28, 0.26), paint, -0.29, -0.1, -0.15);
+  part(gun, box(0.235, 0.018, 0.28), worn, -0.29, 0.046, -0.15);
+  for (let i = 0; i < 5; i++) {
+    const round = part(
+      gun,
+      new THREE.CylinderGeometry(0.012, 0.012, 0.105, 8),
+      brass,
+      -0.12 - i * 0.027,
+      0.074,
+      -0.15,
+    );
+    round.rotation.x = Math.PI / 2;
+  }
+  // Open support jacket: narrow rings joined by ribs, actual air gaps rather than painted holes.
+  for (let i = 0; i < 6; i++)
+    part(
+      gun,
+      new THREE.TorusGeometry(0.047, 0.007, 6, 12),
+      steel,
+      0,
+      0,
+      -0.5 - i * 0.075,
+    );
+  for (let i = 0; i < 6; i++) {
+    const angle = (i * Math.PI) / 3;
+    part(
+      gun,
+      box(0.011, 0.011, 0.42),
+      steel,
+      Math.cos(angle) * 0.047,
+      Math.sin(angle) * 0.047,
+      -0.69,
+    );
+  }
   const barrel = part(
     gun,
     new THREE.CylinderGeometry(0.023, 0.028, 0.76, 12, 1, true),
@@ -649,20 +726,53 @@ export function buildBrowning(
     -1.3,
   );
   barrel.rotation.x = Math.PI / 2;
-  for (let i = 0; i < 7; i++)
-    for (const side of [-1, 1])
-      part(
-        gun,
-        box(0.007, 0.031, 0.025),
-        paint,
-        side * 0.046,
-        0,
-        -0.5 - i * 0.05,
-      );
-  for (const side of [-1, 1])
-    part(gun, box(0.04, 0.17, 0.045), steel, side * 0.11, -0.06, 0.14);
-  part(gun, box(0.024, 0.105, 0.035), steel, 0, 0.13, -0.23);
-  part(gun, box(0.018, 0.1, 0.022), steel, 0, 0.1, -1.57);
-  part(gun, box(0.23, 0.3, 0.28), paint, -0.24, -0.07, -0.13);
+  part(gun, new THREE.TorusGeometry(0.023, 0.006, 6, 12), worn, 0, 0, -1.68);
+  const bore = part(
+    gun,
+    new THREE.CircleGeometry(0.018, 12),
+    dark,
+    0,
+    0,
+    -1.674,
+  );
+  bore.rotation.y = Math.PI;
+  // Rear folding leaf sight and front blade sit below the screen's aiming center.
+  part(gun, box(0.026, 0.14, 0.022), steel, 0, 0.15, -0.25);
+  part(gun, box(0.085, 0.018, 0.025), worn, 0, 0.21, -0.25);
+  part(gun, box(0.014, 0.1, 0.02), steel, 0, 0.075, -1.53);
+  // The two grips, butterfly trigger and U-cradle identify the working end.
+  for (const side of [-1, 1]) {
+    part(gun, box(0.035, 0.17, 0.045), dark, side * 0.12, -0.06, 0.13);
+    part(gun, box(0.15, 0.027, 0.035), steel, side * 0.075, 0.025, 0.12);
+    part(gun, box(0.025, 0.2, 0.18), paint, side * 0.13, -0.15, -0.24);
+    const pivot = part(
+      gun,
+      new THREE.CylinderGeometry(0.035, 0.035, 0.03, 10),
+      worn,
+      side * 0.15,
+      -0.11,
+      -0.24,
+    );
+    pivot.rotation.z = Math.PI / 2;
+  }
+  part(gun, box(0.065, 0.06, 0.022), worn, 0, 0, 0.14);
+  part(gun, box(0.28, 0.04, 0.2), paint, 0, -0.26, -0.24);
+  part(
+    gun,
+    new THREE.CylinderGeometry(0.037, 0.055, 0.38, 12),
+    steel,
+    0,
+    -0.46,
+    -0.24,
+  );
+  const clamp = part(
+    gun,
+    new THREE.TorusGeometry(0.065, 0.014, 6, 12),
+    paint,
+    0,
+    -0.5,
+    -0.24,
+  );
+  clamp.rotation.x = Math.PI / 2;
   return gun;
 }

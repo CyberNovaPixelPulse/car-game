@@ -3,6 +3,7 @@ import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
 import { type TankState } from "./tank-core";
 import { VehicleModel, buildBrowning } from "./tank-vehicle-model";
 import { buildNormandy } from "./tank-environment";
+import { disposeArt } from "./tank-art-materials";
 import { SmokeScene } from "./tank-smoke-scene";
 
 /** The gunner's real 3D view; no renderer is created for the blind driver. */
@@ -10,6 +11,9 @@ export class TankScene {
   private renderer: THREE.WebGLRenderer;
   private disposed = false;
   private sky?: THREE.DataTexture;
+  private lastVisual = "";
+  private lastShadow = "";
+  private lastDraw = -Infinity;
   private scene = new THREE.Scene();
   private smoke = new SmokeScene(this.scene);
   private camera = new THREE.PerspectiveCamera(65, 1, 0.1, 180);
@@ -31,6 +35,8 @@ export class TankScene {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.autoUpdate = false;
+    this.renderer.shadowMap.needsUpdate = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.98;
@@ -76,7 +82,17 @@ export class TankScene {
         color: 0x303a2c,
         roughness: 0.9,
       });
-      buildBrowning(this.camera, steel, paint, 0.25, -0.28, -0.35);
+      const mount = buildBrowning(
+        this.camera,
+        steel,
+        paint,
+        0.25,
+        -0.28,
+        -0.35,
+      );
+      mount.traverse((object) => {
+        if (object instanceof THREE.Mesh) object.castShadow = false;
+      });
       this.scene.add(this.camera);
     }
     this.observer = new ResizeObserver(() => this.resize());
@@ -89,9 +105,50 @@ export class TankScene {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.lastVisual = "";
   }
   render(state: TankState) {
     const t = state.tank;
+    // Render state is a local GPU concern. Simulation/network clocks keep running at full cadence.
+    const pose = [
+      t.x,
+      t.z,
+      t.yaw,
+      state.turret.yaw,
+      state.turret.pitch,
+      ...state.weapon.targets.flatMap((e) => [
+        e.id,
+        e.x,
+        e.z,
+        e.yaw,
+        e.turretYaw,
+        e.hp > 0,
+      ]),
+    ].join(":");
+    const animated =
+      state.weapon.smoke.some((c) => state.time < c.until) ||
+      state.weapon.impacts.length > 0;
+    const aimState =
+      this.view === "machine-gun" ? state.weapon.mg : state.turret;
+    const visual = [
+      pose,
+      aimState.yaw,
+      aimState.pitch,
+      state.weapon.targets.map((e) => e.phase).join(),
+      state.weapon.projectiles.map((p) => [p.id, p.x, p.y, p.z].join()).join(),
+      state.battle.projectiles.map((p) => [p.id, p.x, p.y, p.z].join()).join(),
+      state.weapon.mg.tracers.map((p) => p.id).join(),
+      animated ? state.time : 0,
+    ].join("|");
+    const now = performance.now();
+    // A periodic quiet refresh admits asynchronous texture completions without a global loader hook.
+    if (visual === this.lastVisual && now - this.lastDraw < 250) return;
+    if (pose !== this.lastShadow) {
+      this.renderer.shadowMap.needsUpdate = true;
+      this.lastShadow = pose;
+    }
+    this.lastVisual = visual;
+    this.lastDraw = now;
     this.tank.visible = this.view !== "machine-gun";
     this.player.animate(t.x, t.z, t.yaw);
     this.tank.position.set(t.x, 0, t.z);
@@ -115,7 +172,7 @@ export class TankScene {
     for (const [id, mesh] of this.targetMeshes) {
       if (!state.weapon.targets.some((target) => target.id === id)) {
         this.scene.remove(mesh);
-        this.disposeObject(mesh);
+        this.enemyModels.get(id)?.dispose();
         this.targetMeshes.delete(id);
         this.enemyModels.delete(id);
       }
@@ -230,26 +287,19 @@ export class TankScene {
     mesh.geometry.dispose();
     (mesh.material as THREE.Material).dispose();
   }
-  private disposeObject(root: THREE.Object3D) {
-    root.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) {
-        obj.geometry.dispose();
-        for (const m of Array.isArray(obj.material)
-          ? obj.material
-          : [obj.material]) {
-          const mat = m as THREE.MeshStandardMaterial;
-          for (const texture of [mat.map, mat.normalMap, mat.roughnessMap])
-            texture?.dispose();
-          m.dispose();
-        }
-      }
-    });
-  }
   dispose() {
     this.disposed = true;
     this.sky?.dispose();
     this.observer.disconnect();
-    this.disposeObject(this.scene);
+    this.scene.remove(this.player.root);
+    this.player.dispose();
+    for (const model of this.enemyModels.values()) {
+      this.scene.remove(model.root);
+      model.dispose();
+    }
+    this.enemyModels.clear();
+    this.targetMeshes.clear();
+    disposeArt(this.scene);
     for (const line of this.mgTracers.values()) {
       line.geometry.dispose();
       (line.material as THREE.Material).dispose();
