@@ -1,3 +1,5 @@
+import type { GameCore, GameStart } from "./game-runtime";
+
 export interface CarView {
   x: number;
   y: number;
@@ -35,7 +37,7 @@ interface Wasm {
   _game_state_ptr(): number;
   _game_state_size(): number;
 }
-export class Engine {
+export class Engine implements GameCore<GameView> {
   private constructor(private wasm: Wasm) {}
   static async load(canvas: HTMLCanvasElement) {
     await new Promise<void>((resolve, reject) => {
@@ -55,6 +57,10 @@ export class Engine {
     if (!wasm._game_init())
       throw new Error("無法啟動賽道，請使用支援 WebGL 的瀏覽器。");
     return new Engine(wasm);
+  }
+  start({ participants, seed, practice }: GameStart) {
+    const mask = participants.reduce((mask, slot) => mask | (1 << slot), 0);
+    this.reset(mask, seed, practice ? 1 : 0);
   }
   reset(mask: number, seed = 1, practice = 1) {
     this.wasm._game_reset(mask, seed, practice);
