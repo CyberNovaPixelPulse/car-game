@@ -15,6 +15,8 @@ export interface Room {
   phase: "lobby" | "racing" | "battle" | "results";
   game: "race" | "tank";
   epoch: string;
+  reconnectDeadline?: number;
+  notice?: string;
 }
 interface HostMember extends Member {
   token: string;
@@ -60,6 +62,11 @@ function validRoom(value: unknown, game: "race" | "tank"): value is Room {
     !["lobby", "racing", "battle", "results"].includes(String(value.phase)) ||
     value.game !== game ||
     typeof value.epoch !== "string" ||
+    (value.reconnectDeadline !== undefined &&
+      (typeof value.reconnectDeadline !== "number" ||
+        !Number.isFinite(value.reconnectDeadline))) ||
+    (value.notice !== undefined &&
+      (typeof value.notice !== "string" || value.notice.length > 200)) ||
     !Array.isArray(value.members) ||
     value.members.length > (game === "tank" ? 3 : 5)
   )
@@ -426,6 +433,7 @@ export class Session {
         setTimeout(() => link.close(), 200);
       };
       if (data.type === "resume") {
+        this.expireBattlePause();
         const member = [...this.members.values()].find(
           (m) => m.slot !== 0 && m.token === data.token,
         );
@@ -444,6 +452,12 @@ export class Session {
         member.connected = true;
         member.sequence = -1;
         member.seen = Date.now();
+        if (
+          this.game === "tank" &&
+          this.room &&
+          [...this.members.values()].every((crew) => crew.connected)
+        )
+          this.room.reconnectDeadline = undefined;
         old?.close();
         clearTimeout(timer);
         this.publishRoom();
@@ -514,6 +528,12 @@ export class Session {
       else {
         member.connected = false;
         member.link = undefined;
+        if (
+          this.game === "tank" &&
+          this.room?.phase === "battle" &&
+          this.room.reconnectDeadline === undefined
+        )
+          this.room.reconnectDeadline = Date.now() + 60000;
         this.onInput(assigned, 0);
       }
       this.publishRoom();
@@ -551,6 +571,7 @@ export class Session {
     this.seen = Date.now();
     this.heartbeat = setInterval(() => {
       if (this.isHost) {
+        this.expireBattlePause();
         for (const member of this.members.values())
           if (
             member.slot &&
@@ -562,6 +583,29 @@ export class Session {
       } else if (this.uplink?.open && Date.now() - this.seen > 6500)
         this.uplink.close();
     }, 1000);
+  }
+  /** One real-time deadline per uninterrupted missing-crew pause, never per retry. */
+  private expireBattlePause() {
+    if (
+      this.game !== "tank" ||
+      this.room?.phase !== "battle" ||
+      this.room.reconnectDeadline === undefined ||
+      Date.now() < this.room.reconnectDeadline
+    )
+      return;
+    this.room.phase = "lobby";
+    this.room.reconnectDeadline = undefined;
+    this.room.notice =
+      "等待重連已超過 60 秒，本局已結束。請三位乘員重新選擇職位並準備。";
+    this.latestState = "";
+    for (const [slot, member] of this.members) {
+      if (!member.connected) this.members.delete(slot);
+      else {
+        member.role = null;
+        member.ready = false;
+      }
+    }
+    this.publishRoom();
   }
   chooseRole(role: CrewRole) {
     if (this.isHost) this.updateCrew(this.slot, role, undefined);
@@ -621,6 +665,8 @@ export class Session {
       if (!member.connected) this.members.delete(slot);
     this.room.phase = this.game === "tank" ? "battle" : "racing";
     this.room.epoch = crypto.randomUUID();
+    this.room.reconnectDeadline = undefined;
+    this.room.notice = undefined;
     this.sequence = 0;
     this.stateSequence = 0;
     this.latestState = "";
@@ -675,6 +721,8 @@ export class Session {
       return;
     }
     this.room.phase = "lobby";
+    this.room.reconnectDeadline = undefined;
+    this.room.notice = undefined;
     this.latestState = "";
     for (const member of this.members.values()) {
       member.role = null;
