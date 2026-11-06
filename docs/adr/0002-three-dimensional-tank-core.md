@@ -13,3 +13,8 @@
 代價：客端跟隨房主快照，網路延遲可能造成視覺步進，房主仍必須在線。正式遊玩需要支援 WebGL2 的桌面瀏覽器；初始化失敗顯示明確錯誤。三人測試沿用真實瀏覽器、WebRTC、鍵盤與畫面接點，沒有私人狀態注入。
 
 參考：已安裝 Three.js 的 WebGLRenderer、MeshStandardMaterial 與 PerspectiveCamera 實作；官方來源 https://github.com/mrdoob/three.js 。
+
+
+#15 將主炮的真實按鍵動作與持續按住的駕駛輸入分開。GameRuntime.action 對房主本地核心直接送出、對一般乘員立即經既有可靠有序 PeerJS 連線送出，每次動作一則訊息，不併入 OR 位元佇列。動作與 held input 共用同一個 epoch／遞增序號檢查，因此快速連點不會合併遺失，也不會在舊序號重播；權威核心仍以乘員職位判斷能否接受。GameCore 的 action 是可選延伸，舊 C adapter 與賽車輸入不需改成新的操作規則。
+
+主炮水平相對車身轉動、俯仰獨立受限，兩軸轉速由同一個房主模擬時鐘衰減。視角、砲塔與砲管幾何讀取相同快照；砲手的朝向及角速度儀表是正式可見的操作回饋，沒有在駕駛介面埋入隱藏戰況。每次真實 keydown 才給一次推力，忽略 event.repeat，滑鼠沒有瞄準事件處理。
