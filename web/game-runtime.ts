@@ -90,8 +90,15 @@ export class GameRuntime<View> {
   /** Discrete actions keep their multiplicity; held input remains coalesced. */
   action(action: number) {
     if (this.mode !== "online") return;
-    if (this.session.isHost) this.core.action?.(this.session.slot, action);
-    else this.session.action(action);
+    // Preserve key-release → action causality instead of waiting for the next held update.
+    if (this.session.isHost) {
+      this.core.input(this.session.slot, this.held);
+      this.core.action?.(this.session.slot, action);
+    } else {
+      // Input and action share the reliable ordered channel and sequence counter.
+      this.session.input(this.held);
+      this.session.action(action);
+    }
   }
 
   clearInput() {

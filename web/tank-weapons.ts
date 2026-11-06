@@ -1,5 +1,13 @@
 export const LOAD = 16;
 export const FIRE = 4;
+export const SELECT_HE = 5;
+export const SELECT_AP = 6;
+export type ShellType = "he" | "ap" | "smoke";
+export const SHELL_LABELS = {
+  he: "高爆彈",
+  ap: "穿甲彈",
+  smoke: "煙霧彈",
+} as const;
 export const STOP_JAM = 9;
 export const MODE = 8;
 export const JAM_RULES = {
@@ -13,7 +21,13 @@ export const CROUCH = 32;
 /** Fixed gameplay rule: ejected cases disable only the loader for five seconds. */
 export const LOADER_STUN_SECONDS = 5;
 export const WEAPON_TIMING = { load: 3, eject: 0.8 } as const;
+export const SHELL_DAMAGE = {
+  he: { direct: 100, radius: 5, splash: 60 },
+  ap: { direct: 180, radius: 0, splash: 0 },
+  smoke: { direct: 0, radius: 0, splash: 0 },
+} as const;
 export interface ShellFlight {
+  shell: ShellType;
   id: number;
   x: number;
   y: number;
@@ -35,6 +49,8 @@ export interface PracticeTarget {
 export interface WeaponState {
   mode: "loading" | "machine-gun";
   mg: { yaw: number; pitch: number };
+  selectedShell: ShellType;
+  chamberShell: ShellType | null;
   chamber: "empty" | "loading" | "loaded" | "ejecting";
   crouching: boolean;
   stunnedUntil: number;
@@ -54,7 +70,14 @@ export interface WeaponState {
   };
   projectiles: ShellFlight[];
   targets: PracticeTarget[];
-  impacts: { id: number; x: number; y: number; z: number; until: number }[];
+  impacts: {
+    id: number;
+    x: number;
+    y: number;
+    z: number;
+    shell: ShellType;
+    until: number;
+  }[];
 }
 interface GunPose {
   x: number;
@@ -73,6 +96,8 @@ export function createWeaponState(seed = 1): WeaponState {
   return {
     mode: "loading",
     mg: { yaw: 0, pitch: 0 },
+    selectedShell: "he",
+    chamberShell: null,
     chamber: "empty",
     crouching: false,
     stunnedUntil: 0,
@@ -93,7 +118,8 @@ export function createWeaponState(seed = 1): WeaponState {
     projectiles: [],
     impacts: [],
     targets: [
-      { id: 1, x: 0, z: -11, width: 2.6, height: 3, depth: 1.2, hp: 100 },
+      { id: 1, x: 0, z: -11, width: 2.6, height: 3, depth: 1.2, hp: 200 },
+      { id: 2, x: 3, z: -11, width: 2, height: 3, depth: 1.2, hp: 200 },
     ],
   };
 }
@@ -104,6 +130,7 @@ export function fireWeapon(w: WeaponState, pose: GunPose, now: number) {
   const dz = -Math.cos(pose.yaw) * Math.cos(pose.pitch);
   w.shotsFired++;
   w.projectiles.push({
+    shell: w.chamberShell!,
     id: w.shotsFired,
     x: pose.x + dx * 4.8,
     y: 2.48 + dy * 4.8,
@@ -113,6 +140,7 @@ export function fireWeapon(w: WeaponState, pose: GunPose, now: number) {
     vz: dz * 32,
     age: 0,
   });
+  w.chamberShell = null;
   w.jamChecked = false;
   w.jamPending = false;
   w.chamber = "ejecting";
@@ -189,6 +217,7 @@ export function stepWeapon(
     !j.active &&
     (w.chamber === "empty" || w.chamber === "loading")
   ) {
+    if (w.chamber === "empty") w.chamberShell = w.selectedShell;
     if (!w.jamChecked) {
       w.jamChecked = true;
       w.jamPending = random(w) < JAM_RULES.chance;
@@ -232,8 +261,24 @@ export function stepWeapon(
     }
     if (nearest <= 1) {
       const point = from.map((v, axis) => v + (to[axis] - v) * nearest);
-      if (target) target.hp = Math.max(0, target.hp - 100);
+      const damage = SHELL_DAMAGE[p.shell];
+      // Only hostile targets participate: the firing tank is never a damage recipient.
+      for (const t of w.targets) {
+        const distance = Math.hypot(
+          t.x - point[0],
+          t.height / 2 - point[1],
+          t.z - point[2],
+        );
+        const amount =
+          t === target
+            ? damage.direct
+            : distance <= damage.radius
+              ? damage.splash
+              : 0;
+        t.hp = Math.max(0, t.hp - amount);
+      }
       w.impacts.push({
+        shell: p.shell,
         id: p.id,
         x: point[0],
         y: point[1],
@@ -250,6 +295,9 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
     !!w &&
     ["loading", "machine-gun"].includes(w.mode) &&
     !!w.mg && [w.mg.yaw, w.mg.pitch].every(Number.isFinite) &&
+    ["he", "ap", "smoke"].includes(w.selectedShell) &&
+    (w.chamberShell === null ||
+      ["he", "ap", "smoke"].includes(w.chamberShell)) &&
     typeof w.crouching === "boolean" &&
     ["empty", "loading", "loaded", "ejecting"].includes(w.chamber) &&
     [w.loadProgress, w.ejectAt, w.shotsFired, w.stunnedUntil].every(
@@ -267,16 +315,20 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
     ) &&
     ["trying", "failed", "cleared"].includes(w.jam.result) &&
     Array.isArray(w.projectiles) &&
-    w.projectiles.every((p) =>
-      [p.id, p.x, p.y, p.z, p.vx, p.vy, p.vz, p.age].every(Number.isFinite),
+    w.projectiles.every(
+      (p) =>
+        ["he", "ap", "smoke"].includes(p.shell) &&
+        [p.id, p.x, p.y, p.z, p.vx, p.vy, p.vz, p.age].every(Number.isFinite),
     ) &&
     Array.isArray(w.targets) &&
     w.targets.every((t) =>
       [t.id, t.x, t.z, t.width, t.height, t.depth, t.hp].every(Number.isFinite),
     ) &&
     Array.isArray(w.impacts) &&
-    w.impacts.every((i) =>
-      [i.id, i.x, i.y, i.z, i.until].every(Number.isFinite),
+    w.impacts.every(
+      (i) =>
+        ["he", "ap", "smoke"].includes(i.shell) &&
+        [i.id, i.x, i.y, i.z, i.until].every(Number.isFinite),
     )
   );
 }

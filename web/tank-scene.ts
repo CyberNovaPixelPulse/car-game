@@ -165,11 +165,15 @@ export class TankScene {
     const aim = this.view === "machine-gun" ? state.weapon.mg : state.turret;
     const eye = this.view === "machine-gun" ? 3.1 : 2.85;
     const heading = t.yaw + aim.yaw;
-    this.camera.position.set(t.x, eye, t.z);
+    // Gunner remains beyond the roof at the mantlet; MG observes from its hatch.
+    const offset = this.view === "machine-gun" ? 0 : 1.9;
+    const eyeX = t.x + Math.sin(heading) * offset;
+    const eyeZ = t.z - Math.cos(heading) * offset;
+    this.camera.position.set(eyeX, eye, eyeZ);
     this.camera.lookAt(
-      t.x + Math.sin(heading) * Math.cos(aim.pitch) * 40,
+      eyeX + Math.sin(heading) * Math.cos(aim.pitch) * 40,
       eye + Math.sin(aim.pitch) * 40,
-      t.z - Math.cos(heading) * Math.cos(aim.pitch) * 40,
+      eyeZ - Math.cos(heading) * Math.cos(aim.pitch) * 40,
     );
     for (const target of state.weapon.targets) {
       let mesh = this.targetMeshes.get(target.id);
@@ -183,6 +187,9 @@ export class TankScene {
         this.scene.add(mesh);
         this.targetMeshes.set(target.id, mesh);
       }
+      (mesh.material as THREE.MeshStandardMaterial).color.setHex(
+        target.hp <= 0 ? 0x36312c : target.hp < 200 ? 0x66513c : 0x9b7954,
+      );
       mesh.scale.y = target.hp > 0 ? 1 : 0.12;
       mesh.position.y =
         target.hp > 0 ? target.height / 2 : target.height * 0.06;
@@ -231,7 +238,9 @@ export class TankScene {
       }
       mesh.position.set(hit.x, hit.y, hit.z);
       const remaining = Math.max(0, (hit.until - state.time) / 0.6);
-      mesh.scale.setScalar(1 + (1 - remaining) * 2);
+      mesh.scale.setScalar(
+        (hit.shell === "he" ? 2 : 0.5) * (1 + (1 - remaining) * 2),
+      );
       (mesh.material as THREE.MeshBasicMaterial).opacity = remaining * 0.7;
     }
   }
