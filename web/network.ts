@@ -410,6 +410,11 @@ export class Session {
         ) {
           member.sequence = Number(data.sequence);
           this.onAction(assigned, Number(data.action));
+        } else if (
+          data.type === "return-to-lobby" &&
+          data.epoch === this.room?.epoch
+        ) {
+          this.returnToLobby();
         } else if (data.type === "crew") {
           this.updateCrew(assigned, data.role, data.ready);
         }
@@ -661,6 +666,21 @@ export class Session {
       this.room.phase = "results";
       this.publishRoom();
     }
+  }
+  /** A result returns the whole crew to the same room, with fresh role choices. */
+  returnToLobby() {
+    if (this.game !== "tank" || this.room?.phase !== "results") return;
+    if (!this.isHost) {
+      this.uplink?.send({ type: "return-to-lobby", epoch: this.room.epoch });
+      return;
+    }
+    this.room.phase = "lobby";
+    this.latestState = "";
+    for (const member of this.members.values()) {
+      member.role = null;
+      member.ready = false;
+    }
+    this.publishRoom();
   }
   leave(clearCredentials = true) {
     if (this.isHost && this.room) this.broadcast({ type: "ended" });

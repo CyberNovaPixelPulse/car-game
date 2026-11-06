@@ -730,3 +730,27 @@ legend {
 .battle-viewport [data-testid="enemy-activity"]:empty {
   display: none;
 }
+
+/* Shared round status stays readable alongside the interior instruments. */
+.battle-station[data-role="loader"] > [data-testid="wave-status"] {
+  position: absolute;
+  top: 10px;
+  left: 190px;
+  margin: 0;
+  font-size: 14px;
+}
+@media (max-width: 600px) {
+  .battle-station[data-role="loader"] > [data-testid="wave-status"] {
+    position: static;
+    margin: 0 0 6px;
+  }
+}
+#battle-return[hidden] {
+  display: none;
+}
+#battle-return:not([hidden]) {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 10;
+}
