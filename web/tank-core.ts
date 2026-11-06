@@ -14,6 +14,7 @@ import {
   FIRE,
   SELECT_HE,
   SELECT_AP,
+  SELECT_SMOKE,
   STOP_JAM,
   stopJam,
   loaderCanWork,
@@ -108,7 +109,7 @@ export class TankCore implements GameCore<TankState> {
     }
     if (
       this.roleOf(participant) === "loader" &&
-      (action === SELECT_HE || action === SELECT_AP)
+      (action === SELECT_HE || action === SELECT_AP || action === SELECT_SMOKE)
     ) {
       const w = this.state.weapon;
       if (
@@ -116,7 +117,8 @@ export class TankCore implements GameCore<TankState> {
         loaderCanWork(w, this.state.time) &&
         w.chamberShell === null
       )
-        w.selectedShell = action === SELECT_HE ? "he" : "ap";
+        w.selectedShell =
+          action === SELECT_HE ? "he" : action === SELECT_AP ? "ap" : "smoke";
       return;
     }
     if (this.roleOf(participant) === "loader" && action === STOP_JAM) {
@@ -225,6 +227,7 @@ export class TankCore implements GameCore<TankState> {
       BATTLEFIELD.cover,
       dt,
       this.state.time,
+      w.smoke,
     );
     // Resolve incoming damage first: zero HP always defeats the crew, even on
     // the step that destroys the last enemy. Weapon/MG/smoke work continues
