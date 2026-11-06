@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { BATTLEFIELD } from "./tank-core";
-import { box, part, surfaceMaps } from "./tank-art-materials";
+import { batchFixedParts, box, part, surfaceMaps } from "./tank-art-materials";
 
 /** A compressed Caen countryside, not a reconstruction of a named engagement. */
 export function buildNormandy(scene: THREE.Scene) {
@@ -17,7 +17,7 @@ export function buildNormandy(scene: THREE.Scene) {
     roughness: 1,
     normalScale: new THREE.Vector2(0.22, 0.22),
   });
-  grass.map = null;
+
   const ground = part(
     scene,
     new THREE.PlaneGeometry(240, 240),
@@ -198,9 +198,8 @@ export function buildNormandy(scene: THREE.Scene) {
     color: 0x625948,
     roughness: 1,
   });
-  const foliage = new THREE.MeshStandardMaterial({
+  const foliage = new THREE.MeshLambertMaterial({
     color: 0x526344,
-    roughness: 1,
     side: THREE.DoubleSide,
   });
   // Each card carries a twig of pointed leaves; alpha is authored in the shader,
@@ -224,7 +223,7 @@ export function buildNormandy(scene: THREE.Scene) {
       );
   };
   const leafGeo = new THREE.PlaneGeometry(0.85, 1.0);
-  const leaves = new THREE.InstancedMesh(leafGeo, foliage, 6400);
+  const leaves = new THREE.InstancedMesh(leafGeo, foliage, 3200);
   const transform = new THREE.Object3D();
   let leaf = 0;
   for (let i = 0; i < 20; i++) {
@@ -251,7 +250,7 @@ export function buildNormandy(scene: THREE.Scene) {
       branch.rotation.z = 0.65 * Math.sin(b * 2.3);
       branch.rotation.x = 0.6 * Math.cos(b * 2.3);
     }
-    for (let b = 0; b < 320; b++) {
+    for (let b = 0; b < 160; b++) {
       const angle = b * 2.399;
       const r = 3.5 * Math.sqrt((b % 53) / 53);
       transform.position.set(
@@ -274,7 +273,7 @@ export function buildNormandy(scene: THREE.Scene) {
     }
   }
   leaves.castShadow = false;
-  leaves.receiveShadow = true;
+  leaves.receiveShadow = false;
   leaves.computeBoundingSphere();
   scene.add(leaves);
   // Stubble and grass tufts are low enough to neither hide tanks nor imply solid hedges.
@@ -290,13 +289,12 @@ export function buildNormandy(scene: THREE.Scene) {
     ),
   );
   blades.computeVertexNormals();
-  const grassMat = new THREE.MeshStandardMaterial({
+  const grassMat = new THREE.MeshLambertMaterial({
     color: 0x65714a,
-    roughness: 1,
     side: THREE.DoubleSide,
   });
-  const tufts = new THREE.InstancedMesh(blades, grassMat, 14000);
-  for (let i = 0; i < 14000; i++) {
+  const tufts = new THREE.InstancedMesh(blades, grassMat, 6500);
+  for (let i = 0; i < 6500; i++) {
     const hash = (n: number) => {
       const v = Math.sin(n * 127.1) * 43758.5453;
       return v - Math.floor(v);
@@ -317,7 +315,7 @@ export function buildNormandy(scene: THREE.Scene) {
     transform.updateMatrix();
     tufts.setMatrixAt(i, transform.matrix);
   }
-  tufts.receiveShadow = true;
+  tufts.receiveShadow = false;
   tufts.computeBoundingSphere();
   scene.add(tufts);
   // Distant pitched farm roofs make the village legible without adding false in-bounds cover.
@@ -347,4 +345,5 @@ export function buildNormandy(scene: THREE.Scene) {
         z - d / 2 - 0.025,
       );
   }
+  batchFixedParts(scene);
 }

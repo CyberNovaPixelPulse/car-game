@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 /** Local CC0 maps, never a runtime dependency on the asset provider. */
 export function surfaceMaps(
@@ -106,4 +107,60 @@ export function disposeArt(root: THREE.Object3D) {
   for (const texture of textures) texture.dispose();
   for (const material of materials) material.dispose();
   for (const geometry of geometries) geometry.dispose();
+}
+
+/** Bake only meshes fixed to this exact parent. Animated child groups and instances stay intact. */
+export function batchFixedParts(parent: THREE.Object3D) {
+  const batches = new Map<
+    string,
+    {
+      material: THREE.Material;
+      shadow: boolean;
+      geometry: THREE.BufferGeometry[];
+      meshes: THREE.Mesh[];
+    }
+  >();
+  for (const object of [...parent.children]) {
+    if (
+      !(object instanceof THREE.Mesh) ||
+      object instanceof THREE.InstancedMesh ||
+      Array.isArray(object.material)
+    )
+      continue;
+    object.geometry.computeBoundingBox();
+    const size = object.geometry.boundingBox!.getSize(new THREE.Vector3());
+    // Fine fasteners still receive sunlight; only solid silhouettes need a shadow pass.
+    const shadow =
+      object.castShadow &&
+      Math.max(size.x, size.y, size.z) > 0.6 &&
+      size.x * size.y * size.z > 0.035;
+    const key = object.material.uuid + ":" + shadow;
+    let batch = batches.get(key);
+    if (!batch) {
+      batch = { material: object.material, shadow, geometry: [], meshes: [] };
+      batches.set(key, batch);
+    }
+    object.updateMatrix();
+    const geometry = object.geometry.index
+      ? object.geometry.toNonIndexed()
+      : object.geometry.clone();
+    geometry.applyMatrix4(object.matrix);
+    batch.geometry.push(geometry);
+    batch.meshes.push(object);
+  }
+  for (const batch of batches.values()) {
+    const geometry = mergeGeometries(batch.geometry, false);
+    if (!geometry) {
+      for (const g of batch.geometry) g.dispose();
+      continue;
+    }
+    for (const object of batch.meshes) parent.remove(object);
+    for (const old of new Set(batch.meshes.map((m) => m.geometry)))
+      old.dispose();
+    for (const intermediate of batch.geometry) intermediate.dispose();
+    const mesh = new THREE.Mesh(geometry, batch.material);
+    mesh.castShadow = batch.shadow;
+    mesh.receiveShadow = true;
+    parent.add(mesh);
+  }
 }

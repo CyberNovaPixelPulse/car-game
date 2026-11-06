@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import {
+  batchFixedParts,
   box,
   disposeArt,
   hullGeometry,
@@ -551,6 +552,11 @@ export class VehicleModel {
       pintle.rotation.z = 0.02;
       buildBrowning(this.turret, steel, paint, 0.48, 3.22, 0.12);
     }
+    for (const gear of this.gear)
+      for (const wheel of gear.wheels) batchFixedParts(wheel);
+    batchFixedParts(this.elevation);
+    batchFixedParts(this.turret);
+    batchFixedParts(this.root);
     this.animate(0, 0, 0);
   }
   /** Track travel comes only from actual authoritative displacement/turn, never wall time. */
@@ -774,5 +780,6 @@ export function buildBrowning(
     -0.24,
   );
   clamp.rotation.x = Math.PI / 2;
+  batchFixedParts(gun);
   return gun;
 }

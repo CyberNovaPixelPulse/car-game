@@ -37,7 +37,7 @@ export class TankScene {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.autoUpdate = false;
     this.renderer.shadowMap.needsUpdate = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.98;
     this.scene.background = new THREE.Color(0xb9c7c7);
@@ -46,7 +46,7 @@ export class TankScene {
     const sun = new THREE.DirectionalLight(0xffefd6, 2.3);
     sun.position.set(-25, 40, 15);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.mapSize.set(512, 512);
     Object.assign(sun.shadow.camera, {
       left: -48,
       right: 48,
@@ -102,6 +102,10 @@ export class TankScene {
   private resize() {
     const width = Math.max(1, this.canvas.clientWidth),
       height = Math.max(1, this.canvas.clientHeight);
+    // A shared desktop budget bounds software WebGL work without changing world detail or HUD pixels.
+    this.renderer.setPixelRatio(
+      Math.min(devicePixelRatio, 1.5, 1024 / width, 576 / height),
+    );
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
