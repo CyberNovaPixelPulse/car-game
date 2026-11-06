@@ -29,6 +29,8 @@ export class GameRuntime<View> {
   private queued = 0;
   private previous = performance.now();
   private lastNetwork = 0;
+  // Session.room is replaced before callbacks. Keep the OLD authority pause state.
+  private tankPaused = false;
   get paused() {
     return (
       this.session.game === "tank" &&
@@ -42,9 +44,11 @@ export class GameRuntime<View> {
     private session: Session,
   ) {
     session.onInput = (participant, keys) => {
+      this.advanceTankAuthority();
       if (!this.paused) core.input(participant, keys);
     };
     session.onAction = (participant, action) => {
+      this.advanceTankAuthority();
       if (!this.paused) core.action?.(participant, action);
     };
     session.onState = (snapshot) => {
@@ -56,19 +60,24 @@ export class GameRuntime<View> {
     };
     let wasPaused = false;
     session.onRoom = (room) => {
+      // Finish the pre-disconnect interval before clearing controls/connection.
+      this.advanceTankAuthority();
       if (this.paused !== wasPaused) {
         this.clearInput();
         for (const member of room.members) core.input(member.slot, 0);
         this.previous = performance.now();
         wasPaused = this.paused;
       }
+      this.tankPaused = this.paused;
       for (const member of room.members)
         core.connected(member.slot, member.connected);
       this.onRoom(room);
     };
     session.onStart = (mask, seed) => {
       this.mode = "online";
-      this.clearInput();
+      this.held = this.queued = 0;
+      this.tankPaused = this.paused;
+      wasPaused = this.paused;
       // The legacy wire format uses a seat mask. Keep that detail out of cores.
       const participants = Array.from({ length: 5 }, (_, slot) => slot).filter(
         (slot) => mask & (1 << slot),
@@ -96,8 +105,29 @@ export class GameRuntime<View> {
     this.lastNetwork = 0;
   }
 
+  /** Consume past time under old controls, then install a newly received state. */
+  private advanceTankAuthority() {
+    if (
+      this.session.game !== "tank" ||
+      this.mode !== "online" ||
+      !this.session.isHost
+    )
+      return;
+    const now = performance.now();
+    const elapsed = Math.max(0, now - this.previous);
+    this.previous = Math.max(this.previous, now);
+    if (!this.tankPaused && elapsed > 0) this.core.step(elapsed / 1000);
+  }
+
   setInput(held: number) {
+    this.advanceTankAuthority();
     this.held = this.paused ? 0 : held;
+    if (
+      this.session.game === "tank" &&
+      this.mode === "online" &&
+      this.session.isHost
+    )
+      this.core.input(this.session.slot, this.held);
   }
 
   queueInput(keys: number) {
@@ -109,6 +139,7 @@ export class GameRuntime<View> {
     if (this.mode !== "online" || this.paused) return;
     // Preserve key-release → action causality instead of waiting for the next held update.
     if (this.session.isHost) {
+      this.advanceTankAuthority();
       this.core.input(this.session.slot, this.held);
       this.core.action?.(this.session.slot, action);
     } else {
@@ -119,14 +150,24 @@ export class GameRuntime<View> {
   }
 
   clearInput() {
+    this.advanceTankAuthority();
     this.held = 0;
     this.queued = 0;
+    if (
+      this.session.game === "tank" &&
+      this.mode === "online" &&
+      this.session.isHost
+    )
+      this.core.input(this.session.slot, 0);
   }
 
   frame(now: number): { participant: number; view: View } {
     const online = this.mode === "online";
     const participant = online ? this.session.slot : 0;
-    if ((!online || this.session.isHost) && !this.paused) {
+    const tankOnline = online && this.session.game === "tank";
+    if (tankOnline) {
+      this.advanceTankAuthority();
+    } else if ((!online || this.session.isHost) && !this.paused) {
       this.core.input(
         participant,
         this.mode === "idle" ? 0 : this.held | this.queued,
@@ -142,7 +183,8 @@ export class GameRuntime<View> {
         this.queued = 0;
       }
     }
-    this.previous = now;
+    // A stale rAF timestamp must never rewind an event-advanced tank cursor.
+    if (!tankOnline) this.previous = now;
     this.core.draw(participant);
     return { participant, view: this.core.view() };
   }

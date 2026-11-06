@@ -53,3 +53,28 @@ test("機槍外部視角在筆電仍保留方向準星與工作狀態", async ({
     await c.close();
   }
 });
+
+test("缺員等待時砲手與裝填手的提示與離房按鈕均在筆電視窗內", async ({
+  browser,
+}) => {
+  const c = await tankCrew(browser);
+  try {
+    for (const p of [c.loader, c.gunner])
+      await p.setViewportSize({ width: 1280, height: 720 });
+    await c.driver.goto("about:blank");
+    for (const [role, p] of [
+      ["gunner", c.gunner],
+      ["loader", c.loader],
+    ] as const) {
+      await expect(p.getByTestId("battle-pause")).toBeInViewport({ ratio: 1 });
+      await expect(
+        p.getByRole("button", { name: "離開房間", exact: true }),
+      ).toBeInViewport({ ratio: 1 });
+      await p.screenshot({
+        path: `/tmp/car-game-to-spec/visual25/final/${role}-waiting-1280.png`,
+      });
+    }
+  } finally {
+    await c.close();
+  }
+});

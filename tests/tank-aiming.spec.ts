@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { tankCrew } from "./tank-helpers";
+import { tankCrew, nativeTaps } from "./tank-helpers";
 
 const number = async (locator: import("@playwright/test").Locator) =>
   Number((await locator.textContent())!.replace(/[^\d.-]/g, ""));
@@ -64,7 +64,7 @@ test("房主砲手的連點也逐次生效，俯仰限位且車身朝向獨立",
   const crew = await tankCrew(browser, "gunner");
   try {
     const rate = crew.gunner.getByTestId("turret-yaw-rate");
-    for (let i = 0; i < 4; i++) await crew.gunner.keyboard.press("d");
+    await nativeTaps(crew.gunner, 4);
     await expect.poll(() => number(rate)).toBeGreaterThan(32);
     await expect(crew.gunner.getByTestId("hull-heading")).toHaveText("0°");
     await expect
@@ -96,19 +96,41 @@ test("持續連點可水平繞行整圈且轉速有上限", async ({ browser }) 
       path: "/tmp/car-game-to-spec/visual15/gunner-before.png",
       fullPage: true,
     });
-    let previous = 0;
-    let wrapped = false;
-    for (let i = 0; i < 105; i++) {
-      await crew.gunner.keyboard.press("d");
-      await crew.gunner.waitForTimeout(90);
-      const heading = await number(crew.gunner.getByTestId("turret-heading"));
-      if (previous > 300 && heading < 60) wrapped = true;
-      previous = heading;
-      expect(
-        await number(crew.gunner.getByTestId("turret-yaw-rate")),
-      ).toBeLessThanOrEqual(48.8);
-    }
-    expect(wrapped).toBeTruthy();
+    // Observe the public instruments in-page so reading each frame over CDP
+    // does not stretch a 90ms tapping rhythm beyond the actual battle lifetime.
+    await crew.gunner.evaluate(() => {
+      const heading = document.querySelector('[data-testid="turret-heading"]')!;
+      const rate = document.querySelector('[data-testid="turret-yaw-rate"]')!;
+      const value = (node: Element) =>
+        Number(node.textContent!.replace(/[^\d.-]/g, ""));
+      let previous = value(heading);
+      const observation = { wrapped: false, maximumRate: value(rate) };
+      const observer = new MutationObserver(() => {
+        const current = value(heading);
+        if (previous > 300 && current < 60) observation.wrapped = true;
+        previous = current;
+        observation.maximumRate = Math.max(
+          observation.maximumRate,
+          value(rate),
+        );
+      });
+      for (const node of [heading, rate])
+        observer.observe(node, {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
+      (window as any).__aimInstrumentObservation = { observation, observer };
+    });
+    await nativeTaps(crew.gunner, 105, 90);
+    const observation = await crew.gunner.evaluate(() => {
+      const entry = (window as any).__aimInstrumentObservation;
+      entry.observer.disconnect();
+      delete (window as any).__aimInstrumentObservation;
+      return entry.observation as { wrapped: boolean; maximumRate: number };
+    });
+    expect(observation.maximumRate).toBeLessThanOrEqual(48.8);
+    expect(observation.wrapped).toBeTruthy();
     await crew.gunner.screenshot({
       path: "/tmp/car-game-to-spec/visual15/gunner-after.png",
       fullPage: true,

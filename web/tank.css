@@ -580,10 +580,10 @@ legend {
   font-size: 14px;
   line-height: 1.5;
 }
-.battle-station[data-role="gunner"] > p:nth-child(2) {
+.battle-station[data-role="gunner"] > .station-task {
   display: none;
 }
-.battle-station[data-role="gunner"] > p:nth-child(3) {
+.battle-station[data-role="gunner"] > .crew-health {
   grid-column: 2;
   grid-row: 1;
   text-align: right;
@@ -663,7 +663,7 @@ legend {
     padding: 12px;
     grid-template-columns: 1fr;
   }
-  .battle-station[data-role="gunner"] > p:nth-child(3) {
+  .battle-station[data-role="gunner"] > .crew-health {
     grid-column: 1;
     grid-row: 2;
     text-align: left;
@@ -778,4 +778,12 @@ legend {
   .mg-workspace
   .battle-viewport {
   height: max(240px, calc(100dvh - 404px));
+}
+
+.battle-station[data-role="gunner"] > .battle-pause {
+  grid-column: 1 / -1;
+}
+.battle-station[data-role="gunner"]:has(> .battle-pause:not([hidden]))
+  > .battle-viewport {
+  height: max(200px, calc(100dvh - 460px));
 }
