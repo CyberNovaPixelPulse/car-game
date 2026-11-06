@@ -29,14 +29,24 @@ export class GameRuntime<View> {
   private queued = 0;
   private previous = performance.now();
   private lastNetwork = 0;
+  get paused() {
+    return (
+      this.session.game === "tank" &&
+      this.session.room?.phase === "battle" &&
+      this.session.room.members.some((member) => !member.connected)
+    );
+  }
 
   constructor(
     private core: GameCore<View>,
     private session: Session,
   ) {
-    session.onInput = (participant, keys) => core.input(participant, keys);
-    session.onAction = (participant, action) =>
-      core.action?.(participant, action);
+    session.onInput = (participant, keys) => {
+      if (!this.paused) core.input(participant, keys);
+    };
+    session.onAction = (participant, action) => {
+      if (!this.paused) core.action?.(participant, action);
+    };
     session.onState = (snapshot) => {
       try {
         core.restore(snapshot);
@@ -44,7 +54,14 @@ export class GameRuntime<View> {
         this.onRestoreError(error as Error);
       }
     };
+    let wasPaused = false;
     session.onRoom = (room) => {
+      if (this.paused !== wasPaused) {
+        this.clearInput();
+        for (const member of room.members) core.input(member.slot, 0);
+        this.previous = performance.now();
+        wasPaused = this.paused;
+      }
       for (const member of room.members)
         core.connected(member.slot, member.connected);
       this.onRoom(room);
@@ -80,7 +97,7 @@ export class GameRuntime<View> {
   }
 
   setInput(held: number) {
-    this.held = held;
+    this.held = this.paused ? 0 : held;
   }
 
   queueInput(keys: number) {
@@ -89,7 +106,7 @@ export class GameRuntime<View> {
 
   /** Discrete actions keep their multiplicity; held input remains coalesced. */
   action(action: number) {
-    if (this.mode !== "online") return;
+    if (this.mode !== "online" || this.paused) return;
     // Preserve key-release → action causality instead of waiting for the next held update.
     if (this.session.isHost) {
       this.core.input(this.session.slot, this.held);
@@ -109,7 +126,7 @@ export class GameRuntime<View> {
   frame(now: number): { participant: number; view: View } {
     const online = this.mode === "online";
     const participant = online ? this.session.slot : 0;
-    if (!online || this.session.isHost) {
+    if ((!online || this.session.isHost) && !this.paused) {
       this.core.input(
         participant,
         this.mode === "idle" ? 0 : this.held | this.queued,
