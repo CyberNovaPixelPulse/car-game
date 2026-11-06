@@ -69,21 +69,31 @@ test("站立被彈殼擊中固定五秒不能工作，重新按鍵無效且另�
     await expect(crew.loader.getByTestId("stun-remaining")).toHaveText(
       /^[45]\.\d 秒$/,
     );
-    await crew.loader.keyboard.down("r");
-    await crew.loader.keyboard.press("c");
-    await crew.loader.keyboard.up("r");
-    await crew.loader.keyboard.down("r");
-    await crew.driver.keyboard.down("s");
-    await crew.gunner.keyboard.press("d");
-    await expect(crew.driver.getByTestId("tank-motion")).toHaveText("倒車");
-    await expect(crew.gunner.getByTestId("turret-yaw-rate")).not.toHaveText(
-      "0.0°/s",
+    await Promise.all([
+      (async () => {
+        await crew.loader.keyboard.down("r");
+        await crew.loader.keyboard.press("c");
+        await crew.loader.keyboard.up("r");
+        await crew.loader.keyboard.down("r");
+      })(),
+      (async () => {
+        await crew.driver.keyboard.down("s");
+        await expect(crew.driver.getByTestId("tank-motion")).toHaveText("倒車");
+      })(),
+      (async () => {
+        await crew.gunner.keyboard.press("d");
+        await expect(crew.gunner.getByTestId("turret-yaw-rate")).not.toHaveText(
+          "0.0°/s",
+        );
+      })(),
+    ]);
+    // Capture stun in the dedicated interior visual case. A full-page GPU
+    // screenshot here can consume the fixed five-second measurement window.
+    console.log("stun before wall wait elapsed", Date.now() - fireAt);
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.max(0, 5500 - (Date.now() - fireAt))),
     );
-    await crew.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual19/stunned.png",
-      fullPage: true,
-    });
-    await crew.loader.waitForTimeout(Math.max(0, 5500 - (Date.now() - fireAt)));
+    console.log("stun sample elapsed", Date.now() - fireAt);
     await expect(crew.loader.getByTestId("loader-status")).toContainText(
       "暈眩",
     );

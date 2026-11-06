@@ -10,7 +10,7 @@ export function surfaceMaps(
   const loader = new THREE.TextureLoader();
   const load = (suffix: string, color = false) => {
     const texture = loader.load(
-      `/art/${folder}/${id}_${suffix}_1k.${suffix === "nor_gl" ? "png" : "jpg"}`,
+      `${folder === "metal" ? "/assets/interior" : `/art/${folder}`}/${id}_${suffix}_1k.${suffix === "nor_gl" ? "png" : "jpg"}`,
     );
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(repeat, repeat);

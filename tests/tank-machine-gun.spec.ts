@@ -17,7 +17,9 @@ test("Tab互斥切換，保留裝填進度且機槍按住瞄準放開停止", as
     await expect(
       crew.loader.getByRole("img", { name: "機槍戰場視野" }),
     ).toBeVisible();
-    await expect(crew.loader.locator(".breech-assembly")).toBeHidden();
+    await expect(
+      crew.loader.getByRole("img", { name: "車內炮膛與彈藥架" }),
+    ).toBeHidden();
     await expect(crew.loader.getByTestId("mg-status")).toBeInViewport();
     await crew.loader.setViewportSize({ width: 1280, height: 720 });
     await expect(crew.loader.getByTestId("mg-status")).toBeInViewport();
@@ -81,23 +83,14 @@ test("機槍連射小傷害，五秒過熱且切模式不能繞過三秒冷卻",
     const overheatedAt = Date.now();
     expect(overheatedAt - burstAt).toBeGreaterThan(4700);
     expect(overheatedAt - burstAt).toBeLessThan(6200);
-    const hp = Number(
-      (await crew.gunner.getByTestId("target-status").textContent())!.match(
-        /四號 H 型 (\d+)/,
-      )![1],
-    );
-    expect(hp).toBeGreaterThan(100);
-    for (const page of [crew.loader, crew.driver, crew.gunner])
-      await expect(page.getByTestId("tank-health")).toHaveText("100/100");
     await crew.loader.keyboard.up("Space");
     const shots = await crew.loader.getByTestId("mg-shot-count").textContent();
     await crew.loader.keyboard.press("Tab");
     await expect(crew.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
     await crew.loader.keyboard.down("Space");
-    await crew.loader.waitForTimeout(350);
     await crew.loader.keyboard.press("Tab");
     await expect(crew.loader.getByTestId("loader-mode")).toHaveText("機槍模式");
-    await crew.loader.waitForTimeout(350);
+    console.log("MG mode return elapsed from burst", Date.now() - burstAt);
     await expect(crew.loader.getByTestId("mg-shot-count")).toHaveText(shots!);
     await expect(crew.loader.getByTestId("mg-status")).toHaveText(
       "過熱・強制冷卻",
@@ -110,6 +103,18 @@ test("機槍連射小傷害，五秒過熱且切模式不能繞過三秒冷卻",
     // Measure the full ~5s burst + ~3s lock from the actual physical key event.
     expect(Date.now() - burstAt).toBeGreaterThan(7700);
     expect(Date.now() - burstAt).toBeLessThan(9500);
+    const hp = Number(
+      (await crew.gunner.getByTestId("target-status").textContent())!.match(
+        /四號 H 型 (\d+)/,
+      )![1],
+    );
+    expect(hp).toBeGreaterThan(100);
+    await Promise.all(
+      [crew.loader, crew.driver, crew.gunner].map((page) =>
+        expect(page.getByTestId("tank-health")).toHaveText("100/100"),
+      ),
+    );
+
     await crew.loader.keyboard.down("Space");
     await expect
       .poll(async () =>

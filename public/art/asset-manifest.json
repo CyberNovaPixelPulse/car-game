@@ -182,8 +182,8 @@
           "color_space": "sRGB",
           "pixel_width": 1024,
           "pixel_height": 1024,
-          "shipped_path": "public/art/metal/green_metal_rust_diff_1k.jpg",
-          "shipped_sha256": "d51e5ddd803e2e8e71b02784b63bd3ce3658bfb4891ada92b640a73b01240cd3"
+          "shipped_path": "public/assets/interior/green_metal_rust_diff_1k.jpg",
+          "shipped_sha256": "b60ff8c2104122a4f7f3276befd5f38a69442dcae60071ba48888388e2f57252"
         },
         {
           "map": "nor_gl",
@@ -199,8 +199,8 @@
           "color_space": "linear/non-color",
           "pixel_width": 1024,
           "pixel_height": 1024,
-          "shipped_path": "public/art/metal/green_metal_rust_nor_gl_1k.png",
-          "shipped_sha256": "f56a8dcf94fb24ee425769fb7ccfb14aeeceac7f4068fc51d244035c3df90936"
+          "shipped_path": "public/assets/interior/green_metal_rust_nor_gl_1k.png",
+          "shipped_sha256": "80fb0401dd68e83f1331fbc1a1c2ce9cbb2fee210ff813aa1fe2308a64aa7b29"
         },
         {
           "map": "Rough",
@@ -216,10 +216,11 @@
           "color_space": "linear/non-color",
           "pixel_width": 1024,
           "pixel_height": 1024,
-          "shipped_path": "public/art/metal/green_metal_rust_rough_1k.jpg",
-          "shipped_sha256": "954f863957e7114ce8b82569b66348e3eaa6b9956c18900e4725ddcd95152ab6"
+          "shipped_path": "public/assets/interior/green_metal_rust_rough_1k.jpg",
+          "shipped_sha256": "43596b7aa68b1014b91925a7a6974764a86cc363e6018ffe42f3ee7646363e25"
         }
-      ]
+      ],
+      "shared_asset_note": "Shared with #26 interior; original pixels and source hashes retained, shipped metadata/hash follow public/assets/interior/sources.json. No duplicate art/metal files."
     }
   ],
   "downloaded_asset_bytes": 18454407,
