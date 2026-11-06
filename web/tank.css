@@ -325,3 +325,21 @@ legend {
     )
     rotate(calc(var(--eject, 0) * 65deg));
 }
+.ejection-warning {
+  min-height: 1.5em;
+  color: #ffdf91;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.stun-timer {
+  min-height: 1.5em;
+  font-variant-numeric: tabular-nums;
+  color: #ffcfb4;
+}
+.loader-workspace[data-posture="stunned"] .breech-assembly {
+  outline: 2px solid #c17754;
+}
+.loader-workspace[data-posture="crouching"] .breech-assembly {
+  transform: translateY(-16px);
+  opacity: 0.65;
+}

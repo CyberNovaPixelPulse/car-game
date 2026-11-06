@@ -3,6 +3,7 @@ import { expect, type Browser, type Page } from "@playwright/test";
 export async function tankCrew(
   browser: Browser,
   hostRole: "loader" | "gunner" = "loader",
+  lobbyWaitMs = 0,
 ) {
   const pages: Page[] = [];
   for (const name of hostRole === "loader"
@@ -36,6 +37,7 @@ export async function tankCrew(
       .click();
     await page.getByRole("button", { name: "準備", exact: true }).click();
   }
+  if (lobbyWaitMs) await host.waitForTimeout(lobbyWaitMs);
   await host.getByRole("button", { name: "開始戰鬥", exact: true }).click();
   for (const page of pages)
     await expect(page.getByRole("heading", { name: /工作站$/ })).toBeVisible();
