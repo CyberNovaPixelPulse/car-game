@@ -623,3 +623,28 @@ legend {
   right: 24px;
   z-index: 10;
 }
+
+.battle-pause {
+  padding: 1rem;
+  background: #3d341c;
+  border: 1px solid #c8a65d;
+  color: #fff0c5;
+  font-weight: 700;
+}
+
+/* Make space for the visible pause notice without shrinking the live station. */
+.battle-station[data-role="loader"]:has(> .battle-pause:not([hidden]))
+  .interior-viewport {
+  height: max(240px, calc(100dvh - 374px));
+}
+.battle-station[data-role="loader"]:has(> .battle-pause:not([hidden])):has(
+    .loading-workspace:not([hidden]) .jam-game:not([hidden])
+  )
+  .interior-viewport {
+  height: max(200px, calc(100dvh - 504px));
+}
+.battle-station[data-role="loader"]:has(> .battle-pause:not([hidden]))
+  .mg-workspace
+  .battle-viewport {
+  height: max(240px, calc(100dvh - 404px));
+}
