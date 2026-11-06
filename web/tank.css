@@ -386,3 +386,5 @@ legend {
   transform: translateY(-16px);
   opacity: 0.65;
 }
+
+.mg-workspace[hidden], .loading-workspace[hidden] { display: none; }

@@ -2,6 +2,8 @@ import type { CrewRole } from "./crew";
 import type { GameCore, GameStart } from "./game-runtime";
 import {
   LOAD,
+  MODE,
+  loaderCanWork,
   CROUCH,
   FIRE,
   STOP_JAM,
@@ -75,11 +77,17 @@ export class TankCore implements GameCore<TankState> {
       this.roleOf(participant) === "driver"
         ? keys & 15
         : this.roleOf(participant) === "loader"
-          ? keys & (LOAD | CROUCH)
+          ? keys & (15 | LOAD | CROUCH)
           : 0,
     );
   }
   action(participant: number, action: number) {
+    if (this.roleOf(participant) === "loader" && action === MODE) {
+      const w = this.state.weapon;
+      if (loaderCanWork(w, this.state.time))
+        w.mode = w.mode === "loading" ? "machine-gun" : "loading";
+      return;
+    }
     if (this.roleOf(participant) === "loader" && action === STOP_JAM) {
       stopJam(this.state.weapon, this.state.time);
       return;
@@ -127,14 +135,21 @@ export class TankCore implements GameCore<TankState> {
   private advance(dt: number) {
     this.state.time += dt;
     let loading = false;
+    let loaderKeys = 0;
     this.state.weapon.crouching = false;
     for (const [participant, held] of this.controls)
       if (this.roleOf(participant) === "loader") {
         loading = Boolean(held & LOAD);
+        loaderKeys = held;
         this.state.weapon.crouching =
           this.state.time >= this.state.weapon.stunnedUntil &&
           Boolean(held & CROUCH);
       }
+    const w = this.state.weapon;
+    if (w.mode === "machine-gun" && loaderCanWork(w, this.state.time)) {
+      w.mg.yaw = (w.mg.yaw + (Number(Boolean(loaderKeys & DRIVE.right)) - Number(Boolean(loaderKeys & DRIVE.left))) * dt * 0.8 + Math.PI * 2) % (Math.PI * 2);
+      w.mg.pitch = Math.max(-0.6, Math.min(0.8, w.mg.pitch + (Number(Boolean(loaderKeys & DRIVE.forward)) - Number(Boolean(loaderKeys & DRIVE.reverse))) * dt * 0.6));
+    }
     stepWeapon(
       this.state.weapon,
       loading,

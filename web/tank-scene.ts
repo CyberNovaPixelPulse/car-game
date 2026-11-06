@@ -13,7 +13,7 @@ export class TankScene {
   private targetMeshes = new Map<number, THREE.Mesh>();
   private projectileMeshes = new Map<number, THREE.Mesh>();
   private impactMeshes = new Map<number, THREE.Mesh>();
-  constructor(private canvas: HTMLCanvasElement) {
+  constructor(private canvas: HTMLCanvasElement, private view: "gunner" | "machine-gun" = "gunner") {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.renderer.shadowMap.enabled = true;
@@ -157,16 +157,19 @@ export class TankScene {
   }
   render(state: TankState) {
     const t = state.tank;
+    this.tank.visible = this.view !== "machine-gun";
     this.tank.position.set(t.x, 0, t.z);
     this.tank.rotation.y = -t.yaw;
     this.turret.rotation.y = -state.turret.yaw;
     this.elevation.rotation.x = state.turret.pitch;
-    const heading = t.yaw + state.turret.yaw;
-    this.camera.position.set(t.x, 2.85, t.z);
+    const aim = this.view === "machine-gun" ? state.weapon.mg : state.turret;
+    const eye = this.view === "machine-gun" ? 3.1 : 2.85;
+    const heading = t.yaw + aim.yaw;
+    this.camera.position.set(t.x, eye, t.z);
     this.camera.lookAt(
-      t.x + Math.sin(heading) * Math.cos(state.turret.pitch) * 40,
-      2.85 + Math.sin(state.turret.pitch) * 40,
-      t.z - Math.cos(heading) * Math.cos(state.turret.pitch) * 40,
+      t.x + Math.sin(heading) * Math.cos(aim.pitch) * 40,
+      eye + Math.sin(aim.pitch) * 40,
+      t.z - Math.cos(heading) * Math.cos(aim.pitch) * 40,
     );
     for (const target of state.weapon.targets) {
       let mesh = this.targetMeshes.get(target.id);

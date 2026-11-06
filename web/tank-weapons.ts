@@ -1,6 +1,7 @@
 export const LOAD = 16;
 export const FIRE = 4;
 export const STOP_JAM = 9;
+export const MODE = 8;
 export const JAM_RULES = {
   chance: 0.25,
   progress: 0.4,
@@ -32,6 +33,8 @@ export interface PracticeTarget {
   hp: number;
 }
 export interface WeaponState {
+  mode: "loading" | "machine-gun";
+  mg: { yaw: number; pitch: number };
   chamber: "empty" | "loading" | "loaded" | "ejecting";
   crouching: boolean;
   stunnedUntil: number;
@@ -68,6 +71,8 @@ interface Cover {
 }
 export function createWeaponState(seed = 1): WeaponState {
   return {
+    mode: "loading",
+    mg: { yaw: 0, pitch: 0 },
     chamber: "empty",
     crouching: false,
     stunnedUntil: 0,
@@ -120,7 +125,7 @@ function random(w: WeaponState) {
 }
 export function stopJam(w: WeaponState, now: number) {
   const j = w.jam;
-  if (!loaderCanWork(w, now) || !j.active || j.result !== "trying") return;
+  if (w.mode !== "loading" || !loaderCanWork(w, now) || !j.active || j.result !== "trying") return;
   if (j.needle >= j.zone && j.needle <= j.zone + JAM_RULES.width) {
     j.active = false;
     j.result = "cleared";
@@ -163,7 +168,7 @@ export function stepWeapon(
     if (!w.crouching) w.stunnedUntil = w.ejectAt + LOADER_STUN_SECONDS;
   }
   const j = w.jam;
-  if (j.active && loaderCanWork(w, now)) {
+  if (j.active && w.mode === "loading" && loaderCanWork(w, now)) {
     if (j.result === "failed" && now >= j.retryAt) j.result = "trying";
     if (j.result === "trying") {
       j.needle += j.direction * dt * JAM_RULES.speed;
@@ -179,6 +184,7 @@ export function stepWeapon(
   }
   if (
     loading &&
+    w.mode === "loading" &&
     loaderCanWork(w, now) &&
     !j.active &&
     (w.chamber === "empty" || w.chamber === "loading")
@@ -242,6 +248,8 @@ export function stepWeapon(
 export function validWeapon(w: WeaponState | undefined): w is WeaponState {
   return (
     !!w &&
+    ["loading", "machine-gun"].includes(w.mode) &&
+    !!w.mg && [w.mg.yaw, w.mg.pitch].every(Number.isFinite) &&
     typeof w.crouching === "boolean" &&
     ["empty", "loading", "loaded", "ejecting"].includes(w.chamber) &&
     [w.loadProgress, w.ejectAt, w.shotsFired, w.stunnedUntil].every(
