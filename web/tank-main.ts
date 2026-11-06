@@ -1,5 +1,8 @@
 import { Session, type Room } from "./network";
 import { CREW_ROLES, ROLE_LABELS, ROLE_TASKS } from "./crew";
+import { GameRuntime } from "./game-runtime";
+import { TankCore, DRIVE } from "./tank-core";
+import { TankScene } from "./tank-scene";
 import "./tank.css";
 
 const app = document.querySelector<HTMLDivElement>("#tank-app")!;
@@ -7,6 +10,14 @@ app.innerHTML = `<main class="crew-shell"><header><h1>三人坦克合作戰鬥</
 const content = document.querySelector<HTMLElement>("#crew-content")!;
 const message = document.querySelector<HTMLElement>("#crew-message")!;
 export const session = new Session("tank");
+const core = new TankCore(
+  (slot) =>
+    session.room?.members.find((m) => m.slot === slot)?.role ?? undefined,
+);
+const runtime = new GameRuntime(core, session);
+let scene: TankScene | undefined;
+let stationRole: string | undefined;
+let held = 0;
 const escape = (text: string) => {
   const el = document.createElement("span");
   el.textContent = text;
@@ -16,6 +27,12 @@ const error = (e: unknown) => {
   message.textContent = e instanceof Error ? e.message : String(e);
 };
 function menu() {
+  runtime.mode = "idle";
+  runtime.clearInput();
+  held = 0;
+  scene?.dispose();
+  scene = undefined;
+  stationRole = undefined;
   content.innerHTML = `<h2>與隊友集合</h2><form id="crew-create"><label for="crew-name">乘員名稱</label><input id="crew-name" maxlength="16" autocomplete="nickname" required><button type="submit">建立房間</button></form><form id="crew-join"><label for="crew-code">房間代碼</label><div class="join-line"><input id="crew-code" maxlength="6" autocomplete="off" autocapitalize="characters" required><button type="submit">加入房間</button></div></form><p class="note">需要三位玩家、三台電腦與實體鍵盤。</p>`;
   const name = () => {
     const value = document
@@ -93,13 +110,74 @@ function lobby(room: Room) {
 }
 function station(room: Room) {
   const role = room.members.find((m) => m.slot === session.slot)?.role;
-  if (!role) return;
-  content.innerHTML = `<section class="workstation" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><p>${ROLE_TASKS[role]}</p><p class="station-state">三名乘員已進入工作站，職位已固定。</p><p class="note">目前版本已提供房間與分工；3D 駕駛及武器操作將在後續工作加入。</p><button class="secondary" id="station-leave">離開房間</button></section>`;
+  if (!role || stationRole === role) return;
+  scene?.dispose();
+  scene = undefined;
+  stationRole = role;
+  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><p>${ROLE_TASKS[role]}</p>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong></p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p>車內裝填工作區</p><p class="note">主炮裝填與武器操作尚未接入。目前請協助隊友確認分工。</p></div>'}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
+  if (role === "gunner") {
+    try {
+      scene = new TankScene(content.querySelector("canvas")!);
+    } catch {
+      message.textContent =
+        "無法啟動 3D 戰場，請使用支援 WebGL2 的瀏覽器重新加入。";
+    }
+  }
   document.querySelector<HTMLButtonElement>("#station-leave")!.onclick = () => {
     session.leave();
     menu();
   };
 }
+core.present = (state) => {
+  if (!stationRole) return;
+  const speed = content.querySelector('[data-testid="tank-speed"]');
+  if (speed) speed.textContent = Math.abs(state.tank.speed).toFixed(1);
+  const motion = content.querySelector('[data-testid="tank-motion"]');
+  if (motion)
+    motion.textContent = state.tank.blocked
+      ? "受阻"
+      : Math.abs(state.tank.speed) < 0.05
+        ? "靜止"
+        : state.tank.speed > 0
+          ? "前進"
+          : "倒車";
+  const contact = content.querySelector('[data-testid="tank-contact"]');
+  if (contact)
+    contact.textContent = state.tank.blocked ? "車體受阻" : "車體正常";
+  const heading = content.querySelector('[data-testid="hull-heading"]');
+  if (heading)
+    heading.textContent = `${Math.round((state.tank.yaw * 180) / Math.PI) % 360}°`;
+  scene?.render(state);
+};
+const driveKeys: Record<string, number> = {
+  w: DRIVE.forward,
+  s: DRIVE.reverse,
+  a: DRIVE.left,
+  d: DRIVE.right,
+};
+window.addEventListener("keydown", (event) => {
+  if (runtime.mode !== "online" || stationRole !== "driver") return;
+  const key = driveKeys[event.key.toLowerCase()];
+  if (!key) return;
+  event.preventDefault();
+  held |= key;
+  runtime.setInput(held);
+});
+window.addEventListener("keyup", (event) => {
+  const key = driveKeys[event.key.toLowerCase()];
+  if (!key) return;
+  held &= ~key;
+  runtime.setInput(held);
+});
+window.addEventListener("blur", () => {
+  held = 0;
+  runtime.clearInput();
+});
+function frame(now: number) {
+  if (runtime.mode === "online") runtime.frame(now);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
 session.onError = (text) => {
   message.textContent = text;
 };
@@ -107,14 +185,14 @@ session.onEnded = (text) => {
   menu();
   message.textContent = text;
 };
-session.onRoom = (room) => {
+runtime.onRoom = (room) => {
   message.textContent = "";
   if (room.phase === "lobby") lobby(room);
   else station(room);
 };
-session.onStart = () => {
+runtime.onStart = () => {
   if (session.room) station(session.room);
-  if (session.isHost) session.state(JSON.stringify({ stage: "stations" }));
 };
+runtime.onRestoreError = error;
 window.addEventListener("pagehide", () => session.leave(false));
 menu();
