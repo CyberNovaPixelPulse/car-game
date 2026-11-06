@@ -102,6 +102,7 @@ test("客端裝填手失敗停針凍結一秒，重試沿用目標和進度，�
 }) => {
   const crew = await tankCrew(browser, "gunner", 0, 1);
   try {
+    await crew.loader.setViewportSize({ width: 1280, height: 720 });
     await crew.loader.keyboard.down("r");
     await expect(crew.gunner.getByTestId("chamber-state")).toHaveText("卡彈");
     await crew.loader.keyboard.up("r");
