@@ -10,6 +10,9 @@ export class TankScene {
   private turret = new THREE.Group();
   private elevation = new THREE.Group();
   private observer: ResizeObserver;
+  private targetMeshes = new Map<number, THREE.Mesh>();
+  private projectileMeshes = new Map<number, THREE.Mesh>();
+  private impactMeshes = new Map<number, THREE.Mesh>();
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
@@ -165,7 +168,74 @@ export class TankScene {
       2.85 + Math.sin(state.turret.pitch) * 40,
       t.z - Math.cos(heading) * Math.cos(state.turret.pitch) * 40,
     );
+    for (const target of state.weapon.targets) {
+      let mesh = this.targetMeshes.get(target.id);
+      if (!mesh) {
+        mesh = new THREE.Mesh(
+          new THREE.BoxGeometry(target.width, target.height, target.depth),
+          new THREE.MeshStandardMaterial({ color: 0x9b7954, roughness: 0.9 }),
+        );
+        mesh.position.set(target.x, target.height / 2, target.z);
+        mesh.castShadow = true;
+        this.scene.add(mesh);
+        this.targetMeshes.set(target.id, mesh);
+      }
+      mesh.scale.y = target.hp > 0 ? 1 : 0.12;
+      mesh.position.y =
+        target.hp > 0 ? target.height / 2 : target.height * 0.06;
+    }
+    this.renderEffects(state);
     this.renderer.render(this.scene, this.camera);
+  }
+  private renderEffects(state: TankState) {
+    for (const [id, mesh] of this.projectileMeshes) {
+      if (!state.weapon.projectiles.some((p) => p.id === id)) {
+        this.removeEffect(mesh);
+        this.projectileMeshes.delete(id);
+      }
+    }
+    for (const p of state.weapon.projectiles) {
+      let mesh = this.projectileMeshes.get(p.id);
+      if (!mesh) {
+        mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.12, 8, 6),
+          new THREE.MeshBasicMaterial({ color: 0xffda87 }),
+        );
+        this.scene.add(mesh);
+        this.projectileMeshes.set(p.id, mesh);
+      }
+      mesh.position.set(p.x, p.y, p.z);
+    }
+    for (const [id, mesh] of this.impactMeshes) {
+      if (!state.weapon.impacts.some((p) => p.id === id)) {
+        this.removeEffect(mesh);
+        this.impactMeshes.delete(id);
+      }
+    }
+    for (const hit of state.weapon.impacts) {
+      let mesh = this.impactMeshes.get(hit.id);
+      if (!mesh) {
+        mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.5, 10, 8),
+          new THREE.MeshBasicMaterial({
+            color: 0xd8aa66,
+            transparent: true,
+            opacity: 0.7,
+          }),
+        );
+        this.scene.add(mesh);
+        this.impactMeshes.set(hit.id, mesh);
+      }
+      mesh.position.set(hit.x, hit.y, hit.z);
+      const remaining = Math.max(0, (hit.until - state.time) / 0.6);
+      mesh.scale.setScalar(1 + (1 - remaining) * 2);
+      (mesh.material as THREE.MeshBasicMaterial).opacity = remaining * 0.7;
+    }
+  }
+  private removeEffect(mesh: THREE.Mesh) {
+    this.scene.remove(mesh);
+    mesh.geometry.dispose();
+    (mesh.material as THREE.Material).dispose();
   }
   dispose() {
     this.observer.disconnect();

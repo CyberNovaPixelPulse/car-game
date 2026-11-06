@@ -1,5 +1,14 @@
 import type { CrewRole } from "./crew";
 import type { GameCore, GameStart } from "./game-runtime";
+import {
+  LOAD,
+  FIRE,
+  createWeaponState,
+  fireWeapon,
+  stepWeapon,
+  validWeapon,
+  type WeaponState,
+} from "./tank-weapons";
 
 export const DRIVE = { forward: 1, reverse: 2, left: 4, right: 8 } as const;
 export const AIM = { left: 0, right: 1, up: 2, down: 3 } as const;
@@ -24,6 +33,7 @@ export const BATTLEFIELD = {
 export interface TankState {
   version: 1;
   time: number;
+  weapon: WeaponState;
   turret: { yaw: number; pitch: number; yawRate: number; pitchRate: number };
   tank: {
     x: number;
@@ -37,6 +47,7 @@ export interface TankState {
 const initial = (): TankState => ({
   version: 1,
   time: 0,
+  weapon: createWeaponState(),
   turret: { yaw: 0, pitch: 0, yawRate: 0, pitchRate: 0 },
   tank: { x: 0, z: 0, yaw: 0, speed: 0, turnRate: 0, blocked: false },
 });
@@ -58,11 +69,27 @@ export class TankCore implements GameCore<TankState> {
   input(participant: number, keys: number) {
     this.controls.set(
       participant,
-      this.roleOf(participant) === "driver" ? keys & 15 : 0,
+      this.roleOf(participant) === "driver"
+        ? keys & 15
+        : this.roleOf(participant) === "loader"
+          ? keys & LOAD
+          : 0,
     );
   }
   action(participant: number, action: number) {
     if (this.roleOf(participant) !== "gunner") return;
+    if (action === FIRE) {
+      fireWeapon(
+        this.state.weapon,
+        {
+          ...this.state.tank,
+          yaw: this.state.tank.yaw + this.state.turret.yaw,
+          pitch: this.state.turret.pitch,
+        },
+        this.state.time,
+      );
+      return;
+    }
     const t = this.state.turret;
     const clamp = (v: number, max: number) => Math.max(-max, Math.min(max, v));
     if (action === AIM.left || action === AIM.right)
@@ -82,6 +109,16 @@ export class TankCore implements GameCore<TankState> {
   step(elapsed: number) {
     const dt = Math.max(0, Math.min(elapsed, 0.05));
     this.state.time += dt;
+    let loading = false;
+    for (const [participant, held] of this.controls)
+      if (this.roleOf(participant) === "loader") loading = Boolean(held & LOAD);
+    stepWeapon(
+      this.state.weapon,
+      loading,
+      dt,
+      this.state.time,
+      BATTLEFIELD.cover,
+    );
     const turret = this.state.turret;
     turret.yaw =
       (turret.yaw + turret.yawRate * dt + Math.PI * 2) % (Math.PI * 2);
@@ -147,6 +184,7 @@ export class TankCore implements GameCore<TankState> {
       next.version !== 1 ||
       !next.tank ||
       !next.turret ||
+      !validWeapon(next.weapon) ||
       ![
         next.time,
         next.turret.yaw,
