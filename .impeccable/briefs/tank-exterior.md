@@ -12,6 +12,8 @@ SIGNATURE INTERACTION: physical displacement/turn from authority drives left/rig
 
 COLLISION: original solid cover bounds remain the source. Masonry fills those boxes; the in-bounds store roof is inside its stone parapet. Taller vegetation and pitched-roof background farms remain outside playable bounds. Low grass is decorative. No additional blockers, AI changes or damage changes.
 
-QUALITY BAR: tanks must be recognisable by silhouette/running gear and barrel, masonry/soil must have readable scale, natural lighting must retain details without black occlusion artifacts. No placeholder spheres or whole-hull cubes as final tank models. This is a stylised-budget procedural game scene, not an exact museum scan or AAA simulation.
+QUALITY BAR: tanks must be recognisable by silhouette/running gear and barrel, masonry/soil must have readable scale, natural lighting must retain details without black occlusion artifacts. No placeholder spheres or whole-hull cubes as final tank models. This is original procedural art with believable proportions, material wear and mechanical relationships; an exact museum scan or AAA simulation is not required.
 
 Evidence required: final actual browser gunner desktop and 1280×720, MG laptop, blind driver, normal enemy/cover/fire captures, model close-up QA from an external non-shipping viewer only. Asset hashes/metadata and historical research recorded in public/art. Review all material scope and never use showroom art as gameplay proof.
+
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.

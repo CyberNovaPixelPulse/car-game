@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 /** Local CC0 maps, never a runtime dependency on the asset provider. */
@@ -43,6 +44,30 @@ export function part(
 }
 export const box = (w: number, h: number, d: number) =>
   new THREE.BoxGeometry(w, h, d);
+export const armour = (w: number, h: number, d: number, radius = 0.035) =>
+  new RoundedBoxGeometry(w, h, d, 2, Math.min(radius, w / 4, h / 4, d / 4));
+
+/** A solid mechanical strut, batched later with its fixed parent/material. */
+export function strut(
+  parent: THREE.Object3D,
+  a: THREE.Vector3,
+  b: THREE.Vector3,
+  radius: number,
+  material: THREE.Material,
+) {
+  const delta = b.clone().sub(a);
+  const rod = part(
+    parent,
+    new THREE.CylinderGeometry(radius, radius, delta.length(), 8),
+    material,
+  );
+  rod.position.copy(a).add(b).multiplyScalar(0.5);
+  rod.quaternion.setFromUnitVectors(
+    new THREE.Vector3(0, 1, 0),
+    delta.normalize(),
+  );
+  return rod;
+}
 
 /** A welded hull with actual inclined front/back plates and narrowing upper deck. */
 export function hullGeometry(
@@ -53,38 +78,32 @@ export function hullGeometry(
   taper: number,
   nose: number,
 ) {
-  const b = width / 2,
-    d = depth / 2;
-  const points = [
-    [-b, bottom, -d],
-    [b, bottom, -d],
-    [b, bottom, d],
-    [-b, bottom, d],
-    [-b * taper, top, -d + nose],
-    [b * taper, top, -d + nose],
-    [b * taper, top, d - 0.18],
-    [-b * taper, top, d - 0.18],
-  ];
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute(
-    "position",
-    new THREE.Float32BufferAttribute(points.flat(), 3),
-  );
-  geometry.setAttribute(
-    "uv",
-    new THREE.Float32BufferAttribute(
-      [0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1],
-      2,
-    ),
-  );
-  geometry.setIndex([
-    0, 4, 5, 0, 5, 1, 1, 5, 6, 1, 6, 2, 2, 6, 7, 2, 7, 3, 3, 7, 4, 3, 4, 0, 4,
-    7, 6, 4, 6, 5, 0, 1, 2, 0, 2, 3,
-  ]);
-  const flat = geometry.toNonIndexed();
-  geometry.dispose();
-  flat.computeVertexNormals();
-  return flat;
+  // Chamfered welded plate silhouette, then separate projected UVs on every
+  // surface. Reusing eight corner UVs collapses front/side armour to one texel row.
+  const geometry = new RoundedBoxGeometry(width, top - bottom, depth, 2, 0.035);
+  const positions = geometry.getAttribute("position");
+  for (let i = 0; i < positions.count; i++) {
+    const t = (positions.getY(i) + (top - bottom) / 2) / (top - bottom);
+    const z = positions.getZ(i);
+    positions.setXYZ(
+      i,
+      positions.getX(i) * (1 - (1 - taper) * t),
+      positions.getY(i) + (top + bottom) / 2,
+      z * (1 - ((nose + 0.18) * t) / depth) + ((nose - 0.18) * t) / 2,
+    );
+  }
+  geometry.computeVertexNormals();
+  const normals = geometry.getAttribute("normal"),
+    uv = geometry.getAttribute("uv");
+  for (let i = 0; i < uv.count; i++) {
+    const x = positions.getX(i),
+      y = positions.getY(i),
+      z = positions.getZ(i);
+    const nx = Math.abs(normals.getX(i)),
+      ny = Math.abs(normals.getY(i));
+    uv.setXY(i, (nx > 0.6 ? z : x) / 1.5, (ny > 0.6 ? z : y) / 1.5);
+  }
+  return geometry;
 }
 
 /** Dispose one exclusive resource owner. Sharing within that owner is released once.

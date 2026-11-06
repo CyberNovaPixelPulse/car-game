@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import {
+  armour,
+  strut,
   batchFixedParts,
   box,
   disposeArt,
@@ -39,32 +41,40 @@ export class VehicleModel {
     const width = sherman ? 2.68 : tiger ? 3.7 : 3.2;
     this.trackX = width / 2 - (tiger ? 0.36 : 0.26);
     this.paint = new THREE.MeshStandardMaterial({
-      color: sherman ? 0x8c956e : tiger ? 0xb2a17b : 0xb5a581,
+      color: sherman ? 0x788467 : tiger ? 0xa79a75 : 0xad9e78,
       roughness: 0.86,
       metalness: 0.12,
-      ...surfaceMaps("green_metal_rust", 1.4, "metal", sherman, manager),
+      ...surfaceMaps("green_metal_rust", 1.4, "metal", true, manager),
       normalScale: new THREE.Vector2(0.22, 0.22),
     });
-    if (!sherman) {
-      this.paint.map = null;
-      this.paint.onBeforeCompile = (shader) => {
-        shader.vertexShader =
-          "varying vec3 platePosition;\n" +
-          shader.vertexShader.replace(
-            "#include <begin_vertex>",
-            "#include <begin_vertex>\nplatePosition = position;",
-          );
-        shader.fragmentShader =
-          "varying vec3 platePosition;\n" +
-          shader.fragmentShader.replace(
-            "#include <color_fragment>",
-            `#include <color_fragment>
-          float band = sin(platePosition.x * 3.4 + platePosition.z * 2.1 + sin(platePosition.y * 4.0));
-          float camouflage = smoothstep(0.30, 0.65, band);
-          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.58, 0.65, 0.46), camouflage * 0.72);`,
-          );
-      };
-    }
+    this.paint.onBeforeCompile = (shader) => {
+      shader.vertexShader =
+        "varying vec3 platePosition;\n" +
+        shader.vertexShader.replace(
+          "#include <begin_vertex>",
+          "#include <begin_vertex>\nplatePosition = position;",
+        );
+      shader.fragmentShader =
+        "varying vec3 platePosition;\n" +
+        shader.fragmentShader.replace(
+          "#include <map_fragment>",
+          `
+        #ifdef USE_MAP
+          vec3 surfaceSample = texture2D(map, vMapUv).rgb;
+          float grain = dot(surfaceSample, vec3(0.2126, 0.7152, 0.0722));
+          // Photograph carries small-scale paint variation, never blackens the whole tank.
+          diffuseColor.rgb *= 0.78 + 0.40 * smoothstep(0.025, 0.32, grain);
+        #endif`,
+        );
+      if (!sherman)
+        shader.fragmentShader = shader.fragmentShader.replace(
+          "#include <color_fragment>",
+          `#include <color_fragment>
+        float band = sin(platePosition.x * 2.4 + platePosition.z * 1.5 + sin(platePosition.y * 3.5));
+        float camouflage = smoothstep(0.1, 0.8, band);
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.61,0.70,0.52), camouflage * 0.55);`,
+        );
+    };
     const paint = this.paint;
     const steel = new THREE.MeshStandardMaterial({
       color: 0x55574d,
@@ -124,11 +134,15 @@ export class VehicleModel {
         wheel.position.set(
           side * this.trackX,
           0.66,
-          -this.length / 2 + 0.88 + (i * (this.length - 1.76)) / (count - 1),
+          sherman
+            ? [-1.87, -1.19, -0.34, 0.34, 1.19, 1.87][i]
+            : tiger
+              ? -2.04 + i * 0.58
+              : -1.72 + i * 0.49,
         );
         this.root.add(wheel);
         wheels.push(wheel);
-        const radius = tiger ? 0.49 : sherman ? 0.39 : 0.34;
+        const radius = tiger ? 0.49 : sherman ? 0.37 : 0.285;
         const cylinder = part(
           wheel,
           new THREE.CylinderGeometry(radius, radius, 0.35, 16),
@@ -141,45 +155,104 @@ export class VehicleModel {
           paint,
         );
         hub.rotation.z = Math.PI / 2;
-        part(wheel, box(0.41, 0.075, radius * 1.25), steel);
-        part(wheel, box(0.42, radius * 1.25, 0.075), steel);
+        const cap = part(
+          wheel,
+          new THREE.CylinderGeometry(radius * 0.29, radius * 0.29, 0.41, 12),
+          steel,
+        );
+        cap.rotation.z = Math.PI / 2;
+        for (let spoke = 0; spoke < (tiger ? 8 : 6); spoke++) {
+          const angle = (spoke * Math.PI * 2) / (tiger ? 8 : 6);
+          const hole = part(
+            wheel,
+            new THREE.CylinderGeometry(radius * 0.11, radius * 0.11, 0.012, 8),
+            rubber,
+            side * 0.198,
+            Math.cos(angle) * radius * 0.51,
+            Math.sin(angle) * radius * 0.51,
+          );
+          hole.rotation.z = Math.PI / 2;
+          const bolt = part(
+            wheel,
+            new THREE.CylinderGeometry(0.018, 0.018, 0.018, 6),
+            steel,
+            side * 0.214,
+            Math.cos(angle) * radius * 0.21,
+            Math.sin(angle) * radius * 0.21,
+          );
+          bolt.rotation.z = Math.PI / 2;
+        }
         if (tiger) wheel.position.x += side * (i % 2 ? 0.1 : -0.08);
         if (sherman && i % 2 === 0) {
+          const centre =
+            (wheel.position.z +
+              [-1.87, -1.19, -0.34, 0.34, 1.19, 1.87][i + 1]) /
+            2;
+          const outer = side * (this.trackX + 0.1);
           part(
             this.root,
-            box(0.28, 0.42, 0.78),
+            armour(0.17, 0.31, 0.46, 0.035),
             paint,
-            side * (this.trackX - 0.15),
-            0.95,
-            wheel.position.z + 0.35,
+            outer,
+            1.04,
+            centre,
           );
-          const spring = part(
+          for (const end of [-0.34, 0.34]) {
+            strut(
+              this.root,
+              new THREE.Vector3(outer, 1.07, centre),
+              new THREE.Vector3(outer, 0.67, centre + end),
+              0.055,
+              steel,
+            );
+            const pivot = part(
+              this.root,
+              new THREE.CylinderGeometry(0.09, 0.09, 0.06, 10),
+              worn,
+              outer + side * 0.06,
+              0.67,
+              centre + end,
+            );
+            pivot.rotation.z = Math.PI / 2;
+          }
+          for (let coil = 0; coil < 5; coil++) {
+            const spring = part(
+              this.root,
+              new THREE.TorusGeometry(0.087, 0.019, 5, 10),
+              steel,
+              outer + side * 0.02,
+              0.99 + coil * 0.047,
+              centre,
+            );
+            spring.rotation.x = Math.PI / 2;
+          }
+          const roller = part(
             this.root,
-            new THREE.CylinderGeometry(0.13, 0.13, 0.42, 8),
-            steel,
+            new THREE.CylinderGeometry(0.12, 0.12, 0.28, 10),
+            rubber,
             side * this.trackX,
-            1.07,
-            wheel.position.z + 0.35,
+            1.16,
+            centre + 0.18,
           );
-          spring.rotation.z = 0.25 * side;
+          roller.rotation.z = Math.PI / 2;
         }
       }
       for (const z of [-this.length / 2 + 0.62, this.length / 2 - 0.62]) {
         const drive = part(
           this.root,
-          new THREE.CylinderGeometry(0.48, 0.48, 0.46, 16),
+          new THREE.CylinderGeometry(0.43, 0.43, 0.32, 18),
           steel,
-          side * this.trackX,
-          0.74,
+          side * (this.trackX - 0.16),
+          0.8,
           z,
         );
         drive.rotation.z = Math.PI / 2;
         const hub = part(
           this.root,
-          new THREE.CylinderGeometry(0.2, 0.2, 0.48, 12),
+          new THREE.CylinderGeometry(0.19, 0.19, 0.35, 12),
           paint,
-          side * this.trackX,
-          0.74,
+          side * (this.trackX - 0.16),
+          0.8,
           z,
         );
         hub.rotation.z = Math.PI / 2;
@@ -203,15 +276,17 @@ export class VehicleModel {
         1.31,
         0,
       );
-      // Damp mud is local to the running gear, exposed edge metal stays distinct.
-      part(
-        this.root,
-        box(0.06, 0.13, this.length - 1),
-        mud,
-        side * (this.trackX + 0.27),
-        0.28,
-        0,
-      );
+      for (let deposit = 0; deposit < 12; deposit++) {
+        const clod = part(
+          this.root,
+          new THREE.IcosahedronGeometry(0.08 + (deposit % 3) * 0.025, 0),
+          mud,
+          side * (this.trackX - 0.2),
+          0.98 + (deposit % 2) * 0.06,
+          -2.1 + deposit * 0.38,
+        );
+        clod.scale.set(0.7, 0.45, 1.4);
+      }
       this.gear.push({ links, side, wheels, phase: 0 });
       if (kind === "panzer") {
         for (let panel = 0; panel < 5; panel++) {
@@ -244,24 +319,47 @@ export class VehicleModel {
     }
     this.root.add(this.turret);
     if (sherman) {
+      const profile = [
+        [0.85, 0],
+        [1.02, 0.08],
+        [1.08, 0.38],
+        [1.02, 0.56],
+        [0.84, 0.68],
+        [0.44, 0.73],
+        [0, 0.74],
+      ];
       const cast = part(
         this.turret,
-        new THREE.SphereGeometry(1.12, 24, 14),
+        new THREE.LatheGeometry(
+          profile.map(([r, y]) => new THREE.Vector2(r, y)),
+          28,
+        ),
         paint,
         0,
-        2.12,
-        -0.22,
+        1.94,
+        -0.2,
       );
-      cast.scale.set(1.03, 0.53, 1.16);
+      cast.scale.z = 1.1;
       part(
         this.turret,
-        new THREE.CylinderGeometry(1.02, 1.13, 0.33, 24),
-        paint,
+        new THREE.CylinderGeometry(1.04, 1.07, 0.13, 28),
+        steel,
         0,
-        1.99,
-        -0.22,
+        1.98,
+        -0.2,
       );
-      part(this.turret, box(1.2, 0.55, 0.62), paint, 0.02, 2.12, -1.19);
+      part(this.turret, armour(1.02, 0.57, 0.34, 0.11), paint, 0, 2.35, -1.3);
+      for (const side of [-1, 1]) {
+        const cheek = part(
+          this.turret,
+          new THREE.CylinderGeometry(0.21, 0.21, 0.08, 16),
+          steel,
+          side * 0.49,
+          2.35,
+          -1.32,
+        );
+        cheek.rotation.z = Math.PI / 2;
+      }
     } else {
       const shape = new THREE.Shape();
       const outline = tiger
@@ -299,7 +397,7 @@ export class VehicleModel {
       turretBody.rotation.x = -Math.PI / 2;
       part(
         this.turret,
-        box(tiger ? 1.32 : 0.98, 0.55, 0.34),
+        armour(tiger ? 1.42 : 1.02, 0.58, 0.42, tiger ? 0.1 : 0.045),
         paint,
         0,
         tiger ? 2.27 : 2.16,
@@ -319,7 +417,7 @@ export class VehicleModel {
         }
       part(
         this.turret,
-        box(tiger ? 1.6 : 1.24, 0.4, 0.43),
+        armour(tiger ? 1.6 : 1.24, 0.4, 0.43),
         paint,
         0,
         2.06,
@@ -453,27 +551,27 @@ export class VehicleModel {
     for (const side of [-1, 1]) {
       part(
         this.root,
-        box(0.5, 0.055, 0.48),
+        armour(0.5, sherman ? 0.15 : 0.075, 0.48),
         paint,
         side * 0.6,
-        sherman ? 1.98 : 1.76,
-        -1.02,
+        sherman ? 2.015 : 1.8,
+        sherman ? -1.65 : -1.68,
       );
       part(
         this.root,
         box(0.23, 0.1, 0.16),
         steel,
         side * 0.6,
-        sherman ? 2.05 : 1.84,
-        -1.17,
+        sherman ? 2.12 : 1.88,
+        -1.78,
       );
       part(
         this.root,
         box(0.15, 0.045, 0.06),
         dark,
         side * 0.6,
-        sherman ? 2.08 : 1.87,
-        -1.25,
+        sherman ? 2.15 : 1.91,
+        -1.87,
       );
       const lamp = part(
         this.root,
@@ -531,6 +629,52 @@ export class VehicleModel {
         steel,
       );
     }
+    if (sherman) {
+      part(this.root, armour(1.9, 0.4, 0.3, 0.12), paint, 0, 0.91, -2.87);
+      for (const side of [-1, 1])
+        for (let bolt = 0; bolt < 5; bolt++) {
+          const head = part(
+            this.root,
+            new THREE.CylinderGeometry(0.026, 0.026, 0.025, 6),
+            worn,
+            side * 0.88,
+            0.77 + bolt * 0.068,
+            -3.026,
+          );
+          head.rotation.x = Math.PI / 2;
+        }
+    }
+    // Bare contact edges, welds and turret roof handles remain distinct materials.
+    for (const side of [-1, 1]) {
+      const y = sherman ? 1.98 : 1.72;
+      strut(
+        this.root,
+        new THREE.Vector3(side * (width / 2 - 0.48), y, 0.4),
+        new THREE.Vector3(side * (width / 2 - 0.48), y, this.length / 2 - 0.5),
+        0.014,
+        worn,
+      );
+      const hatchY = sherman ? 2.12 : 1.89;
+      for (const z of [-1.62, -1.45])
+        strut(
+          this.root,
+          new THREE.Vector3(side * 0.6 - 0.07, hatchY, z),
+          new THREE.Vector3(side * 0.6 + 0.07, hatchY, z),
+          0.018,
+          steel,
+        );
+    }
+    for (let bolt = 0; bolt < 12; bolt++) {
+      const angle = (bolt * Math.PI) / 6;
+      const head = part(
+        this.turret,
+        new THREE.CylinderGeometry(0.022, 0.022, 0.024, 6),
+        worn,
+        Math.sin(angle) * 0.35,
+        roofY + 0.135,
+        -0.02 + Math.cos(angle) * 0.35,
+      );
+    }
     // Deck grille, stowage and exhaust distinguish the rear from the glacis.
     part(this.root, box(1.15, 0.045, 0.9), dark, 0, 1.76, 1.9);
     for (let i = 0; i < 10; i++)
@@ -555,7 +699,7 @@ export class VehicleModel {
         0.12,
       );
       pintle.rotation.z = 0.02;
-      buildBrowning(this.turret, steel, paint, 0.48, 3.22, 0.12);
+      buildBrowning(this.turret, steel, paint, 0.48, 3.22, 0.12, manager);
     }
     for (const gear of this.gear) {
       for (const wheel of gear.wheels) batchFixedParts(wheel);
@@ -607,7 +751,7 @@ export class VehicleModel {
         Math.cos(yaw - this.lastPose.yaw),
       );
       for (const g of this.gear)
-        g.phase += travel + g.side * turn * this.trackX;
+        g.phase += travel - g.side * turn * this.trackX;
     }
     this.lastPose = { x, z, yaw };
     const straight = this.length - 1.24,
@@ -676,10 +820,10 @@ export class VehicleModel {
     this.paint.color.setHex(
       alive
         ? this.kind === "sherman"
-          ? 0x8c956e
+          ? 0x788467
           : this.kind === "tiger"
-            ? 0xb2a17b
-            : 0xb5a581
+            ? 0xa79a75
+            : 0xad9e78
         : 0x3c3a31,
     );
   }
@@ -694,6 +838,7 @@ export function buildBrowning(
   x: number,
   y: number,
   z: number,
+  manager?: THREE.LoadingManager,
 ) {
   const gun = new THREE.Group();
   gun.position.set(x, y, z);
@@ -712,10 +857,18 @@ export function buildBrowning(
     metalness: 0.72,
     roughness: 0.56,
   });
-  // Top cover hinge, charging handle, rivet rows and left-hand feedway.
-  part(gun, box(0.17, 0.185, 0.52), steel, 0, 0, -0.2);
-  part(gun, box(0.18, 0.018, 0.42), worn, 0, 0.103, -0.22);
-  part(gun, box(0.135, 0.03, 0.13), steel, 0, 0.125, -0.08);
+  const receiverSteel = new THREE.MeshStandardMaterial({
+    color: 0x526057,
+    metalness: 0.78,
+    roughness: 0.54,
+    ...surfaceMaps("green_metal_rust", 2.4, "metal", false, manager),
+    normalScale: new THREE.Vector2(0.1, 0.1),
+  });
+  // Rounded receiver edges, separate top-cover lip and rubbed feed contacts.
+  // Wear follows these working surfaces rather than a whole-screen grime layer.
+  part(gun, armour(0.17, 0.185, 0.52, 0.009), receiverSteel, 0, 0, -0.2);
+  part(gun, armour(0.18, 0.018, 0.42, 0.004), receiverSteel, 0, 0.103, -0.22);
+  part(gun, armour(0.135, 0.03, 0.13, 0.006), worn, 0, 0.125, -0.08);
   for (const side of [-1, 1]) {
     for (let i = 0; i < 6; i++) {
       const rivet = part(
@@ -733,7 +886,7 @@ export function buildBrowning(
   part(gun, box(0.055, 0.035, 0.03), steel, 0.13, 0.01, -0.14);
   part(gun, box(0.03, 0.07, 0.035), worn, 0.17, 0.03, -0.14);
   part(gun, box(0.13, 0.065, 0.18), dark, -0.14, 0.02, -0.15);
-  part(gun, box(0.22, 0.28, 0.26), paint, -0.29, -0.1, -0.15);
+  part(gun, armour(0.22, 0.28, 0.26, 0.018), paint, -0.29, -0.1, -0.15);
   part(gun, box(0.235, 0.018, 0.28), worn, -0.29, 0.046, -0.15);
   for (let i = 0; i < 5; i++) {
     const round = part(
@@ -745,6 +898,35 @@ export function buildBrowning(
       -0.15,
     );
     round.rotation.x = Math.PI / 2;
+    const bullet = part(
+      gun,
+      new THREE.ConeGeometry(0.012, 0.028, 8),
+      worn,
+      -0.12 - i * 0.027,
+      0.074,
+      -0.216,
+    );
+    bullet.rotation.x = -Math.PI / 2;
+  }
+  for (const side of [-1, 1]) {
+    part(gun, box(0.006, 0.006, 0.43), worn, side * 0.083, 0.092, -0.21);
+    part(
+      gun,
+      armour(0.011, 0.09, 0.19, 0.003),
+      receiverSteel,
+      side * 0.091,
+      -0.04,
+      -0.31,
+    );
+    const pin = part(
+      gun,
+      new THREE.CylinderGeometry(0.017, 0.017, 0.015, 10),
+      worn,
+      side * 0.098,
+      -0.02,
+      -0.32,
+    );
+    pin.rotation.z = Math.PI / 2;
   }
   // Open support jacket: narrow rings joined by ribs, actual air gaps rather than painted holes.
   for (let i = 0; i < 6; i++)
@@ -806,7 +988,7 @@ export function buildBrowning(
     pivot.rotation.z = Math.PI / 2;
   }
   part(gun, box(0.065, 0.06, 0.022), worn, 0, 0, 0.14);
-  part(gun, box(0.28, 0.04, 0.2), paint, 0, -0.26, -0.24);
+  part(gun, armour(0.28, 0.04, 0.2, 0.008), paint, 0, -0.26, -0.24);
   part(
     gun,
     new THREE.CylinderGeometry(0.037, 0.055, 0.38, 12),

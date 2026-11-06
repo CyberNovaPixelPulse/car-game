@@ -93,6 +93,7 @@ export class TankScene {
         0.25,
         -0.28,
         -0.35,
+        this.assets.manager,
       );
       mount.traverse((object) => {
         if (object instanceof THREE.Mesh) object.castShadow = false;
