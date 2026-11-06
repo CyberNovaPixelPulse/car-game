@@ -1,5 +1,6 @@
-import { Engine } from "./engine";
-import { Session, COLORS } from "./network";
+import { Engine, type GameView } from "./engine";
+import { GameRuntime } from "./game-runtime";
+import { Session, COLORS, type Room } from "./network";
 import "./style.css";
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <header class="topbar"><a href="/" class="brand"><span class="brand-mark">P<span>c</span></span><span>Pocket Circuit<small>口袋賽車場</small></span></a><span class="tag">好朋友，壞道具。</span><span class="edition">5 人派對競速</span></header>
@@ -10,10 +11,7 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 <footer><span>友誼第一，終點線第二。</span><span>原創小車 · 即開即玩</span></footer></main>`;
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
   document.getElementById(id) as T;
-let engine: Engine;
-let practicing = false;
-let keys = 0;
-let itemQueued = false;
+let runtime: GameRuntime<GameView>;
 let busy = false;
 const session = new Session();
 function escape(text: string) {
@@ -26,13 +24,10 @@ session.onError = (text) => {
 };
 function returnToMenu(message = "") {
   $("reconnect").hidden = true;
-  racing = false;
-  practicing = false;
+  runtime?.idle();
   resultsShown = false;
   pressed.clear();
   setKeys();
-  itemQueued = false;
-  engine?.reset(1);
   $("lobby").hidden = true;
   $("race").hidden = true;
   $("menu").hidden = false;
@@ -49,11 +44,9 @@ $("reconnect").onclick = async () => {
   await session.resumeSaved();
 };
 addEventListener("pagehide", () => session.leave(false));
-session.onRoom = (room) => {
+function showRoom(room: Room) {
   $("reconnect").hidden = true;
   $("message").textContent = "";
-  for (const member of room.members)
-    engine?.connected(member.slot, member.connected);
   if (room.phase === "results") {
     const rematch = $<HTMLButtonElement>("rematch");
     if (rematch)
@@ -61,7 +54,7 @@ session.onRoom = (room) => {
         !session.isHost || room.members.filter((m) => m.connected).length < 2;
   }
   if (room.phase !== "lobby") return;
-  practicing = false;
+  runtime.idle();
   $("menu").hidden = true;
   $("race").hidden = true;
   $("lobby").hidden = false;
@@ -73,18 +66,8 @@ session.onRoom = (room) => {
     session.leave();
     returnToMenu();
   };
-};
-let racing = false,
-  resultsShown = false;
-session.onInput = (slot, input) => engine.input(slot, input);
-session.onState = (data) => {
-  try {
-    engine.restore(data);
-  } catch (error) {
-    session.leave();
-    returnToMenu((error as Error).message);
-  }
-};
+}
+let resultsShown = false;
 function bindRaceLeave() {
   const button = $("race-leave");
   if (button)
@@ -98,14 +81,10 @@ function racePanel() {
     '<div class="race-stats"><div><strong data-testid="lap">1 / 3</strong><span>目前圈數</span></div><div><strong data-testid="rank">1</strong><span>目前名次</span></div></div><div class="race-effects" data-testid="effects"></div><div class="speed"><strong data-testid="speed">0</strong><span>速度</span></div><div class="item-slot"><small>你的道具 · Space 使用</small><strong data-testid="held-item">空道具欄</strong></div><svg class="minimap" viewBox="0 0 1200 800" aria-label="賽道小地圖"><ellipse id="course-map" fill="none" stroke="#ded7ce" stroke-width="110"/><g id="effect-markers"></g><g id="boxes"></g><g id="markers"></g></svg><button id="race-leave" class="secondary wide">離開比賽</button>';
   bindRaceLeave();
 }
-session.onStart = (mask, seed) => {
-  practicing = false;
-  racing = true;
+function showRace() {
   resultsShown = false;
-  itemQueued = false;
   pressed.clear();
   setKeys();
-  engine.reset(mask, seed, 0);
   $("menu").hidden = true;
   $("lobby").hidden = true;
   $("race").hidden = false;
@@ -113,7 +92,7 @@ session.onStart = (mask, seed) => {
   $("session-label").textContent = `房間 ${session.room?.code}`;
   $("message").textContent = "";
   racePanel();
-};
+}
 function name() {
   const value = $<HTMLInputElement>("player-name").value.trim();
   if (!value) throw new Error("先幫自己取個車手名吧。");
@@ -165,14 +144,19 @@ const keyBits: Record<string, number> = {
 };
 const pressed = new Set<string>();
 function setKeys() {
-  keys = [...pressed].reduce((mask, code) => mask | (keyBits[code] || 0), 0);
+  runtime?.setInput(
+    [...pressed].reduce((mask, code) => mask | (keyBits[code] || 0), 0),
+  );
 }
 addEventListener("keydown", (event) => {
-  if ((!practicing && !racing) || event.target instanceof HTMLInputElement)
+  if (
+    (runtime?.mode !== "practice" && runtime?.mode !== "online") ||
+    event.target instanceof HTMLInputElement
+  )
     return;
   if (keyBits[event.code]) {
     event.preventDefault();
-    if (event.code === "Space" && !event.repeat) itemQueued = true;
+    if (event.code === "Space" && !event.repeat) runtime.queueInput(32);
     pressed.add(event.code);
     setKeys();
   }
@@ -182,17 +166,14 @@ addEventListener("keyup", (event) => {
   setKeys();
 });
 addEventListener("blur", () => {
-  itemQueued = false;
+  runtime?.clearInput();
   pressed.clear();
   setKeys();
 });
 $("practice").onclick = () => {
-  practicing = true;
-  racing = false;
-  itemQueued = false;
+  runtime.practice();
   pressed.clear();
   setKeys();
-  engine.reset(1);
   $("menu").hidden = true;
   $("race").hidden = false;
   $("panel-title").textContent = "自由練習中";
@@ -202,35 +183,21 @@ $("practice").onclick = () => {
   $("back").onclick = () => returnToMenu();
 };
 try {
-  engine = await Engine.load($<HTMLCanvasElement>("game"));
-  engine.reset(1);
+  const engine = await Engine.load($<HTMLCanvasElement>("game"));
+  runtime = new GameRuntime(engine, session);
+  runtime.onRoom = showRoom;
+  runtime.onStart = showRace;
+  runtime.onRestoreError = (error) => {
+    session.leave();
+    returnToMenu(error.message);
+  };
+  runtime.idle();
   $("engine-status").textContent = "賽道已就緒";
   $<HTMLButtonElement>("practice").disabled = false;
   $<HTMLButtonElement>("create").disabled = false;
   $<HTMLButtonElement>("join").disabled = false;
-  let previous = performance.now();
-  let lastNetwork = 0;
   function frame(now: number) {
-    const slot = racing ? session.slot : 0;
-    if (!racing || session.isHost) {
-      engine.input(
-        slot,
-        practicing || racing ? keys | (itemQueued ? 32 : 0) : 0,
-      );
-      engine.step((now - previous) / 1000);
-      itemQueued = false;
-    }
-    if (racing && now - lastNetwork > 50) {
-      lastNetwork = now;
-      if (session.isHost) session.state(engine.snapshot());
-      else {
-        session.input(keys | (itemQueued ? 32 : 0));
-        itemQueued = false;
-      }
-    }
-    previous = now;
-    engine.draw(slot);
-    const view = engine.view();
+    const { participant: slot, view } = runtime.frame(now);
     const course = $("course-map");
     if (course)
       for (const key of ["cx", "cy", "rx", "ry"] as const)
@@ -275,11 +242,11 @@ try {
       rank = document.querySelector('[data-testid="rank"]');
     if (lap) lap.textContent = `${view.cars[slot]?.lap || 1} / 3`;
     if (rank) rank.textContent = String(view.cars[slot]?.rank || 1);
-    if (racing && view.phase === 2 && !resultsShown) {
+    if (runtime.mode === "online" && view.phase === 2 && !resultsShown) {
       resultsShown = true;
       pressed.clear();
       setKeys();
-      if (session.isHost) session.finish(engine.snapshot());
+      runtime.finish();
       $("panel-title").textContent = "本場成績";
       $("race").innerHTML =
         `<ol class="results" data-testid="results">${view.cars
@@ -298,7 +265,7 @@ try {
     }
     const countdown = document.querySelector<HTMLElement>(".countdown")!;
     countdown.dataset.testid = "countdown";
-    countdown.hidden = !racing || view.phase !== 0;
+    countdown.hidden = runtime.mode !== "online" || view.phase !== 0;
     countdown.textContent = String(Math.max(1, Math.ceil(3 - view.time)));
     const markers = $("markers");
     if (markers)
