@@ -1,3 +1,4 @@
+import { smokeBlocks, smokeSight } from "./tank-smoke";
 import { ENEMY_LABELS } from "./tank-enemies";
 import { MG_FIRE } from "./tank-machine-gun";
 import { Session, type Room } from "./network";
@@ -11,6 +12,7 @@ import {
   FIRE,
   SELECT_HE,
   SELECT_AP,
+  SELECT_SMOKE,
   SHELL_LABELS,
   CROUCH,
   STOP_JAM,
@@ -167,10 +169,13 @@ function station(room: Room) {
   stationRole = role;
   soundedShot = 0;
   soundedStun = 0;
-  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><p>${ROLE_TASKS[role]}</p><p>共用坦克血量 <strong data-testid="tank-health">100/100</strong></p><p data-testid="damage-warning" role="status"></p><h2 data-testid="battle-result" hidden>戰鬥失敗</h2>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong> · 砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p><p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note">連點 A／D 左右、W／S 上下；反方向連點可煞停。按住只推動一次。</p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p><strong data-testid="loader-mode">裝填模式</strong> · Tab 切換工作</p><p class="ejection-warning" data-testid="ejection-warning" role="status"></p><p><span data-testid="loader-status">站立・可以工作</span> <strong class="stun-timer" data-testid="stun-remaining"></strong></p><div class="mg-workspace" hidden><div class="battle-viewport"><span class="sight" aria-hidden="true"></span></div><p>機槍朝向 <strong data-testid="mg-heading">0.0°</strong> · 仰角 <strong data-testid="mg-pitch">0.0°</strong></p><p class="note">按住 WASD 瞄準，放開即停止。空白鍵按住連射，備彈無限。Tab 返回裝填。</p><div class="mg-hud"><p>機槍熱度 <strong data-testid="mg-heat">0</strong>% · <span data-testid="mg-status">可以射擊</span> <strong data-testid="mg-cooldown"></strong></p><progress aria-label="機槍熱度" max="100" value="0"></progress></div><p>機槍已射擊 <strong data-testid="mg-shot-count">0</strong> 發</p><p data-testid="mg-target-status"></p></div><div class="loading-workspace"><div class="breech-assembly" aria-label="主炮砲膛與退殼工作區"><div class="breech-tube"></div><div class="breech-block"></div><div class="loading-round"></div></div><section class="jam-game" aria-label="卡彈排除" hidden><h3>卡彈：停在目標區</h3><div class="jam-track"><span class="jam-zone" data-testid="jam-zone">目標</span><span class="jam-needle" data-testid="jam-needle"></span></div><p data-testid="jam-result">按空白鍵停針</p></section><p class="note">按 1 選高爆彈、2 選穿甲彈。按住 R 裝填，放開可暫停；開始裝填後鎖定該發彈種。等待砲手開火、退殼後再裝下一發。按住 C 蹲下避開彈殼，放開起身；蹲下時無法工作。</p></div></div>'}${role !== "driver" ? '<div class="weapon-status"><p>選擇：<strong data-testid="selected-shell">高爆彈</strong> · 高爆／穿甲／煙霧備彈無限（煙霧功能待加入）</p><p>膛內：<strong data-testid="chamber-shell">無</strong></p><p data-testid="chamber-state">空膛</p><p>裝填進度 <strong data-testid="load-progress">0</strong>%</p><progress aria-label="裝填進度" max="100" value="0"></progress><p>已發射 <strong data-testid="shot-count">0</strong> 發</p></div>' : ""}${role === "gunner" ? '<p data-testid="enemy-warning" role="status"></p><p data-testid="target-status">敵車接近中</p><p data-testid="flight-status"></p><p class="note">主炮就緒後，按空白鍵開火。</p>' : ""}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
+  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><p>${ROLE_TASKS[role]}</p><p>共用坦克血量 <strong data-testid="tank-health">100/100</strong></p><p data-testid="damage-warning" role="status"></p><h2 data-testid="battle-result" hidden>戰鬥失敗</h2>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong> · 砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p><p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note">連點 A／D 左右、W／S 上下；反方向連點可煞停。按住只推動一次。</p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p><strong data-testid="loader-mode">裝填模式</strong> · Tab 切換工作</p><p class="ejection-warning" data-testid="ejection-warning" role="status"></p><p><span data-testid="loader-status">站立・可以工作</span> <strong class="stun-timer" data-testid="stun-remaining"></strong></p><div class="mg-workspace" hidden><div class="battle-viewport"><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p>機槍朝向 <strong data-testid="mg-heading">0.0°</strong> · 仰角 <strong data-testid="mg-pitch">0.0°</strong></p><p class="note">按住 WASD 瞄準，放開即停止。空白鍵按住連射，備彈無限。Tab 返回裝填。</p><div class="mg-hud"><p>機槍熱度 <strong data-testid="mg-heat">0</strong>% · <span data-testid="mg-status">可以射擊</span> <strong data-testid="mg-cooldown"></strong></p><progress aria-label="機槍熱度" max="100" value="0"></progress></div><p>機槍已射擊 <strong data-testid="mg-shot-count">0</strong> 發</p><p data-testid="mg-target-status"></p></div><div class="loading-workspace"><div class="breech-assembly" aria-label="主炮砲膛與退殼工作區"><div class="breech-tube"></div><div class="breech-block"></div><div class="loading-round"></div></div><section class="jam-game" aria-label="卡彈排除" hidden><h3>卡彈：停在目標區</h3><div class="jam-track"><span class="jam-zone" data-testid="jam-zone">目標</span><span class="jam-needle" data-testid="jam-needle"></span></div><p data-testid="jam-result">按空白鍵停針</p></section><p class="note">按 1 選高爆彈、2 選穿甲彈、3 選煙霧彈。按住 R 裝填，放開可暫停；開始裝填後鎖定該發彈種。等待砲手開火、退殼後再裝下一發。按住 C 蹲下避開彈殼，放開起身；蹲下時無法工作。</p></div></div>'}${role !== "driver" ? '<div class="weapon-status"><p>選擇：<strong data-testid="selected-shell">高爆彈</strong> · 高爆／穿甲／煙霧備彈無限</p><p>膛內：<strong data-testid="chamber-shell">無</strong></p><p data-testid="chamber-state">空膛</p><p>裝填進度 <strong data-testid="load-progress">0</strong>%</p><progress aria-label="裝填進度" max="100" value="0"></progress><p>已發射 <strong data-testid="shot-count">0</strong> 發</p></div>' : ""}${role === "gunner" ? '<p data-testid="enemy-warning" role="status"></p><p data-testid="enemy-activity" role="status"></p><p data-testid="target-status">敵車接近中</p><p data-testid="flight-status"></p><p class="note">主炮就緒後，按空白鍵開火。</p>' : ""}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
   const enemyWarning = content.querySelector('[data-testid="enemy-warning"]');
   if (enemyWarning)
     content.querySelector(".battle-viewport")!.append(enemyWarning);
+  const enemyActivity = content.querySelector('[data-testid="enemy-activity"]');
+  if (enemyActivity)
+    content.querySelector(".battle-viewport")!.append(enemyActivity);
   const mgHud = content.querySelector(".mg-hud");
   if (mgHud)
     content.querySelector(".mg-workspace .battle-viewport")!.append(mgHud);
@@ -235,10 +240,27 @@ core.present = (state) => {
     warningTone(true);
     soundedDamage = state.battle.lastHitAt;
   }
+  const sight = smokeSight(
+    state.weapon.smoke,
+    state.tank,
+    stationRole === "loader" ? state.weapon.mg : state.turret,
+    stationRole === "loader",
+    state.time,
+  );
+  const obscured = (target: { x: number; z: number; height: number }) =>
+    smokeBlocks(
+      state.weapon.smoke,
+      sight.eye,
+      [target.x, target.height / 2, target.z],
+      state.time,
+    );
+  const smokeStatus = content.querySelector('[data-testid="smoke-status"]');
+  if (smokeStatus)
+    smokeStatus.textContent = sight.obscured ? "煙幕遮蔽視線" : "視線清晰";
   const enemyWarning = content.querySelector('[data-testid="enemy-warning"]');
   if (enemyWarning)
     enemyWarning.textContent = state.weapon.targets
-      .filter((e) => e.hp > 0 && e.phase === "warning")
+      .filter((e) => e.hp > 0 && e.phase === "warning" && !obscured(e))
       .map((e) => `${ENEMY_LABELS[e.kind]} 正在瞄準，即將開火！移動或尋找掩護`)
       .join("；");
   const weapon = state.weapon;
@@ -303,7 +325,11 @@ core.present = (state) => {
       String(weapon.mg.shots);
     content.querySelector('[data-testid="mg-target-status"]')!.textContent =
       weapon.targets
-        .map((t) => `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp}`)
+        .map((t) =>
+          obscured(t)
+            ? "煙幕遮蔽，無法辨認敵車"
+            : `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp}`,
+        )
         .join("；");
     const workspace = content.querySelector<HTMLElement>(".loader-workspace");
     if (workspace)
@@ -340,10 +366,22 @@ core.present = (state) => {
     "chamber-state": weapon.jam.active ? "卡彈" : weaponText[weapon.chamber],
     "load-progress": String(Math.round(weapon.loadProgress * 100)),
     "shot-count": String(weapon.shotsFired),
+    "enemy-activity": weapon.targets
+      .filter((t) => t.hp > 0)
+      .map((t) =>
+        t.phase === "searching"
+          ? "煙幕中的敵車停止追蹤，搜尋中"
+          : t.phase === "blind-fire" || (t.phase === "warning" && obscured(t))
+            ? "敵車失去視線，短暫瞄準最後已見位置"
+            : "",
+      )
+      .filter(Boolean)
+      .join("；"),
     "target-status": weapon.targets
-      .map(
-        (t) =>
-          `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp} · ${t.hp <= 0 ? "已擊毀" : t.hp === t.maxHp ? "完好" : "受損"} · ${t.hp <= 0 ? "殘骸" : { approaching: "接近中", aiming: "轉砲瞄準", warning: "瞄準預告", reloading: "重新裝填" }[t.phase]}`,
+      .map((t) =>
+        obscured(t)
+          ? "煙幕遮蔽，無法辨認敵車"
+          : `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp} · ${t.hp <= 0 ? "已擊毀" : t.hp === t.maxHp ? "完好" : "受損"} · ${t.hp <= 0 ? "殘骸" : { approaching: "接近中", aiming: "轉砲瞄準", warning: "瞄準預告", reloading: "重新裝填", "blind-fire": "最後位置射擊", searching: "搜尋中" }[t.phase]}`,
       )
       .join("；"),
     "flight-status": weapon.projectiles.length
@@ -402,10 +440,16 @@ window.addEventListener("keydown", (event) => {
     if (!event.repeat) runtime.action(MODE);
     return;
   }
-  if (stationRole === "loader" && ["1", "2"].includes(event.key)) {
+  if (stationRole === "loader" && ["1", "2", "3"].includes(event.key)) {
     event.preventDefault();
     if (!event.repeat)
-      runtime.action(event.key === "1" ? SELECT_HE : SELECT_AP);
+      runtime.action(
+        event.key === "1"
+          ? SELECT_HE
+          : event.key === "2"
+            ? SELECT_AP
+            : SELECT_SMOKE,
+      );
     return;
   }
   if (stationRole === "loader" && event.code === "Space") {
