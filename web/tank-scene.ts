@@ -1,17 +1,23 @@
 import * as THREE from "three";
-import { BATTLEFIELD, type TankState } from "./tank-core";
+import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
+import { type TankState } from "./tank-core";
+import { VehicleModel, buildBrowning } from "./tank-vehicle-model";
+import { buildNormandy } from "./tank-environment";
 
 /** The gunner's real 3D view; no renderer is created for the blind driver. */
 export class TankScene {
   private renderer: THREE.WebGLRenderer;
+  private disposed = false;
+  private sky?: THREE.DataTexture;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(65, 1, 0.1, 180);
-  private tank = new THREE.Group();
-  private turret = new THREE.Group();
-  private elevation = new THREE.Group();
+  private player = new VehicleModel("sherman");
+  private tank = this.player.root;
+  private turret = this.player.turret;
+  private elevation = this.player.elevation;
   private observer: ResizeObserver;
   private targetMeshes = new Map<number, THREE.Group>();
-  private enemyTurrets = new Map<number, THREE.Group>();
+  private enemyModels = new Map<number, VehicleModel>();
   private enemyProjectiles = new Map<number, THREE.Mesh>();
   private projectileMeshes = new Map<number, THREE.Mesh>();
   private mgTracers = new Map<number, THREE.Line>();
@@ -25,11 +31,11 @@ export class TankScene {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
-    this.scene.background = new THREE.Color(0xb9c3bc);
-    this.scene.fog = new THREE.Fog(0xb9c3bc, 40, 125);
-    this.scene.add(new THREE.HemisphereLight(0xd8e0e3, 0x4b5035, 2.7));
-    const sun = new THREE.DirectionalLight(0xffecd1, 3.2);
+    this.renderer.toneMappingExposure = 0.98;
+    this.scene.background = new THREE.Color(0xb9c7c7);
+    this.scene.fog = new THREE.Fog(0xb9c7c7, 65, 190);
+    this.scene.add(new THREE.HemisphereLight(0xd9e3e9, 0x64654c, 1.25));
+    const sun = new THREE.DirectionalLight(0xffefd6, 2.3);
     sun.position.set(-25, 40, 15);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
@@ -41,153 +47,34 @@ export class TankScene {
       far: 110,
     });
     this.scene.add(sun);
-    const material = (color: number, metalness = 0) =>
-      new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness });
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(200, 200),
-      material(0x6d7653),
+    new HDRLoader().load(
+      "/art/sky/kloofendal_48d_partly_cloudy_puresky_1k.hdr",
+      (texture) => {
+        if (this.disposed) {
+          texture.dispose();
+          return;
+        }
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        this.sky = texture;
+        this.scene.background = texture;
+        this.scene.environment = texture;
+        this.scene.environmentIntensity = 0.35;
+        this.scene.backgroundIntensity = 0.8;
+      },
     );
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.scene.add(ground);
-    const mesh = (
-      geometry: THREE.BufferGeometry,
-      mat: THREE.Material,
-      x: number,
-      y: number,
-      z: number,
-      parent: THREE.Object3D = this.scene,
-    ) => {
-      const m = new THREE.Mesh(geometry, mat);
-      m.position.set(x, y, z);
-      m.castShadow = true;
-      m.receiveShadow = true;
-      parent.add(m);
-      return m;
-    };
-    const earth = material(0x82765f),
-      stone = material(0x797970),
-      roof = material(0x5f6059);
-    mesh(new THREE.BoxGeometry(9, 0.025, 90), earth, 0, 0.02, 0);
-    for (const c of BATTLEFIELD.cover) {
-      mesh(
-        new THREE.BoxGeometry(c.width, c.height, c.depth),
-        stone,
-        c.x,
-        c.height / 2,
-        c.z,
-      );
-      if (c.height > 4) {
-        const top = mesh(
-          new THREE.ConeGeometry(7, 3, 4),
-          roof,
-          c.x,
-          c.height + 1.5,
-          c.z,
-        );
-        top.rotation.y = Math.PI / 4;
-      } else {
-        for (let y = 0.5; y < c.height; y += 0.6)
-          mesh(
-            new THREE.BoxGeometry(c.width + 0.04, 0.03, c.depth + 0.04),
-            material(0x62665b),
-            c.x,
-            y,
-            c.z,
-          );
-      }
-    }
-    const trunk = material(0x5d4c3c),
-      leaves = material(0x42563d);
-    for (let i = 0; i < 20; i++) {
-      const x = (i % 2 ? 1 : -1) * (23 + (i % 5) * 3),
-        z = -40 + i * 4.5;
-      mesh(new THREE.CylinderGeometry(0.3, 0.45, 4, 7), trunk, x, 2, z);
-      mesh(new THREE.SphereGeometry(3, 10, 8), leaves, x, 5.7, z);
-    }
-    const paint = material(0x515c42, 0.3),
-      steel = material(0x3d4240, 0.65);
-    mesh(new THREE.BoxGeometry(3.3, 1.1, 5.8), paint, 0, 1.15, 0, this.tank);
-    mesh(
-      new THREE.CylinderGeometry(1.4, 1.7, 1.05, 16),
-      paint,
-      0,
-      2.15,
-      -0.3,
-      this.turret,
-    );
-    this.tank.add(this.turret);
-    this.turret.add(this.elevation);
-    this.elevation.position.set(0, 2.48, -0.3);
-    for (const side of [-1, 1]) {
-      mesh(
-        new THREE.BoxGeometry(0.58, 1.1, 6.1),
-        steel,
-        side * 1.7,
-        0.7,
-        0,
-        this.tank,
-      );
-      for (let i = 0; i < 6; i++) {
-        const wheel = mesh(
-          new THREE.CylinderGeometry(0.48, 0.48, 0.65, 12),
-          paint,
-          side * 1.72,
-          0.65,
-          -2.2 + i * 0.88,
-          this.tank,
-        );
-        wheel.rotation.z = Math.PI / 2;
-      }
-    }
-    const barrel = mesh(
-      new THREE.CylinderGeometry(0.105, 0.13, 4, 16),
-      steel,
-      0,
-      0,
-      -2.7,
-      this.elevation,
-    );
-    barrel.rotation.x = Math.PI / 2;
+    buildNormandy(this.scene);
     this.scene.add(this.tank);
     if (this.view === "machine-gun") {
-      // Receiver, perforated barrel jacket and rear sight remain below the sight line.
-      const mount = new THREE.Group();
-      mesh(
-        new THREE.BoxGeometry(0.18, 0.19, 0.48),
-        steel,
-        0.26,
-        -0.32,
-        -0.65,
-        mount,
-      );
-      const jacket = mesh(
-        new THREE.CylinderGeometry(0.045, 0.055, 0.65, 12),
-        steel,
-        0.26,
-        -0.29,
-        -1.18,
-        mount,
-      );
-      jacket.rotation.x = Math.PI / 2;
-      for (let i = 0; i < 7; i++)
-        mesh(
-          new THREE.BoxGeometry(0.052, 0.014, 0.018),
-          material(0x161b1b),
-          0.26,
-          -0.244,
-          -0.92 - i * 0.075,
-          mount,
-        );
-      mesh(
-        new THREE.BoxGeometry(0.026, 0.09, 0.026),
-        steel,
-        0.26,
-        -0.19,
-        -0.48,
-        mount,
-      );
-      this.camera.add(mount);
+      const steel = new THREE.MeshStandardMaterial({
+        color: 0x434a43,
+        roughness: 0.65,
+        metalness: 0.72,
+      });
+      const paint = new THREE.MeshStandardMaterial({
+        color: 0x303a2c,
+        roughness: 0.9,
+      });
+      buildBrowning(this.camera, steel, paint, 0.25, -0.28, -0.35);
       this.scene.add(this.camera);
     }
     this.observer = new ResizeObserver(() => this.resize());
@@ -204,6 +91,7 @@ export class TankScene {
   render(state: TankState) {
     const t = state.tank;
     this.tank.visible = this.view !== "machine-gun";
+    this.player.animate(t.x, t.z, t.yaw);
     this.tank.position.set(t.x, 0, t.z);
     this.tank.rotation.y = -t.yaw;
     this.turret.rotation.y = -state.turret.yaw;
@@ -221,115 +109,31 @@ export class TankScene {
       eye + Math.sin(aim.pitch) * 40,
       eyeZ - Math.cos(heading) * Math.cos(aim.pitch) * 40,
     );
-    for (const target of state.weapon.targets) {
-      let mesh = this.targetMeshes.get(target.id);
-      if (!mesh) {
-        mesh = new THREE.Group();
-        const paint = new THREE.MeshStandardMaterial({
-          color: target.kind === "tiger" ? 0x807761 : 0x6d7158,
-          roughness: 0.85,
-          metalness: 0.25,
-        });
-        const steel = new THREE.MeshStandardMaterial({
-          color: 0x353a36,
-          roughness: 0.9,
-        });
-        const part = (
-          w: number,
-          h: number,
-          d: number,
-          x: number,
-          y: number,
-          z: number,
-          parent: THREE.Group,
-          material = paint,
-        ) => {
-          const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
-          body.position.set(x, y, z);
-          body.castShadow = true;
-          body.receiveShadow = true;
-          parent.add(body);
-          return body;
-        };
-        part(target.width - 0.5, 1.2, target.depth, 0, 1.1, 0, mesh);
-        for (const side of [-1, 1]) {
-          part(
-            0.5,
-            1.1,
-            target.depth,
-            side * (target.width / 2 - 0.25),
-            0.65,
-            0,
-            mesh,
-            steel,
-          );
-          for (let n = 0; n < 6; n++) {
-            const wheel = new THREE.Mesh(
-              new THREE.CylinderGeometry(0.43, 0.43, 0.55, 10),
-              paint,
-            );
-            wheel.rotation.z = Math.PI / 2;
-            wheel.position.set(
-              side * (target.width / 2 - 0.2),
-              0.7,
-              -target.depth / 2 + 0.6 + (n * (target.depth - 1.2)) / 5,
-            );
-            mesh.add(wheel);
-          }
-          if (target.kind === "panzer")
-            part(
-              0.08,
-              0.9,
-              target.depth * 0.88,
-              (side * target.width) / 2,
-              1.35,
-              0,
-              mesh,
-            );
-        }
-        const turret = new THREE.Group();
-        mesh.add(turret);
-        part(
-          target.width * 0.66,
-          1,
-          target.kind === "tiger" ? 2.5 : 2.1,
-          0,
-          2.2,
-          0,
-          turret,
-        );
-        part(
-          0.18,
-          0.18,
-          target.kind === "tiger" ? 4.2 : 3.4,
-          0,
-          2.45,
-          -2.6,
-          turret,
-          steel,
-        );
-        this.enemyTurrets.set(target.id, turret);
-        this.scene.add(mesh);
-        this.targetMeshes.set(target.id, mesh);
+    // Wave IDs belong to authority. Remove retired groups instead of leaving phantom enemies.
+    for (const [id, mesh] of this.targetMeshes) {
+      if (!state.weapon.targets.some((target) => target.id === id)) {
+        this.scene.remove(mesh);
+        this.disposeObject(mesh);
+        this.targetMeshes.delete(id);
+        this.enemyModels.delete(id);
       }
+    }
+    for (const target of state.weapon.targets) {
+      let model = this.enemyModels.get(target.id);
+      if (!model) {
+        model = new VehicleModel(target.kind);
+        this.enemyModels.set(target.id, model);
+        this.targetMeshes.set(target.id, model.root);
+        this.scene.add(model.root);
+      }
+      const mesh = model.root;
+      model.animate(target.x, target.z, target.yaw);
       mesh.position.set(target.x, 0, target.z);
       mesh.rotation.y = -target.yaw;
-      this.enemyTurrets.get(target.id)!.rotation.y = -(
-        target.turretYaw - target.yaw
-      );
-      mesh.scale.y = target.hp > 0 ? 1 : 0.25;
-      mesh.traverse((object) => {
-        if (object instanceof THREE.Mesh) {
-          const material = object.material as THREE.MeshStandardMaterial;
-          material.emissive.setHex(
-            target.hp <= 0
-              ? 0x100c08
-              : target.phase === "warning"
-                ? 0x793512
-                : 0,
-          );
-        }
-      });
+      model.turret.rotation.y = -(target.turretYaw - target.yaw);
+      model.setCondition(target.hp > 0, target.phase === "warning");
+      // A disabled vehicle stays a recognisable wreck rather than flattening into a toy.
+      model.elevation.rotation.x = target.hp > 0 ? 0 : -0.12;
     }
     for (const [id, mesh] of this.enemyProjectiles)
       if (!state.battle.projectiles.some((p) => p.id === id)) {
@@ -423,17 +227,26 @@ export class TankScene {
     mesh.geometry.dispose();
     (mesh.material as THREE.Material).dispose();
   }
-  dispose() {
-    this.observer.disconnect();
-    this.scene.traverse((obj) => {
+  private disposeObject(root: THREE.Object3D) {
+    root.traverse((obj) => {
       if (obj instanceof THREE.Mesh) {
         obj.geometry.dispose();
         for (const m of Array.isArray(obj.material)
           ? obj.material
-          : [obj.material])
+          : [obj.material]) {
+          const mat = m as THREE.MeshStandardMaterial;
+          for (const texture of [mat.map, mat.normalMap, mat.roughnessMap])
+            texture?.dispose();
           m.dispose();
+        }
       }
     });
+  }
+  dispose() {
+    this.disposed = true;
+    this.sky?.dispose();
+    this.observer.disconnect();
+    this.disposeObject(this.scene);
     for (const line of this.mgTracers.values()) {
       line.geometry.dispose();
       (line.material as THREE.Material).dispose();
