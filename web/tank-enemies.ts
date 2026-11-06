@@ -196,7 +196,8 @@ export function stepEnemies(
         damage: e.kind === "tiger" ? 10 : 6,
         age: 0,
       });
-      e.readyAt = now + (e.kind === "tiger" ? 9 : 7) * (1 - (b.wave - 1) * 0.15);
+      e.readyAt =
+        now + (e.kind === "tiger" ? 9 : 7) * (1 - (b.wave - 1) * 0.15);
       e.phase = "reloading";
     }
   }
@@ -237,20 +238,39 @@ export function stepEnemies(
 
 /** Reinforcements enter as actual combatants. Deadlines use the current battle clock. */
 export function createWaveTargets(wave: number, now: number): PracticeTarget[] {
-  const positions = wave === 2
-    ? [[0, -13], [-3.8, -13], [3.8, -13]]
-    : [[0, -13], [-3.8, -13], [3.8, -13], [4, -29]];
+  const positions =
+    wave === 2
+      ? [
+          [0, -13],
+          [-3.8, -13],
+          [3.8, -13],
+        ]
+      : [
+          [0, -13],
+          [-3.8, -13],
+          [3.8, -13],
+          [4, -29],
+        ];
   return positions.map(([x, z], index) => {
     const kind = wave === 3 && index === 3 ? "tiger" : "panzer";
     return {
-      id: wave * 100 + index, x, z,
+      id: wave * 100 + index,
+      x,
+      z,
       width: kind === "tiger" ? 3.7 : 3.2,
       height: kind === "tiger" ? 3.2 : 3,
       depth: kind === "tiger" ? 6 : 5.5,
       hp: kind === "tiger" ? 360 : 200,
       maxHp: kind === "tiger" ? 360 : 200,
-      kind, yaw: Math.PI, turretYaw: Math.PI,
-      phase: "approaching", lastSeenX: 0, lastSeenZ: 0, lastSeenAt: -100, readyAt: now + 12, fireAt: 0,
+      kind,
+      yaw: Math.PI,
+      turretYaw: Math.PI,
+      phase: "approaching",
+      lastSeenX: 0,
+      lastSeenZ: 0,
+      lastSeenAt: -100,
+      readyAt: now + 12,
+      fireAt: 0,
     };
   });
 }

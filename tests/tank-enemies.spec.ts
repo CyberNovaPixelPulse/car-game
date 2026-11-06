@@ -254,8 +254,10 @@ test("虎式繞過前牆接近，重裝耐打且可用兩發穿甲擊毀", async
       "虎式 I 型 180/360",
     );
     await shot("2");
-    await expect(c.gunner.getByTestId("target-status")).toContainText(
-      "虎式 I 型 0/360 · 已擊毀",
+    // Clearing both first-wave enemies brings real reinforcements, replacing
+    // obsolete wreck IDs instead of retaining targets from the earlier wave.
+    await expect(c.gunner.getByTestId("wave-status")).toHaveText(
+      "第 2 / 3 波 · 存活敵車 3",
     );
     await expect(c.gunner.getByTestId("battle-result")).toBeHidden();
     await c.gunner.screenshot({

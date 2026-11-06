@@ -202,7 +202,8 @@ function station(room: Room) {
       soundButton.textContent = `音效：${soundEnabled ? "開" : "關"}`;
       soundButton.setAttribute("aria-pressed", String(soundEnabled));
     };
-  content.querySelector<HTMLButtonElement>("#battle-return")!.onclick = () => session.returnToLobby();
+  content.querySelector<HTMLButtonElement>("#battle-return")!.onclick = () =>
+    session.returnToLobby();
   const enemyWarning = content.querySelector('[data-testid="enemy-warning"]');
   if (enemyWarning)
     content.querySelector(".battle-viewport")!.append(enemyWarning);
@@ -228,7 +229,8 @@ function station(room: Room) {
 core.present = (state) => {
   if (!stationRole) return;
   const wave = content.querySelector('[data-testid="wave-status"]');
-  if (wave) wave.textContent = `第 ${state.battle.wave} / 3 波 · 存活敵車 ${state.weapon.targets.filter((e) => e.hp > 0).length}`;
+  if (wave)
+    wave.textContent = `第 ${state.battle.wave} / 3 波 · 存活敵車 ${state.weapon.targets.filter((e) => e.hp > 0).length}`;
   const speed = content.querySelector('[data-testid="tank-speed"]');
   if (speed) speed.textContent = Math.abs(state.tank.speed).toFixed(1);
   const motion = content.querySelector('[data-testid="tank-motion"]');
@@ -271,9 +273,15 @@ core.present = (state) => {
     result.hidden = !state.battle.failed && !state.battle.won;
     result.textContent = state.battle.failed ? "戰鬥失敗" : "戰鬥勝利";
   }
-  const returnButton = content.querySelector<HTMLButtonElement>("#battle-return");
-  if (returnButton) returnButton.hidden = !state.battle.failed && !state.battle.won;
-  if ((state.battle.failed || state.battle.won) && session.isHost && session.room?.phase === "battle")
+  const returnButton =
+    content.querySelector<HTMLButtonElement>("#battle-return");
+  if (returnButton)
+    returnButton.hidden = !state.battle.failed && !state.battle.won;
+  if (
+    (state.battle.failed || state.battle.won) &&
+    session.isHost &&
+    session.room?.phase === "battle"
+  )
     runtime.finish();
   content
     .querySelector<HTMLElement>(".battle-station")

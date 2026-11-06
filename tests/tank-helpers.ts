@@ -12,6 +12,7 @@ export async function tankCrew(
     ? ["裝填房主", "駕駛乘員", "砲手乘員"]
     : ["砲手房主", "駕駛乘員", "裝填乘員"]) {
     const context = await browser.newContext({
+      ...(recordVideoDir ? { viewport: { width: 1280, height: 720 } } : {}),
       recordVideo: recordVideoDir
         ? { dir: recordVideoDir, size: { width: 1280, height: 720 } }
         : undefined,

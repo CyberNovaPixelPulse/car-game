@@ -239,7 +239,10 @@ export class TankCore implements GameCore<TankState> {
         return;
       }
       this.state.battle.wave++;
-      this.state.weapon.targets = createWaveTargets(this.state.battle.wave, this.state.time);
+      this.state.weapon.targets = createWaveTargets(
+        this.state.battle.wave,
+        this.state.time,
+      );
     }
     const turret = this.state.turret;
     turret.yaw =
@@ -307,7 +310,9 @@ export class TankCore implements GameCore<TankState> {
       !next.battle ||
       typeof next.battle.failed !== "boolean" ||
       typeof next.battle.won !== "boolean" ||
-      !Number.isInteger(next.battle.wave) || next.battle.wave < 1 || next.battle.wave > 3 ||
+      !Number.isInteger(next.battle.wave) ||
+      next.battle.wave < 1 ||
+      next.battle.wave > 3 ||
       !Array.isArray(next.battle.projectiles) ||
       ![next.battle.shots, next.battle.lastHitAt, next.battle.lastDamage].every(
         Number.isFinite,

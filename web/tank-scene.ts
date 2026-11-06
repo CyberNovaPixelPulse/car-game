@@ -229,7 +229,10 @@ export class TankScene {
         mesh.traverse((part) => {
           if (part instanceof THREE.Mesh) {
             part.geometry.dispose();
-            for (const material of Array.isArray(part.material) ? part.material : [part.material]) material.dispose();
+            for (const material of Array.isArray(part.material)
+              ? part.material
+              : [part.material])
+              material.dispose();
           }
         });
         this.targetMeshes.delete(id);
