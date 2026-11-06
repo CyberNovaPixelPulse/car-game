@@ -1,5 +1,8 @@
 export const LOAD = 16;
 export const FIRE = 4;
+export const CROUCH = 32;
+/** Fixed gameplay rule: ejected cases disable only the loader for five seconds. */
+export const LOADER_STUN_SECONDS = 5;
 export const WEAPON_TIMING = { load: 3, eject: 0.8 } as const;
 export interface ShellFlight {
   id: number;
@@ -22,6 +25,8 @@ export interface PracticeTarget {
 }
 export interface WeaponState {
   chamber: "empty" | "loading" | "loaded" | "ejecting";
+  crouching: boolean;
+  stunnedUntil: number;
   loadProgress: number;
   ejectAt: number;
   shotsFired: number;
@@ -45,6 +50,8 @@ interface Cover {
 export function createWeaponState(): WeaponState {
   return {
     chamber: "empty",
+    crouching: false,
+    stunnedUntil: 0,
     loadProgress: 0,
     ejectAt: 0,
     shotsFired: 0,
@@ -75,6 +82,10 @@ export function fireWeapon(w: WeaponState, pose: GunPose, now: number) {
   w.ejectAt = now + WEAPON_TIMING.eject;
   w.loadProgress = 0;
 }
+export function loaderCanWork(w: WeaponState, now: number) {
+  return !w.crouching && now >= w.stunnedUntil;
+}
+
 /** Segment versus a box: catches a fast shell between two simulation frames. */
 function boxHit(from: number[], to: number[], low: number[], high: number[]) {
   let enter = 0,
@@ -100,8 +111,16 @@ export function stepWeapon(
   now: number,
   cover: readonly Cover[],
 ) {
-  if (w.chamber === "ejecting" && now >= w.ejectAt) w.chamber = "empty";
-  if (loading && (w.chamber === "empty" || w.chamber === "loading")) {
+  if (w.chamber === "ejecting" && now >= w.ejectAt) {
+    w.chamber = "empty";
+    // Anchor to the ejection deadline, not a presentation frame or network receipt.
+    if (!w.crouching) w.stunnedUntil = w.ejectAt + LOADER_STUN_SECONDS;
+  }
+  if (
+    loading &&
+    loaderCanWork(w, now) &&
+    (w.chamber === "empty" || w.chamber === "loading")
+  ) {
     w.chamber = "loading";
     w.loadProgress = Math.min(1, w.loadProgress + dt / WEAPON_TIMING.load);
     if (w.loadProgress >= 1) w.chamber = "loaded";
@@ -147,8 +166,11 @@ export function stepWeapon(
 export function validWeapon(w: WeaponState | undefined): w is WeaponState {
   return (
     !!w &&
+    typeof w.crouching === "boolean" &&
     ["empty", "loading", "loaded", "ejecting"].includes(w.chamber) &&
-    [w.loadProgress, w.ejectAt, w.shotsFired].every(Number.isFinite) &&
+    [w.loadProgress, w.ejectAt, w.shotsFired, w.stunnedUntil].every(
+      Number.isFinite,
+    ) &&
     Array.isArray(w.projectiles) &&
     w.projectiles.every((p) =>
       [p.id, p.x, p.y, p.z, p.vx, p.vy, p.vz, p.age].every(Number.isFinite),
