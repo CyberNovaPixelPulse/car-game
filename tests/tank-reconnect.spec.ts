@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { test, expect } from "@playwright/test";
-import { tankCrew } from "./tank-helpers";
+import { tankCrew, nativeTaps } from "./tank-helpers";
 
 test("駕駛離頁全場暫停，裝填與戰況凍結，原職位重連後安全續玩", async ({
   browser,
@@ -396,26 +396,25 @@ test("房主實際離開直接結束房間，其他職位不接任房主", async
 test("退殼預警遇斷線保留未退空殼，恢復後才判定退殼與暈眩", async ({
   browser,
 }) => {
-  const c = await tankCrew(browser);
+  const c = await tankCrew(browser, "gunner");
   try {
     await c.loader.keyboard.down("r");
     await expect(c.gunner.getByTestId("chamber-state")).toHaveText("主炮就緒");
     await c.loader.keyboard.up("r");
-    await c.gunner.keyboard.press("Space");
-    await expect(c.loader.getByTestId("ejection-warning")).toContainText(
-      "按住 C",
-    );
-    await c.gunner.goto("about:blank");
+    await nativeTaps(c.gunner, 1, 0, "Space");
+    // Leave immediately after the real local shot, before the 0.8s danger elapses.
+    await c.driver.goto("about:blank");
     await expect(c.loader.getByTestId("battle-pause")).toContainText(
-      "等待砲手",
+      "等待駕駛",
     );
+    await expect(c.loader.getByTestId("shot-count")).toHaveText("1");
     await expect(c.loader.getByTestId("chamber-state")).toHaveText("正在退殼");
     await c.loader.waitForTimeout(1500);
     await expect(c.loader.getByTestId("chamber-state")).toHaveText("正在退殼");
     await expect(c.loader.getByTestId("loader-status")).not.toContainText(
       "暈眩",
     );
-    await c.gunner.goto("/tank.html");
+    await c.driver.goto("/tank.html");
     await expect(c.loader.getByTestId("chamber-state")).toHaveText("空膛");
     await expect(c.loader.getByTestId("loader-status")).toContainText("暈眩");
   } finally {

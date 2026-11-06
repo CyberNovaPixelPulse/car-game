@@ -11,27 +11,32 @@ const keyboards = new WeakMap<Page, CDPSession>();
  * This keeps a rapid burst / 90ms rhythm rapid while screenshots stall individual RPCs.
  * Sessions are attached before navigation; no post-start warmup, DOM dispatch or clock hook.
  */
-export async function nativeTaps(page: Page, count: number, intervalMs = 0) {
+export async function nativeTaps(
+  page: Page,
+  count: number,
+  intervalMs = 0,
+  key: "d" | "Space" = "d",
+) {
   const keyboard = keyboards.get(page)!;
   const pending: Promise<unknown>[] = [];
+  const descriptor =
+    key === "Space"
+      ? { key: " ", code: "Space", windowsVirtualKeyCode: 32 }
+      : { key: "d", code: "KeyD", windowsVirtualKeyCode: 68 };
   for (let i = 0; i < count; i++) {
     pending.push(
       keyboard.send("Input.dispatchKeyEvent", {
         type: "keyDown",
-        key: "d",
-        code: "KeyD",
-        text: "d",
-        unmodifiedText: "d",
-        windowsVirtualKeyCode: 68,
+        ...descriptor,
+        text: descriptor.key,
+        unmodifiedText: descriptor.key,
         autoRepeat: false,
       }),
     );
     pending.push(
       keyboard.send("Input.dispatchKeyEvent", {
         type: "keyUp",
-        key: "d",
-        code: "KeyD",
-        windowsVirtualKeyCode: 68,
+        ...descriptor,
       }),
     );
     if (intervalMs && i + 1 < count)
@@ -46,6 +51,7 @@ export async function tankCrew(
   lobbyWaitMs = 0,
   seed = 1000,
   recordVideoDir?: string,
+  beforeNavigation?: () => void,
 ) {
   const pages: Page[] = [];
   for (const name of hostRole === "loader"
@@ -67,6 +73,7 @@ export async function tankCrew(
         return original(array) as T;
       };
     }, seed);
+    if (beforeNavigation) await context.addInitScript(beforeNavigation);
     const page = await context.newPage();
     keyboards.set(page, await context.newCDPSession(page));
     pages.push(page);
