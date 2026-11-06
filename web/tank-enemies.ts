@@ -17,6 +17,8 @@ interface Vehicle {
   hp: number;
 }
 export interface EnemyBattle {
+  wave: number;
+  won: boolean;
   projectiles: {
     id: number;
     x: number;
@@ -33,6 +35,8 @@ export interface EnemyBattle {
   failed: boolean;
 }
 export const createEnemyBattle = (): EnemyBattle => ({
+  wave: 1,
+  won: false,
   projectiles: [],
   shots: 0,
   lastHitAt: -100,
@@ -109,7 +113,7 @@ export function stepEnemies(
   dt: number,
   now: number,
 ) {
-  if (b.failed) return;
+  if (b.failed || b.won) return;
   for (const e of enemies) {
     if (e.hp <= 0) continue;
     const distance = Math.hypot(tank.x - e.x, tank.z - e.z);
@@ -160,10 +164,12 @@ export function stepEnemies(
         z: e.z,
         vx: dx * 23,
         vz: dz * 23,
-        damage: e.kind === "tiger" ? 28 : 16,
+        // The three-wave operation gives a coordinated crew time to load, clear
+        // jams and traverse the turret, while ignoring incoming fire still loses.
+        damage: e.kind === "tiger" ? 10 : 6,
         age: 0,
       });
-      e.readyAt = now + (e.kind === "tiger" ? 9 : 7);
+      e.readyAt = now + (e.kind === "tiger" ? 9 : 7) * (1 - (b.wave - 1) * 0.15);
       e.phase = "reloading";
     }
   }
@@ -200,4 +206,24 @@ export function stepEnemies(
     return p.age < 5;
   });
   b.failed = tank.hp <= 0;
+}
+
+/** Reinforcements enter as actual combatants. Deadlines use the current battle clock. */
+export function createWaveTargets(wave: number, now: number): PracticeTarget[] {
+  const positions = wave === 2
+    ? [[0, -13], [-3.8, -13], [3.8, -13]]
+    : [[0, -13], [-3.8, -13], [3.8, -13], [4, -29]];
+  return positions.map(([x, z], index) => {
+    const kind = wave === 3 && index === 3 ? "tiger" : "panzer";
+    return {
+      id: wave * 100 + index, x, z,
+      width: kind === "tiger" ? 3.7 : 3.2,
+      height: kind === "tiger" ? 3.2 : 3,
+      depth: kind === "tiger" ? 6 : 5.5,
+      hp: kind === "tiger" ? 360 : 200,
+      maxHp: kind === "tiger" ? 360 : 200,
+      kind, yaw: Math.PI, turretYaw: Math.PI,
+      phase: "approaching", readyAt: now + 12, fireAt: 0,
+    };
+  });
 }

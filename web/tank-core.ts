@@ -1,5 +1,6 @@
 import {
   createEnemyBattle,
+  createWaveTargets,
   stepEnemies,
   type EnemyBattle,
 } from "./tank-enemies";
@@ -83,6 +84,7 @@ export class TankCore implements GameCore<TankState> {
     this.controls.clear();
   }
   input(participant: number, keys: number) {
+    if (this.state.battle.failed || this.state.battle.won) return;
     if (this.roleOf(participant) === "loader") {
       const w = this.state.weapon;
       w.crouching = this.state.time >= w.stunnedUntil && Boolean(keys & CROUCH);
@@ -97,7 +99,7 @@ export class TankCore implements GameCore<TankState> {
     );
   }
   action(participant: number, action: number) {
-    if (this.state.battle.failed) return;
+    if (this.state.battle.failed || this.state.battle.won) return;
     if (this.roleOf(participant) === "loader" && action === MODE) {
       const w = this.state.weapon;
       if (loaderCanWork(w, this.state.time))
@@ -162,7 +164,7 @@ export class TankCore implements GameCore<TankState> {
     }
   }
   private advance(dt: number) {
-    if (this.state.battle.failed) return;
+    if (this.state.battle.failed || this.state.battle.won) return;
     this.state.time += dt;
     let loading = false;
     let loaderKeys = 0;
@@ -224,6 +226,18 @@ export class TankCore implements GameCore<TankState> {
       dt,
       this.state.time,
     );
+    // Resolve incoming damage first: zero HP always defeats the crew, even on
+    // the step that destroys the last enemy. Weapon/MG/smoke work continues
+    // across waves; only a new round starts from initial().
+    if (this.state.battle.failed) return;
+    if (this.state.weapon.targets.every((enemy) => enemy.hp <= 0)) {
+      if (this.state.battle.wave === 3) {
+        this.state.battle.won = true;
+        return;
+      }
+      this.state.battle.wave++;
+      this.state.weapon.targets = createWaveTargets(this.state.battle.wave, this.state.time);
+    }
     const turret = this.state.turret;
     turret.yaw =
       (turret.yaw + turret.yawRate * dt + Math.PI * 2) % (Math.PI * 2);
@@ -289,6 +303,8 @@ export class TankCore implements GameCore<TankState> {
       next.version !== 1 ||
       !next.battle ||
       typeof next.battle.failed !== "boolean" ||
+      typeof next.battle.won !== "boolean" ||
+      !Number.isInteger(next.battle.wave) || next.battle.wave < 1 || next.battle.wave > 3 ||
       !Array.isArray(next.battle.projectiles) ||
       ![next.battle.shots, next.battle.lastHitAt, next.battle.lastDamage].every(
         Number.isFinite,
