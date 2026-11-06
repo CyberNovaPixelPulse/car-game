@@ -404,3 +404,37 @@ legend {
 [data-testid="battle-result"] {
   color: #ffbc94;
 }
+.mg-workspace[hidden],
+.loading-workspace[hidden] {
+  display: none;
+}
+
+/* The active MG sight keeps its heat and lockout within the visible battlefield. */
+.crew-shell:has(.mg-workspace:not([hidden])) > header {
+  display: none;
+}
+.mg-workspace .battle-viewport {
+  height: clamp(260px, 40vh, 430px);
+}
+.mg-hud {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  padding: 8px 12px;
+  background: #252c2d;
+  color: #e8e6dc;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.mg-hud p {
+  margin: 0 0 5px;
+}
+.mg-hud progress {
+  display: block;
+  width: min(220px, 100%);
+  height: 12px;
+  accent-color: #d6ac64;
+}

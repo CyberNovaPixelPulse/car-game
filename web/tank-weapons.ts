@@ -9,6 +9,7 @@ export const SHELL_LABELS = {
   smoke: "煙霧彈",
 } as const;
 export const STOP_JAM = 9;
+export const MODE = 8;
 export const JAM_RULES = {
   chance: 0.25,
   progress: 0.4,
@@ -53,6 +54,25 @@ export interface PracticeTarget {
   fireAt: number;
 }
 export interface WeaponState {
+  mode: "loading" | "machine-gun";
+  mg: {
+    yaw: number;
+    pitch: number;
+    heat: number;
+    coolUntil: number;
+    nextShot: number;
+    shots: number;
+    tracers: {
+      id: number;
+      x: number;
+      y: number;
+      z: number;
+      endX: number;
+      endY: number;
+      endZ: number;
+      until: number;
+    }[];
+  };
   selectedShell: ShellType;
   chamberShell: ShellType | null;
   chamber: "empty" | "loading" | "loaded" | "ejecting";
@@ -98,6 +118,16 @@ interface Cover {
 }
 export function createWeaponState(seed = 1): WeaponState {
   return {
+    mode: "loading",
+    mg: {
+      yaw: 0,
+      pitch: -0.04,
+      heat: 0,
+      coolUntil: 0,
+      nextShot: 0,
+      shots: 0,
+      tracers: [],
+    },
     selectedShell: "he",
     chamberShell: null,
     chamber: "empty",
@@ -185,7 +215,13 @@ function random(w: WeaponState) {
 }
 export function stopJam(w: WeaponState, now: number) {
   const j = w.jam;
-  if (!loaderCanWork(w, now) || !j.active || j.result !== "trying") return;
+  if (
+    w.mode !== "loading" ||
+    !loaderCanWork(w, now) ||
+    !j.active ||
+    j.result !== "trying"
+  )
+    return;
   if (j.needle >= j.zone && j.needle <= j.zone + JAM_RULES.width) {
     j.active = false;
     j.result = "cleared";
@@ -233,7 +269,7 @@ export function stepWeapon(
     if (!w.crouching) w.stunnedUntil = w.ejectAt + LOADER_STUN_SECONDS;
   }
   const j = w.jam;
-  if (j.active && loaderCanWork(w, now)) {
+  if (j.active && w.mode === "loading" && loaderCanWork(w, now)) {
     if (j.result === "failed" && now >= j.retryAt) j.result = "trying";
     if (j.result === "trying") {
       j.needle += j.direction * dt * JAM_RULES.speed;
@@ -249,6 +285,7 @@ export function stepWeapon(
   }
   if (
     loading &&
+    w.mode === "loading" &&
     loaderCanWork(w, now) &&
     !j.active &&
     (w.chamber === "empty" || w.chamber === "loading")
@@ -338,6 +375,24 @@ export function stepWeapon(
 export function validWeapon(w: WeaponState | undefined): w is WeaponState {
   return (
     !!w &&
+    ["loading", "machine-gun"].includes(w.mode) &&
+    !!w.mg &&
+    [
+      w.mg.yaw,
+      w.mg.pitch,
+      w.mg.heat,
+      w.mg.coolUntil,
+      w.mg.nextShot,
+      w.mg.shots,
+    ].every(Number.isFinite) &&
+    w.mg.heat >= 0 &&
+    w.mg.heat <= 1 &&
+    Array.isArray(w.mg.tracers) &&
+    w.mg.tracers.every((t) =>
+      [t.id, t.x, t.y, t.z, t.endX, t.endY, t.endZ, t.until].every(
+        Number.isFinite,
+      ),
+    ) &&
     ["he", "ap", "smoke"].includes(w.selectedShell) &&
     (w.chamberShell === null ||
       ["he", "ap", "smoke"].includes(w.chamberShell)) &&

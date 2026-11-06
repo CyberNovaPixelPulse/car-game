@@ -393,7 +393,7 @@ export class Session {
           Number(data.sequence) > member.sequence &&
           Number.isInteger(data.keys) &&
           Number(data.keys) >= 0 &&
-          Number(data.keys) <= 63
+          Number(data.keys) <= 127
         ) {
           member.sequence = Number(data.sequence);
           this.onInput(assigned, Number(data.keys));

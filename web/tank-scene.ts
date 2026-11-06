@@ -14,8 +14,12 @@ export class TankScene {
   private enemyTurrets = new Map<number, THREE.Group>();
   private enemyProjectiles = new Map<number, THREE.Mesh>();
   private projectileMeshes = new Map<number, THREE.Mesh>();
+  private mgTracers = new Map<number, THREE.Line>();
   private impactMeshes = new Map<number, THREE.Mesh>();
-  constructor(private canvas: HTMLCanvasElement) {
+  constructor(
+    private canvas: HTMLCanvasElement,
+    private view: "gunner" | "machine-gun" = "gunner",
+  ) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.renderer.shadowMap.enabled = true;
@@ -146,6 +150,46 @@ export class TankScene {
     );
     barrel.rotation.x = Math.PI / 2;
     this.scene.add(this.tank);
+    if (this.view === "machine-gun") {
+      // Receiver, perforated barrel jacket and rear sight remain below the sight line.
+      const mount = new THREE.Group();
+      mesh(
+        new THREE.BoxGeometry(0.18, 0.19, 0.48),
+        steel,
+        0.26,
+        -0.32,
+        -0.65,
+        mount,
+      );
+      const jacket = mesh(
+        new THREE.CylinderGeometry(0.045, 0.055, 0.65, 12),
+        steel,
+        0.26,
+        -0.29,
+        -1.18,
+        mount,
+      );
+      jacket.rotation.x = Math.PI / 2;
+      for (let i = 0; i < 7; i++)
+        mesh(
+          new THREE.BoxGeometry(0.052, 0.014, 0.018),
+          material(0x161b1b),
+          0.26,
+          -0.244,
+          -0.92 - i * 0.075,
+          mount,
+        );
+      mesh(
+        new THREE.BoxGeometry(0.026, 0.09, 0.026),
+        steel,
+        0.26,
+        -0.19,
+        -0.48,
+        mount,
+      );
+      this.camera.add(mount);
+      this.scene.add(this.camera);
+    }
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(canvas);
     this.resize();
@@ -159,19 +203,23 @@ export class TankScene {
   }
   render(state: TankState) {
     const t = state.tank;
+    this.tank.visible = this.view !== "machine-gun";
     this.tank.position.set(t.x, 0, t.z);
     this.tank.rotation.y = -t.yaw;
     this.turret.rotation.y = -state.turret.yaw;
     this.elevation.rotation.x = state.turret.pitch;
-    const heading = t.yaw + state.turret.yaw;
-    // Observe from the gun mantlet, beyond the roof that otherwise hides close targets.
-    const eyeX = t.x + Math.sin(heading) * 1.9;
-    const eyeZ = t.z - Math.cos(heading) * 1.9;
-    this.camera.position.set(eyeX, 2.85, eyeZ);
+    const aim = this.view === "machine-gun" ? state.weapon.mg : state.turret;
+    const eye = this.view === "machine-gun" ? 3.1 : 2.85;
+    const heading = t.yaw + aim.yaw;
+    // Gunner remains beyond the roof at the mantlet; MG observes from its hatch.
+    const offset = this.view === "machine-gun" ? 0 : 1.9;
+    const eyeX = t.x + Math.sin(heading) * offset;
+    const eyeZ = t.z - Math.cos(heading) * offset;
+    this.camera.position.set(eyeX, eye, eyeZ);
     this.camera.lookAt(
-      eyeX + Math.sin(heading) * Math.cos(state.turret.pitch) * 40,
-      2.85 + Math.sin(state.turret.pitch) * 40,
-      eyeZ - Math.cos(heading) * Math.cos(state.turret.pitch) * 40,
+      eyeX + Math.sin(heading) * Math.cos(aim.pitch) * 40,
+      eye + Math.sin(aim.pitch) * 40,
+      eyeZ - Math.cos(heading) * Math.cos(aim.pitch) * 40,
     );
     for (const target of state.weapon.targets) {
       let mesh = this.targetMeshes.get(target.id);
@@ -304,6 +352,26 @@ export class TankScene {
     this.renderer.render(this.scene, this.camera);
   }
   private renderEffects(state: TankState) {
+    for (const [id, line] of this.mgTracers) {
+      if (!state.weapon.mg.tracers.some((t) => t.id === id)) {
+        this.scene.remove(line);
+        line.geometry.dispose();
+        (line.material as THREE.Material).dispose();
+        this.mgTracers.delete(id);
+      }
+    }
+    for (const t of state.weapon.mg.tracers) {
+      if (this.mgTracers.has(t.id)) continue;
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(t.x, t.y - 0.05, t.z),
+          new THREE.Vector3(t.endX, t.endY, t.endZ),
+        ]),
+        new THREE.LineBasicMaterial({ color: 0xffd491 }),
+      );
+      this.scene.add(line);
+      this.mgTracers.set(t.id, line);
+    }
     for (const [id, mesh] of this.projectileMeshes) {
       if (!state.weapon.projectiles.some((p) => p.id === id)) {
         this.removeEffect(mesh);
@@ -366,6 +434,10 @@ export class TankScene {
           m.dispose();
       }
     });
+    for (const line of this.mgTracers.values()) {
+      line.geometry.dispose();
+      (line.material as THREE.Material).dispose();
+    }
     this.renderer.dispose();
   }
 }
