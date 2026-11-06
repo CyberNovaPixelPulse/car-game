@@ -2,7 +2,7 @@
 
 Original procedural vehicle and environment geometry in `web/tank-vehicle-model.ts` and `web/tank-environment.ts`; no downloaded tank models. Dimensions are visually proportioned for game authority bounds, not a museum-quality measurement survey. No national insignia or claimed real unit identity. This compressed Caen-area battlefield is not an exact historical engagement.
 
-Local texture assets from [Poly Haven](https://polyhaven.com/license), CC0-1.0. No paid APIs or runtime provider requests. `asset-manifest.json` retains each author, exact official asset/map URLs, color space, original checksums and the shipping SHA256 after embedding source metadata. Normal maps use OpenGL +Y; only diffuse maps use sRGB. Embedded provenance changes container metadata but not texture pixels.
+Local texture assets from [Poly Haven](https://polyhaven.com/license), CC0-1.0. No paid APIs or runtime provider requests. `asset-manifest.json` retains each author, exact official asset/map URLs, color space, original checksums and the shipping SHA256 after embedding source metadata. Normal maps use OpenGL +Y; only diffuse maps use sRGB. Green Metal Rust is shared with the loader interior at `public/assets/interior/`, with no second copy under `art/metal`. Embedded provenance changes container metadata but not texture pixels.
 
 - Charlotte Baglioni: [Old Stone Wall 02](https://polyhaven.com/a/old_stone_wall_02), masonry cover and stone buildings.
 - Amal Kumar: [Farm Soil](https://polyhaven.com/a/farm_soil), farm ground, fields and road variation.
