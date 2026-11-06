@@ -1,3 +1,4 @@
+import { MG_FIRE, stepMachineGun } from "./tank-machine-gun";
 import type { CrewRole } from "./crew";
 import type { GameCore, GameStart } from "./game-runtime";
 import {
@@ -84,7 +85,7 @@ export class TankCore implements GameCore<TankState> {
       this.roleOf(participant) === "driver"
         ? keys & 15
         : this.roleOf(participant) === "loader"
-          ? keys & (15 | LOAD | CROUCH)
+          ? keys & (15 | LOAD | CROUCH | MG_FIRE)
           : 0,
     );
   }
@@ -100,7 +101,11 @@ export class TankCore implements GameCore<TankState> {
       (action === SELECT_HE || action === SELECT_AP)
     ) {
       const w = this.state.weapon;
-      if (w.mode === "loading" && loaderCanWork(w, this.state.time) && w.chamberShell === null)
+      if (
+        w.mode === "loading" &&
+        loaderCanWork(w, this.state.time) &&
+        w.chamberShell === null
+      )
         w.selectedShell = action === SELECT_HE ? "he" : "ap";
       return;
     }
@@ -162,13 +167,42 @@ export class TankCore implements GameCore<TankState> {
           Boolean(held & CROUCH);
       }
     const w = this.state.weapon;
-    if (w.mode === "machine-gun" && loaderCanWork(w, this.state.time)) {
-      w.mg.yaw = (w.mg.yaw + (Number(Boolean(loaderKeys & DRIVE.right)) - Number(Boolean(loaderKeys & DRIVE.left))) * dt * 0.8 + Math.PI * 2) % (Math.PI * 2);
-      w.mg.pitch = Math.max(-0.6, Math.min(0.8, w.mg.pitch + (Number(Boolean(loaderKeys & DRIVE.forward)) - Number(Boolean(loaderKeys & DRIVE.reverse))) * dt * 0.6));
-    }
     stepWeapon(
       this.state.weapon,
       loading,
+      dt,
+      this.state.time,
+      BATTLEFIELD.cover,
+    );
+    if (w.mode === "machine-gun" && loaderCanWork(w, this.state.time)) {
+      w.mg.yaw =
+        (w.mg.yaw +
+          (Number(Boolean(loaderKeys & DRIVE.right)) -
+            Number(Boolean(loaderKeys & DRIVE.left))) *
+            dt *
+            0.8 +
+          Math.PI * 2) %
+        (Math.PI * 2);
+      w.mg.pitch = Math.max(
+        -0.6,
+        Math.min(
+          0.8,
+          w.mg.pitch +
+            (Number(Boolean(loaderKeys & DRIVE.forward)) -
+              Number(Boolean(loaderKeys & DRIVE.reverse))) *
+              dt *
+              0.6,
+        ),
+      );
+    }
+    stepMachineGun(
+      w,
+      {
+        ...this.state.tank,
+        yaw: this.state.tank.yaw + w.mg.yaw,
+        pitch: w.mg.pitch,
+      },
+      Boolean(loaderKeys & MG_FIRE),
       dt,
       this.state.time,
       BATTLEFIELD.cover,
