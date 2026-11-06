@@ -3,6 +3,7 @@ import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
 import { type TankState } from "./tank-core";
 import { VehicleModel, buildBrowning } from "./tank-vehicle-model";
 import { buildNormandy } from "./tank-environment";
+import { SmokeScene } from "./tank-smoke-scene";
 
 /** The gunner's real 3D view; no renderer is created for the blind driver. */
 export class TankScene {
@@ -10,6 +11,7 @@ export class TankScene {
   private disposed = false;
   private sky?: THREE.DataTexture;
   private scene = new THREE.Scene();
+  private smoke = new SmokeScene(this.scene);
   private camera = new THREE.PerspectiveCamera(65, 1, 0.1, 180);
   private player = new VehicleModel("sherman");
   private tank = this.player.root;
@@ -152,6 +154,7 @@ export class TankScene {
       }
       mesh.position.set(p.x, p.y, p.z);
     }
+    this.smoke.render(state.weapon.smoke, state.time);
     this.renderEffects(state);
     this.renderer.render(this.scene, this.camera);
   }

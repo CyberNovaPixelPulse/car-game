@@ -1,7 +1,9 @@
+import { SMOKE_RADIUS, SMOKE_SECONDS, type SmokeCloud } from "./tank-smoke";
 export const LOAD = 16;
 export const FIRE = 4;
 export const SELECT_HE = 5;
 export const SELECT_AP = 6;
+export const SELECT_SMOKE = 7;
 export type ShellType = "he" | "ap" | "smoke";
 export const SHELL_LABELS = {
   he: "高爆彈",
@@ -49,7 +51,16 @@ export interface PracticeTarget {
   kind: "panzer" | "tiger";
   yaw: number;
   turretYaw: number;
-  phase: "approaching" | "aiming" | "warning" | "reloading";
+  phase:
+    | "approaching"
+    | "aiming"
+    | "warning"
+    | "reloading"
+    | "blind-fire"
+    | "searching";
+  lastSeenX: number;
+  lastSeenZ: number;
+  lastSeenAt: number;
   readyAt: number;
   fireAt: number;
 }
@@ -92,6 +103,7 @@ export interface WeaponState {
     retryAt: number;
     result: "trying" | "failed" | "cleared";
   };
+  smoke: SmokeCloud[];
   projectiles: ShellFlight[];
   targets: PracticeTarget[];
   impacts: {
@@ -147,6 +159,7 @@ export function createWeaponState(seed = 1): WeaponState {
       retryAt: 0,
       result: "trying",
     },
+    smoke: [],
     projectiles: [],
     impacts: [],
     targets: [
@@ -163,6 +176,9 @@ export function createWeaponState(seed = 1): WeaponState {
         yaw: Math.PI,
         turretYaw: Math.PI,
         phase: "approaching",
+        lastSeenX: 0,
+        lastSeenZ: 0,
+        lastSeenAt: -100,
         readyAt: 12,
         fireAt: 0,
       },
@@ -179,6 +195,9 @@ export function createWeaponState(seed = 1): WeaponState {
         yaw: Math.PI,
         turretYaw: Math.PI,
         phase: "approaching",
+        lastSeenX: 0,
+        lastSeenZ: 0,
+        lastSeenAt: -100,
         readyAt: 18,
         fireAt: 0,
       },
@@ -309,6 +328,7 @@ export function stepWeapon(
     }
     if (w.loadProgress >= 1) w.chamber = "loaded";
   }
+  w.smoke = w.smoke.filter((cloud) => now < cloud.until);
   w.impacts = w.impacts.filter((impact) => now < impact.until);
   w.projectiles = w.projectiles.filter((p) => {
     const from = [p.x, p.y, p.z];
@@ -359,6 +379,15 @@ export function stepWeapon(
               : 0;
         t.hp = Math.max(0, t.hp - amount);
       }
+      if (p.shell === "smoke")
+        w.smoke.push({
+          id: p.id,
+          x: point[0],
+          y: 2.5,
+          z: point[2],
+          radius: SMOKE_RADIUS,
+          until: now + SMOKE_SECONDS,
+        });
       w.impacts.push({
         shell: p.shell,
         id: p.id,
@@ -412,6 +441,12 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
       Number.isFinite,
     ) &&
     ["trying", "failed", "cleared"].includes(w.jam.result) &&
+    Array.isArray(w.smoke) &&
+    w.smoke.every(
+      (c) =>
+        [c.id, c.x, c.y, c.z, c.radius, c.until].every(Number.isFinite) &&
+        c.radius > 0,
+    ) &&
     Array.isArray(w.projectiles) &&
     w.projectiles.every(
       (p) =>
@@ -432,11 +467,21 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
           t.maxHp,
           t.yaw,
           t.turretYaw,
+          t.lastSeenX,
+          t.lastSeenZ,
+          t.lastSeenAt,
           t.readyAt,
           t.fireAt,
         ].every(Number.isFinite) &&
         ["panzer", "tiger"].includes(t.kind) &&
-        ["approaching", "aiming", "warning", "reloading"].includes(t.phase),
+        [
+          "approaching",
+          "aiming",
+          "warning",
+          "reloading",
+          "blind-fire",
+          "searching",
+        ].includes(t.phase),
     ) &&
     Array.isArray(w.impacts) &&
     w.impacts.every(
