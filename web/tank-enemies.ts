@@ -1,5 +1,7 @@
+import { smokeBlocks, type SmokeCloud } from "./tank-smoke";
 import { boxHit, type PracticeTarget } from "./tank-weapons";
 
+export const LAST_SEEN_SECONDS = 2.5;
 export const ENEMY_LABELS = {
   panzer: "四號 H 型",
   tiger: "虎式 I 型",
@@ -51,7 +53,7 @@ function intersection(a: number[], b: number[], c: Box, margin = 0) {
 /** Visibility graph around expanded cover corners: both crews can drive around solid cover. */
 function nextPoint(
   enemy: PracticeTarget,
-  tank: Vehicle,
+  tank: Pick<Vehicle, "x" | "z">,
   cover: readonly Box[],
 ) {
   const start = [enemy.x, enemy.z],
@@ -108,38 +110,63 @@ export function stepEnemies(
   cover: readonly Box[],
   dt: number,
   now: number,
+  smoke: readonly SmokeCloud[],
 ) {
   if (b.failed) return;
   for (const e of enemies) {
     if (e.hp <= 0) continue;
-    const distance = Math.hypot(tank.x - e.x, tank.z - e.z);
-    const desired = Math.atan2(tank.x - e.x, -(tank.z - e.z));
-    const delta = angle(desired - e.turretYaw);
+    const hiddenBySmoke = smokeBlocks(
+      smoke,
+      [e.x, 2.4, e.z],
+      [tank.x, 2.4, tank.z],
+      now,
+    );
+    const coverBlocked = (goal: Pick<Vehicle, "x" | "z">) =>
+      cover.some(
+        (c) =>
+          intersection([e.x, 2.4, e.z], [goal.x, 2.4, goal.z], c) !== undefined,
+      );
+    if (!hiddenBySmoke && !coverBlocked(tank)) {
+      e.lastSeenX = tank.x;
+      e.lastSeenZ = tank.z;
+      e.lastSeenAt = now;
+    }
+    const remembered = now - e.lastSeenAt <= LAST_SEEN_SECONDS;
+    // Solid-cover flanking retains the encounter's original navigation contract.
+    // Smoke instead removes the live player position from ALL aim/path decisions.
+    const goal = hiddenBySmoke ? { x: e.lastSeenX, z: e.lastSeenZ } : tank;
+    const distance = Math.hypot(goal.x - e.x, goal.z - e.z);
+    const desired = Math.atan2(goal.x - e.x, -(goal.z - e.z));
+    const searching = hiddenBySmoke && !remembered;
+    const scan = searching
+      ? Math.sin((now - e.lastSeenAt - LAST_SEEN_SECONDS) * 0.8) * 0.6
+      : 0;
+    const delta = angle(desired + scan - e.turretYaw);
     if (e.phase !== "warning")
       e.turretYaw +=
         Math.sign(delta) *
         Math.min(Math.abs(delta), dt * (e.kind === "tiger" ? 0.45 : 0.7));
-    const blocked = cover.some(
-      (c) =>
-        intersection([e.x, 2.4, e.z], [tank.x, 2.4, tank.z], c) !== undefined,
-    );
-    if (e.phase !== "warning" && (distance > 11 || blocked)) {
-      const point = nextPoint(e, tank, cover);
-      const dx = point[0] - e.x,
-        dz = point[1] - e.z,
-        length = Math.hypot(dx, dz);
-      if (length > 0.05) {
-        const speed = e.kind === "tiger" ? 0.9 : 1.25;
-        const step = Math.min(length, speed * dt);
-        e.x += (dx / length) * step;
-        e.z += (dz / length) * step;
-        e.yaw = Math.atan2(dx, -dz);
-      }
-      e.phase = "approaching";
-    } else if (e.phase !== "warning")
-      e.phase = now < e.readyAt ? "reloading" : "aiming";
+    const blocked = coverBlocked(goal);
+    if (e.phase !== "warning") {
+      if (distance > (searching ? 6 : 11) || blocked) {
+        const point = nextPoint(e, goal, cover);
+        const dx = point[0] - e.x,
+          dz = point[1] - e.z,
+          length = Math.hypot(dx, dz);
+        if (length > 0.05) {
+          const speed = e.kind === "tiger" ? 0.9 : 1.25;
+          const step = Math.min(length, speed * dt);
+          e.x += (dx / length) * step;
+          e.z += (dz / length) * step;
+          e.yaw = Math.atan2(dx, -dz);
+        }
+        e.phase = "approaching";
+      } else e.phase = now < e.readyAt ? "reloading" : "aiming";
+      if (hiddenBySmoke) e.phase = searching ? "searching" : "blind-fire";
+    }
     if (
       !blocked &&
+      (!hiddenBySmoke || remembered) &&
       distance < 34 &&
       Math.abs(delta) < 0.06 &&
       now >= e.readyAt &&
