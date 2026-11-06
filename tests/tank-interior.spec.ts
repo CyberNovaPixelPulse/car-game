@@ -1,3 +1,4 @@
+import { copyFile } from "node:fs/promises";
 import { test, expect } from "@playwright/test";
 import { tankCrew } from "./tank-helpers";
 
@@ -31,11 +32,19 @@ test("裝填手在真正車內3D工作區操作炮膛，裝填移動可見且無
       "主炮就緒",
     );
     await crew.loader.keyboard.up("r");
+    await crew.loader.setViewportSize({ width: 1440, height: 1050 });
+    await crew.loader.screenshot({
+      path: "/tmp/car-game-to-spec/visual26/loaded-desktop.png",
+    });
+    await crew.loader.setViewportSize({ width: 1280, height: 720 });
     await crew.loader.keyboard.press("Tab");
     await expect(
       crew.loader.getByRole("img", { name: "機槍戰場視野" }),
     ).toBeVisible();
     await expect(interior).not.toBeVisible();
+    await crew.loader.screenshot({
+      path: "/tmp/car-game-to-spec/visual26/mg.png",
+    });
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText(
       "主炮就緒",
     );
@@ -60,6 +69,7 @@ test("關閉機械音效仍可見退殼預警，車內蹲下與暈眩不丟工�
     1000,
     "/tmp/car-game-to-spec/visual26/video",
   );
+  const video = crew.loader.video();
   try {
     await crew.loader.setViewportSize({ width: 1280, height: 720 });
     const sound = crew.loader.getByRole("button", { name: "音效：開" });
@@ -121,5 +131,26 @@ test("關閉機械音效仍可見退殼預警，車內蹲下與暈眩不丟工�
     );
   } finally {
     await crew.close();
+    if (video)
+      await copyFile(
+        await video.path(),
+        "/tmp/car-game-to-spec/visual26/interior-session.webm",
+      );
   }
+});
+
+test("窄視窗的說明與入房表單保持可讀", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/tank.html");
+  await expect(
+    page.getByText("需要三位玩家、三台電腦與實體鍵盤。"),
+  ).toBeVisible();
+  await expect(page.getByLabel("乘員名稱")).toBeInViewport();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+  await page.screenshot({
+    path: "/tmp/car-game-to-spec/visual26/narrow-entry.png",
+    fullPage: true,
+  });
 });

@@ -12,6 +12,10 @@ export class TankInteriorScene {
   private round = new THREE.Group();
   private case = new THREE.Group();
   private textures: THREE.Texture[] = [];
+  private dirty = true;
+  private visualStamp = "";
+  private width = 0;
+  private height = 0;
   private reducedMotion = matchMedia("(prefers-reduced-motion: reduce)")
     .matches;
   constructor(private canvas: HTMLCanvasElement) {
@@ -21,9 +25,12 @@ export class TankInteriorScene {
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.autoUpdate = false;
     this.scene.background = new THREE.Color(0x171e1c);
     this.scene.add(new THREE.HemisphereLight(0xe4e5cf, 0x252c25, 1.3));
-    const lamp = new THREE.PointLight(0xffe4ad, 36, 9, 2);
+    const lamp = new THREE.SpotLight(0xffe4ad, 36, 9, Math.PI / 3, 0.55, 2);
+    lamp.target.position.set(0, 1.2, -0.6);
+    this.scene.add(lamp.target);
     lamp.castShadow = true;
     lamp.shadow.mapSize.set(1024, 1024);
     lamp.shadow.bias = -0.001;
@@ -43,13 +50,16 @@ export class TankInteriorScene {
     const textureLoader = new THREE.TextureLoader();
     const diffuse = textureLoader.load(
       "/assets/interior/green_metal_rust_diff_1k.jpg",
+      () => this.invalidate(),
     );
     diffuse.colorSpace = THREE.SRGBColorSpace;
     const normal = textureLoader.load(
       "/assets/interior/green_metal_rust_nor_gl_1k.png",
+      () => this.invalidate(),
     );
     const roughness = textureLoader.load(
       "/assets/interior/green_metal_rust_rough_1k.jpg",
+      () => this.invalidate(),
     );
     for (const texture of [diffuse, normal, roughness]) {
       texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
@@ -272,15 +282,43 @@ export class TankInteriorScene {
     geometry.translate(0, 0, -d / 2 + edge);
     return geometry;
   }
+  invalidate() {
+    this.dirty = true;
+  }
   private resize() {
-    const w = Math.max(1, this.canvas.clientWidth),
-      h = Math.max(1, this.canvas.clientHeight);
+    // Retain the drawing buffer while this mode is hidden. Shrinking it to
+    // 1px would allocate it again on every Tab and stall ordinary input.
+    const w = this.canvas.clientWidth,
+      h = this.canvas.clientHeight;
+    if (!w || !h) return;
+    this.invalidate();
+    if (w === this.width && h === this.height) return;
+    this.width = w;
+    this.height = h;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
   }
   render(state: TankState) {
     const w = state.weapon;
+    // An enclosed, motionless workplace does not need to redraw the world at
+    // every host/UI tick. All authority clocks still advance outside this view.
+    const tail =
+      w.shotsFired > 0 &&
+      state.time >= w.ejectAt &&
+      state.time < w.ejectAt + 0.25;
+    const motion = w.chamber === "ejecting" || tail;
+    const stunned = state.time < w.stunnedUntil;
+    const stamp = [
+      w.chamber,
+      Math.floor(w.loadProgress * 90),
+      w.crouching,
+      stunned,
+      motion ? Math.floor(state.time * 30) : "still",
+    ].join(":");
+    if (!this.dirty && stamp === this.visualStamp) return;
+    this.dirty = false;
+    this.visualStamp = stamp;
     const eject =
       w.chamber === "ejecting"
         ? THREE.MathUtils.clamp(1 - (w.ejectAt - state.time) / 0.8, 0, 1)
@@ -301,12 +339,11 @@ export class TankInteriorScene {
       -0.45 + flight * 2.0,
     );
     this.case.rotation.z = flight * 0.7;
-    const stunned = state.time < w.stunnedUntil;
-    const shake =
-      stunned && !this.reducedMotion ? Math.sin(state.time * 19) * 0.016 : 0;
+    const tilt = stunned && !this.reducedMotion ? 0.025 : 0;
     this.camera.position.set(1.35, w.crouching ? 0.74 : 1.9, 1.55);
-    this.camera.lookAt(-0.05 + shake, w.crouching ? 1.12 : 1.35, -0.7);
-    this.camera.rotation.z = shake;
+    this.camera.lookAt(-0.05, w.crouching ? 1.12 : 1.35, -0.7);
+    this.camera.rotation.z = tilt;
+    this.renderer.shadowMap.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
   }
   dispose() {

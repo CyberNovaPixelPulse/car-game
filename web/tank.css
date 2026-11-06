@@ -408,7 +408,7 @@ legend {
 }
 .interior-viewport {
   position: relative;
-  height: max(300px, calc(100dvh - 228px));
+  height: max(300px, calc(100dvh - 310px));
   background: #171e1c;
 }
 .interior-viewport canvas {
@@ -422,26 +422,27 @@ legend {
   line-height: 1.5;
 }
 .battle-station[data-role="loader"] .weapon-status {
-  position: absolute;
-  bottom: 108px;
-  left: 24px;
-  right: 24px;
-  padding: 8px 12px;
-  background: #252c2d;
-  width: fit-content;
-  max-width: calc(100% - 48px);
+  position: static;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  padding: 6px 0;
+  width: 100%;
+  max-width: 100%;
   font-size: 14px;
+  background: none;
 }
 .battle-station[data-role="loader"] .weapon-status p {
   margin: 0;
   line-height: 1.5;
 }
 .battle-station[data-role="loader"] .weapon-status p:first-child {
-  max-width: 62ch;
+  flex-basis: 100%;
 }
 .battle-station[data-role="loader"] .weapon-status progress {
   height: 12px;
-  width: 280px;
+  width: 220px;
   max-width: 100%;
 }
 .battle-station[data-role="loader"] #station-leave {
@@ -450,27 +451,32 @@ legend {
   font-size: 13px;
 }
 .battle-station[data-role="loader"] .jam-game {
-  position: absolute;
-  top: 120px;
-  left: 50%;
-  transform: translateX(-50%);
+  position: static;
+  transform: none;
   background: #252c2d;
-  padding: 14px 18px;
-  width: min(520px, calc(100% - 36px));
-  margin: 0;
+  padding: 10px 16px;
+  width: min(520px, 100%);
+  margin: 8px 0;
 }
 .battle-station[data-role="loader"] .jam-game h3 {
-  margin: 0 0 14px;
+  font-size: 16px;
+  margin: 0 0 10px;
 }
 .battle-station[data-role="loader"] .jam-game p {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
+}
+.battle-station[data-role="loader"]:has(
+    .loading-workspace:not([hidden]) .jam-game:not([hidden])
+  )
+  .interior-viewport {
+  height: max(240px, calc(100dvh - 440px));
 }
 .loader-workspace[data-posture="stunned"] .interior-viewport {
   outline: 2px solid #c16d5c;
   outline-offset: -2px;
 }
 .battle-station[data-role="loader"] .mg-workspace .battle-viewport {
-  height: max(300px, calc(100dvh - 300px));
+  height: max(300px, calc(100dvh - 340px));
 }
 .battle-station[data-role="loader"] .mg-workspace > p {
   margin: 2px 0;

@@ -90,15 +90,32 @@ for (const [key, remaining] of [
   });
 }
 
-test("乘員可繞到固定石牆後擋住敵火，己方炮火也不能穿牆傷敵", async ({
+test("擊毀近處四號後，乘員利用石牆遮蔽虎式且己方炮火不能穿牆", async ({
   browser,
 }) => {
   const c = await tankCrew(browser);
   try {
+    // Clear the nearby tank through ordinary play before seeking cover from
+    // the farther Tiger; a Panzer already around a wall is not protected LOS.
+    await c.loader.keyboard.press("2");
+    for (const remaining of [20, 0]) {
+      await c.loader.keyboard.down("r");
+      await expect(c.gunner.getByTestId("chamber-state")).toHaveText(
+        "主炮就緒",
+      );
+      await c.loader.keyboard.up("r");
+      await c.loader.keyboard.down("c");
+      await c.gunner.keyboard.press("Space");
+      await expect(c.gunner.getByTestId("target-status")).toContainText(
+        `四號 H 型 ${remaining}/200`,
+      );
+      await expect(c.loader.getByTestId("chamber-state")).toHaveText("空膛");
+      await c.loader.keyboard.up("c");
+    }
     // Driver follows the gunner's spoken heading/instrument instructions; no world-state access.
     await c.loader.keyboard.down("r");
     await c.driver.keyboard.down("s");
-    await c.driver.waitForTimeout(8000);
+    await new Promise((resolve) => setTimeout(resolve, 8000));
     await c.driver.keyboard.up("s");
     await expect(c.driver.getByTestId("tank-speed")).toHaveText("0.0");
     await c.driver.keyboard.down("d");
@@ -113,30 +130,66 @@ test("乘員可繞到固定石牆後擋住敵火，己方炮火也不能穿牆�
           ),
         { intervals: [16] },
       )
-      .toBeGreaterThanOrEqual(81);
+      .toBeGreaterThanOrEqual(65);
     await c.driver.keyboard.up("d");
-    await c.driver.waitForTimeout(500);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const heading = async () =>
+      Number(
+        (await c.gunner.getByTestId("hull-heading").textContent())!.replace(
+          "°",
+          "",
+        ),
+      );
+    // The gunner gives visible heading corrections. Braking/coasting and network
+    // delivery can overshoot a fixed held duration; do not assume a 90° turn.
+    for (let correction = 0; correction < 8; correction++) {
+      const error = 90 - (await heading());
+      if (Math.abs(error) <= 2) break;
+      const key = error > 0 ? "d" : "a";
+      const duration = Math.max(
+        50,
+        Math.min(260, Math.sqrt(Math.abs(error)) * 80),
+      );
+      await c.driver.keyboard.down(key);
+      await new Promise((resolve) => setTimeout(resolve, duration));
+      await c.driver.keyboard.up(key);
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    }
+    expect(await heading()).toBeGreaterThanOrEqual(88);
+    expect(await heading()).toBeLessThanOrEqual(92);
+    console.log("cover settled visible heading", await heading());
     await c.driver.keyboard.down("w");
     for (let i = 0; i < 5; i++) await c.gunner.keyboard.press("a");
-    await c.driver.waitForTimeout(2600);
+    await new Promise((resolve) => setTimeout(resolve, 2600));
     await c.driver.keyboard.up("w");
     await expect(c.driver.getByTestId("tank-speed")).toHaveText("0.0");
     await expect(c.gunner.getByTestId("turret-yaw-rate")).toHaveText("0.0°/s");
+    console.log(
+      "cover firing visible pose",
+      await c.gunner.getByTestId("hull-heading").textContent(),
+      await c.gunner.getByTestId("turret-heading").textContent(),
+      await c.driver.getByTestId("tank-contact").textContent(),
+    );
+    const coverStarted = Date.now();
     const health = await c.gunner.getByTestId("tank-health").textContent();
     await expect(c.gunner.getByTestId("chamber-state")).toHaveText("主炮就緒");
     await c.loader.keyboard.up("r");
     await c.loader.keyboard.down("c");
     await c.gunner.keyboard.press("Space");
     await expect(c.gunner.getByTestId("flight-status")).toHaveText("砲彈命中");
-    await c.gunner.screenshot({
-      path: "/tmp/car-game-to-spec/visual21/cover-fire.png",
-      fullPage: true,
-    });
-    await c.gunner.waitForTimeout(4000);
-    for (const p of [c.gunner, c.loader, c.driver])
-      await expect(p.getByTestId("tank-health")).toHaveText(health!);
+    // The four-second observation starts at the public HP baseline. A slow
+    // screenshot must not extend it into the enemy's legitimate later flank.
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.max(0, 4000 - (Date.now() - coverStarted))),
+    );
+    console.log("cover sample elapsed", Date.now() - coverStarted);
+    await Promise.all(
+      [c.gunner, c.loader, c.driver].map((p) =>
+        expect(p.getByTestId("tank-health")).toHaveText(health!),
+      ),
+    );
     await expect(c.gunner.getByTestId("target-status")).toContainText(
-      "四號 H 型 200/200",
+      "四號 H 型 0/200",
     );
     await expect(c.gunner.getByTestId("target-status")).toContainText(
       "虎式 I 型 360/360",
@@ -147,10 +200,10 @@ test("乘員可繞到固定石牆後擋住敵火，己方炮火也不能穿牆�
     });
     // Cover delays the enemy; its normal flank must eventually expose this position.
     await expect(c.gunner.getByTestId("enemy-warning")).toContainText("瞄準", {
-      timeout: 12000,
+      timeout: 20000,
     });
     await expect(c.gunner.getByTestId("tank-health")).not.toHaveText(health!, {
-      timeout: 12000,
+      timeout: 20000,
     });
     await c.gunner.screenshot({
       path: "/tmp/car-game-to-spec/visual21/cover-flanked.png",

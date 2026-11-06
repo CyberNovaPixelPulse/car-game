@@ -10,7 +10,7 @@ OWN-WORLD: Muted painted steel, restrained wear, exposed machined surfaces and b
 
 STORY: Select a round, hold R, resolve a jam if necessary, hear and see the latch, coordinate fire, then duck below the ejection path. Tab changes workplace without changing the loaded shell or weapon progress.
 
-FIRST VIEWPORT: Compact station and health at the top; mode, ejection warning and posture immediately beneath. The enclosed scene dominates. Loading status overlays its lower edge, jam track appears near its center and keyboard instructions sit directly below. No exterior geometry is created for this view; driver remains without an exterior renderer.
+FIRST VIEWPORT: Compact station and health at the top; mode, ejection warning and posture immediately beneath. The enclosed scene dominates. Loading status sits in a compact strip below the scene, jam track sits immediately above the scene while active and keyboard instructions sit directly below. No exterior geometry is created for this view; driver remains without an exterior renderer.
 
 FORM: User-pinned realistic WWII direction; no new concept election. seed: none (unavailable)
 
