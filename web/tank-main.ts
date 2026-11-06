@@ -366,17 +366,21 @@ core.present = (state) => {
     "chamber-state": weapon.jam.active ? "卡彈" : weaponText[weapon.chamber],
     "load-progress": String(Math.round(weapon.loadProgress * 100)),
     "shot-count": String(weapon.shotsFired),
-    "enemy-activity": weapon.targets
-      .filter((t) => t.hp > 0)
-      .map((t) =>
-        t.phase === "searching"
-          ? "煙幕中的敵車停止追蹤，搜尋中"
-          : t.phase === "blind-fire" || (t.phase === "warning" && obscured(t))
-            ? "敵車失去視線，短暫瞄準最後已見位置"
-            : "",
-      )
-      .filter(Boolean)
-      .join("；"),
+    "enemy-activity": [
+      ...new Set(
+        weapon.targets
+          .filter((t) => t.hp > 0)
+          .map((t) =>
+            t.phase === "searching"
+              ? "煙幕中的敵車停止追蹤，搜尋中"
+              : t.phase === "blind-fire" ||
+                  (t.phase === "warning" && obscured(t))
+                ? "敵車失去視線，短暫瞄準最後已見位置"
+                : "",
+          )
+          .filter(Boolean),
+      ),
+    ].join("；"),
     "target-status": weapon.targets
       .map((t) =>
         obscured(t)
