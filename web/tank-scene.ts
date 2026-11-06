@@ -162,11 +162,14 @@ export class TankScene {
     this.turret.rotation.y = -state.turret.yaw;
     this.elevation.rotation.x = state.turret.pitch;
     const heading = t.yaw + state.turret.yaw;
-    this.camera.position.set(t.x, 2.85, t.z);
+    // Observe from the gun mantlet, beyond the roof that otherwise hides close targets.
+    const eyeX = t.x + Math.sin(heading) * 1.9;
+    const eyeZ = t.z - Math.cos(heading) * 1.9;
+    this.camera.position.set(eyeX, 2.85, eyeZ);
     this.camera.lookAt(
-      t.x + Math.sin(heading) * Math.cos(state.turret.pitch) * 40,
+      eyeX + Math.sin(heading) * Math.cos(state.turret.pitch) * 40,
       2.85 + Math.sin(state.turret.pitch) * 40,
-      t.z - Math.cos(heading) * Math.cos(state.turret.pitch) * 40,
+      eyeZ - Math.cos(heading) * Math.cos(state.turret.pitch) * 40,
     );
     for (const target of state.weapon.targets) {
       let mesh = this.targetMeshes.get(target.id);
@@ -180,6 +183,9 @@ export class TankScene {
         this.scene.add(mesh);
         this.targetMeshes.set(target.id, mesh);
       }
+      (mesh.material as THREE.MeshStandardMaterial).color.setHex(
+        target.hp <= 0 ? 0x36312c : target.hp < 200 ? 0x66513c : 0x9b7954,
+      );
       mesh.scale.y = target.hp > 0 ? 1 : 0.12;
       mesh.position.y =
         target.hp > 0 ? target.height / 2 : target.height * 0.06;
@@ -228,7 +234,9 @@ export class TankScene {
       }
       mesh.position.set(hit.x, hit.y, hit.z);
       const remaining = Math.max(0, (hit.until - state.time) / 0.6);
-      mesh.scale.setScalar(1 + (1 - remaining) * 2);
+      mesh.scale.setScalar(
+        (hit.shell === "he" ? 2 : 0.5) * (1 + (1 - remaining) * 2),
+      );
       (mesh.material as THREE.MeshBasicMaterial).opacity = remaining * 0.7;
     }
   }

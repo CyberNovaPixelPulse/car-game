@@ -4,8 +4,11 @@ import {
   LOAD,
   CROUCH,
   FIRE,
+  SELECT_HE,
+  SELECT_AP,
   STOP_JAM,
   stopJam,
+  loaderCanWork,
   createWeaponState,
   fireWeapon,
   stepWeapon,
@@ -39,6 +42,7 @@ export interface TankState {
   weapon: WeaponState;
   turret: { yaw: number; pitch: number; yawRate: number; pitchRate: number };
   tank: {
+    hp: number;
     x: number;
     z: number;
     yaw: number;
@@ -52,7 +56,7 @@ const initial = (seed = 1): TankState => ({
   time: 0,
   weapon: createWeaponState(seed),
   turret: { yaw: 0, pitch: 0, yawRate: 0, pitchRate: 0 },
-  tank: { x: 0, z: 0, yaw: 0, speed: 0, turnRate: 0, blocked: false },
+  tank: { hp: 100, x: 0, z: 0, yaw: 0, speed: 0, turnRate: 0, blocked: false },
 });
 const approach = (value: number, target: number, amount: number) =>
   value < target
@@ -70,6 +74,10 @@ export class TankCore implements GameCore<TankState> {
     this.controls.clear();
   }
   input(participant: number, keys: number) {
+    if (this.roleOf(participant) === "loader") {
+      const w = this.state.weapon;
+      w.crouching = this.state.time >= w.stunnedUntil && Boolean(keys & CROUCH);
+    }
     this.controls.set(
       participant,
       this.roleOf(participant) === "driver"
@@ -80,6 +88,15 @@ export class TankCore implements GameCore<TankState> {
     );
   }
   action(participant: number, action: number) {
+    if (
+      this.roleOf(participant) === "loader" &&
+      (action === SELECT_HE || action === SELECT_AP)
+    ) {
+      const w = this.state.weapon;
+      if (loaderCanWork(w, this.state.time) && w.chamberShell === null)
+        w.selectedShell = action === SELECT_HE ? "he" : "ap";
+      return;
+    }
     if (this.roleOf(participant) === "loader" && action === STOP_JAM) {
       stopJam(this.state.weapon, this.state.time);
       return;
@@ -214,6 +231,7 @@ export class TankCore implements GameCore<TankState> {
         next.turret.pitch,
         next.turret.yawRate,
         next.turret.pitchRate,
+        next.tank.hp,
         next.tank.x,
         next.tank.z,
         next.tank.yaw,
