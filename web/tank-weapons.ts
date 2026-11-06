@@ -44,6 +44,13 @@ export interface PracticeTarget {
   height: number;
   depth: number;
   hp: number;
+  maxHp: number;
+  kind: "panzer" | "tiger";
+  yaw: number;
+  turretYaw: number;
+  phase: "approaching" | "aiming" | "warning" | "reloading";
+  readyAt: number;
+  fireAt: number;
 }
 export interface WeaponState {
   selectedShell: ShellType;
@@ -113,8 +120,38 @@ export function createWeaponState(seed = 1): WeaponState {
     projectiles: [],
     impacts: [],
     targets: [
-      { id: 1, x: 0, z: -11, width: 2.6, height: 3, depth: 1.2, hp: 200 },
-      { id: 2, x: 3, z: -11, width: 2, height: 3, depth: 1.2, hp: 200 },
+      {
+        id: 1,
+        x: 0,
+        z: -13,
+        width: 3.2,
+        height: 3,
+        depth: 5.5,
+        hp: 200,
+        maxHp: 200,
+        kind: "panzer",
+        yaw: Math.PI,
+        turretYaw: Math.PI,
+        phase: "approaching",
+        readyAt: 12,
+        fireAt: 0,
+      },
+      {
+        id: 2,
+        x: 4,
+        z: -29,
+        width: 3.7,
+        height: 3.2,
+        depth: 6,
+        hp: 360,
+        maxHp: 360,
+        kind: "tiger",
+        yaw: Math.PI,
+        turretYaw: Math.PI,
+        phase: "approaching",
+        readyAt: 18,
+        fireAt: 0,
+      },
     ],
   };
 }
@@ -162,7 +199,12 @@ export function loaderCanWork(w: WeaponState, now: number) {
 }
 
 /** Segment versus a box: catches a fast shell between two simulation frames. */
-function boxHit(from: number[], to: number[], low: number[], high: number[]) {
+export function boxHit(
+  from: number[],
+  to: number[],
+  low: number[],
+  high: number[],
+) {
   let enter = 0,
     leave = 1;
   for (let axis = 0; axis < 3; axis++) {
@@ -266,7 +308,16 @@ export function stepWeapon(
         const amount =
           t === target
             ? damage.direct
-            : distance <= damage.radius
+            : distance <= damage.radius &&
+                !cover.some(
+                  (c) =>
+                    boxHit(
+                      point,
+                      [t.x, t.height / 2, t.z],
+                      [c.x - c.width / 2, 0, c.z - c.depth / 2],
+                      [c.x + c.width / 2, c.height, c.z + c.depth / 2],
+                    ) !== undefined,
+                )
               ? damage.splash
               : 0;
         t.hp = Math.max(0, t.hp - amount);
@@ -313,8 +364,24 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
         [p.id, p.x, p.y, p.z, p.vx, p.vy, p.vz, p.age].every(Number.isFinite),
     ) &&
     Array.isArray(w.targets) &&
-    w.targets.every((t) =>
-      [t.id, t.x, t.z, t.width, t.height, t.depth, t.hp].every(Number.isFinite),
+    w.targets.every(
+      (t) =>
+        [
+          t.id,
+          t.x,
+          t.z,
+          t.width,
+          t.height,
+          t.depth,
+          t.hp,
+          t.maxHp,
+          t.yaw,
+          t.turretYaw,
+          t.readyAt,
+          t.fireAt,
+        ].every(Number.isFinite) &&
+        ["panzer", "tiger"].includes(t.kind) &&
+        ["approaching", "aiming", "warning", "reloading"].includes(t.phase),
     ) &&
     Array.isArray(w.impacts) &&
     w.impacts.every(

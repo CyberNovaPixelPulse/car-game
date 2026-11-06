@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { tankCrew } from "./tank-helpers";
 
-test("裝填中斷可續接，砲手就緒後射擊靶標，再退殼裝下一發", async ({
+test("裝填中斷可續接，砲手就緒後射擊敵車，再退殼裝下一發", async ({
   browser,
 }) => {
   const crew = await tankCrew(browser);
@@ -37,7 +37,7 @@ test("裝填中斷可續接，砲手就緒後射擊靶標，再退殼裝下一�
     );
     await expect(crew.gunner.getByTestId("shot-count")).toHaveText("1");
     await expect(crew.gunner.getByTestId("target-status")).toContainText(
-      "正前靶 100/200",
+      "四號 H 型 100/200",
     );
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText("空膛");
     await crew.loader.keyboard.up("c");
@@ -96,7 +96,7 @@ test("只有裝填手能裝彈、只有砲手能射擊，連點不會複製同�
   }
 });
 
-test("仰射砲彈確實飛行後落地，未命中靶標不會憑空擊毀", async ({ browser }) => {
+test("仰射砲彈確實飛行後落地，未命中敵車不會憑空擊毀", async ({ browser }) => {
   const crew = await tankCrew(browser);
   try {
     await crew.gunner.keyboard.press("w");

@@ -1,3 +1,8 @@
+import {
+  createEnemyBattle,
+  stepEnemies,
+  type EnemyBattle,
+} from "./tank-enemies";
 import type { CrewRole } from "./crew";
 import type { GameCore, GameStart } from "./game-runtime";
 import {
@@ -40,6 +45,7 @@ export interface TankState {
   version: 1;
   time: number;
   weapon: WeaponState;
+  battle: EnemyBattle;
   turret: { yaw: number; pitch: number; yawRate: number; pitchRate: number };
   tank: {
     hp: number;
@@ -55,6 +61,7 @@ const initial = (seed = 1): TankState => ({
   version: 1,
   time: 0,
   weapon: createWeaponState(seed),
+  battle: createEnemyBattle(),
   turret: { yaw: 0, pitch: 0, yawRate: 0, pitchRate: 0 },
   tank: { hp: 100, x: 0, z: 0, yaw: 0, speed: 0, turnRate: 0, blocked: false },
 });
@@ -88,6 +95,7 @@ export class TankCore implements GameCore<TankState> {
     );
   }
   action(participant: number, action: number) {
+    if (this.state.battle.failed) return;
     if (
       this.roleOf(participant) === "loader" &&
       (action === SELECT_HE || action === SELECT_AP)
@@ -142,6 +150,7 @@ export class TankCore implements GameCore<TankState> {
     }
   }
   private advance(dt: number) {
+    if (this.state.battle.failed) return;
     this.state.time += dt;
     let loading = false;
     this.state.weapon.crouching = false;
@@ -158,6 +167,14 @@ export class TankCore implements GameCore<TankState> {
       dt,
       this.state.time,
       BATTLEFIELD.cover,
+    );
+    stepEnemies(
+      this.state.battle,
+      this.state.weapon.targets,
+      this.state.tank,
+      BATTLEFIELD.cover,
+      dt,
+      this.state.time,
     );
     const turret = this.state.turret;
     turret.yaw =
@@ -222,6 +239,17 @@ export class TankCore implements GameCore<TankState> {
     const next: TankState = JSON.parse(snapshot);
     if (
       next.version !== 1 ||
+      !next.battle ||
+      typeof next.battle.failed !== "boolean" ||
+      !Array.isArray(next.battle.projectiles) ||
+      ![next.battle.shots, next.battle.lastHitAt, next.battle.lastDamage].every(
+        Number.isFinite,
+      ) ||
+      !next.battle.projectiles.every((p) =>
+        [p.id, p.x, p.y, p.z, p.vx, p.vz, p.damage, p.age].every(
+          Number.isFinite,
+        ),
+      ) ||
       !next.tank ||
       !next.turret ||
       !validWeapon(next.weapon) ||
