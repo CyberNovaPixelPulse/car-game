@@ -58,6 +58,7 @@ export async function tankCrew(
   for (const page of pages)
     await expect(page.getByRole("heading", { name: /工作站$/ })).toBeVisible();
   return {
+    code: code!,
     loader,
     driver,
     gunner,
