@@ -1290,3 +1290,21 @@ legend {
   padding-bottom: 6px;
   color: var(--hud-muted, #d3d9c7);
 }
+/* At 720px high the driver slit ends near y=480; keep navigation below it. */
+@media (max-height: 800px) {
+  .battle-station[data-role="driver"] .battle-navigation {
+    width: 160px;
+    min-height: 0;
+  }
+  .battle-station[data-role="driver"] .navigation-heading {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  .battle-station[data-role="driver"] .navigation-legend,
+  .battle-station[data-role="driver"] .navigation-scale {
+    padding-top: 0;
+  }
+  .battle-station[data-role="driver"] .navigation-scale {
+    padding-bottom: 4px;
+  }
+}
