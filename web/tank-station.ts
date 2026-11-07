@@ -33,7 +33,7 @@ export function stationMarkup(role: CrewRole, soundEnabled: boolean) {
     <div class="battle-alerts">
       <div class="battle-pause hud-panel" data-testid="battle-pause" role="status" hidden></div>
       <p class="hud-panel" data-testid="damage-warning" role="status"></p>
-      <p class="repair-calibration-result hud-panel" data-testid="repair-calibration-result" role="status"></p>
+      <p class="repair-calibration-result hud-panel" data-testid="repair-calibration-result" hidden><span class="calibration-result-message" role="status"></span><span class="calibration-shared-needle" aria-hidden="true"></span></p>
       ${role === "gunner" ? '<p class="hud-panel" data-testid="enemy-warning" role="status"></p><p class="hud-panel" data-testid="enemy-activity" role="status"></p>' : ""}
       ${role === "loader" ? '<p class="ejection-warning hud-panel" data-testid="ejection-warning" role="status"></p><p class="loader-posture hud-panel"><span data-testid="loader-status">站立・可以工作</span> <strong class="stun-timer" data-testid="stun-remaining"></strong></p>' : ""}
     </div>

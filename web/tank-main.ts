@@ -312,7 +312,24 @@ function station(room: Room) {
       content.querySelector<HTMLElement>(".interior-viewport")!;
     interiorViewport.insertAdjacentHTML(
       "beforeend",
-      `<section class="repair-workspace" aria-label="車內維修" hidden><h3>車體維修</h3><p class="repair-readout" data-testid="repair-status" role="status"></p><p>停車並停止轉向，按住 <kbd>R</kbd> 維修</p><p>每秒回復 2 HP · 不需耗材 · 上限 100 HP</p><div class="repair-calibration" data-testid="repair-calibration" role="group" aria-label="維修時機校準" hidden><svg viewBox="0 0 200 200" aria-hidden="true"><circle class="calibration-track" cx="100" cy="100" r="76"/><circle class="calibration-zone" cx="100" cy="100" r="76" pathLength="1"/><circle class="calibration-perfect" cx="100" cy="100" r="76" pathLength="1"/><line class="calibration-needle" x1="100" y1="110" x2="100" y2="16"/><circle class="calibration-hub" cx="100" cy="100" r="5"/></svg><p>按 <kbd>空白鍵</kbd> 校準・內圈亮區為完美</p><p class="calibration-position" data-testid="repair-calibration-position"></p></div><p class="repair-controls">按住 <kbd>C</kbd> 蹲下避殼 · <kbd>Tab</kbd> 返回裝填</p></section>`,
+      `<section class="repair-workspace" aria-label="車內維修" hidden>
+        <h3>車體維修</h3>
+        <p class="repair-readout" data-testid="repair-status" role="status"></p>
+        <p class="repair-requirements">停車並停止轉向，按住 <kbd>R</kbd> 維修</p>
+        <p class="repair-requirements">每秒回復 2 HP · 不需耗材 · 上限 100 HP</p>
+        <div class="repair-calibration" data-testid="repair-calibration" role="group" aria-label="維修時機校準" hidden>
+          <svg viewBox="0 0 200 200" aria-hidden="true">
+            <circle class="calibration-track" cx="100" cy="100" r="76"/>
+            <circle class="calibration-zone" cx="100" cy="100" r="76" pathLength="1"/>
+            <circle class="calibration-perfect" cx="100" cy="100" r="76" pathLength="1"/>
+            <line class="calibration-needle" x1="100" y1="110" x2="100" y2="16"/>
+            <circle class="calibration-hub" cx="100" cy="100" r="5"/>
+          </svg>
+          <p>按住 <kbd>R</kbd> 維修 · <kbd>空白鍵</kbd> 校準</p>
+          <p class="calibration-position" data-testid="repair-calibration-position"></p>
+        </div>
+        <p class="repair-controls">按住 <kbd>C</kbd> 蹲下避殼 · <kbd>Tab</kbd> 返回裝填</p>
+      </section>`,
     );
     try {
       if (ready && prepared?.interior && prepared.interiorCanvas) {
@@ -455,7 +472,7 @@ core.present = (state) => {
   const calibration = state.repair.calibration;
   const calibrationMessages = {
     idle: "",
-    active: `維修校準中・${calibration.suspended ? "重新按住 R 續接・" : ""}指針 ${((calibration.elapsed / REPAIR_RULES.calibrationDuration) * 360).toFixed(0)}°`,
+    active: `維修校準中${calibration.suspended ? "・重新按住 R 續接" : ""}`,
     success: "校準成功・額外 +1 HP",
     perfect: "完美校準・額外 +3 HP",
     failed:
@@ -463,9 +480,18 @@ core.present = (state) => {
         ? "校準失敗・停修兩秒"
         : "上次校準失敗・停修已結束",
   };
-  content.querySelector(
+  const calibrationResult = content.querySelector<HTMLElement>(
     '[data-testid="repair-calibration-result"]',
-  )!.textContent = calibrationMessages[calibration.result];
+  )!;
+  calibrationResult.hidden = calibration.result === "idle";
+  calibrationResult.querySelector(".calibration-result-message")!.textContent =
+    calibrationMessages[calibration.result];
+  // The visible shared needle is useful crew information. Keep rapid degree
+  // updates outside the live status so assistive tech announces each result once.
+  calibrationResult.querySelector(".calibration-shared-needle")!.textContent =
+    calibration.result === "active"
+      ? `・指針 ${((calibration.elapsed / REPAIR_RULES.calibrationDuration) * 360).toFixed(0)}°`
+      : "";
   const weapon = state.weapon;
   const stunned = state.time < weapon.stunnedUntil;
   if (stationRole === "loader") {

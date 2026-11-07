@@ -150,6 +150,9 @@ test("活躍校準在真實缺員暫停原位凍結，重連需重新按R且不�
     ).toHaveText(position!);
     await expect(c.loader.getByTestId("tank-health")).toHaveText(health!);
     await c.loader.setViewportSize({ width: 1280, height: 720 });
+    const panel = await c.loader.locator(".repair-workspace").boundingBox();
+    const alerts = await c.loader.locator(".battle-alerts").boundingBox();
+    expect(panel!.y).toBeGreaterThan(alerts!.y + alerts!.height + 8);
     await c.loader.screenshot({
       path: `${evidence}/calibration-paused-1280.png`,
     });
@@ -454,7 +457,7 @@ test("裝填手離頁的正常輸入先到時判失敗，剩餘停修凍結並�
   }
 });
 
-test("瀏覽器崩潰補驗：裝填手無先行釋放的斷線凍結活躍校準並以原生儲存重連", async ({
+test("瀏覽器崩潰補驗：偵測斷線前正常結算，暫停後凍結並以原生儲存重連", async ({
   browser,
 }) => {
   const c = await tankCrew(browser, "gunner", 0, 1972);
@@ -476,10 +479,13 @@ test("瀏覽器崩潰補驗：裝填手無先行釋放的斷線凍結活躍校�
     const crashed = c.loader.waitForEvent("crash");
     void devtools.send("Page.crash").catch(() => {});
     await crashed;
-    await expect(c.gunner.getByTestId("battle-pause")).toBeVisible();
+    // A crashed renderer is detected through transport staleness, not an
+    // immediate explicit leave. Normal gameplay still runs before room pause.
     await expect(
       c.gunner.getByTestId("repair-calibration-result"),
-    ).toContainText("校準中");
+    ).toContainText("校準失敗", { timeout: 2500 });
+    await expect(c.gunner.getByTestId("battle-pause")).toBeHidden();
+    await expect(c.gunner.getByTestId("battle-pause")).toBeVisible();
     await c.gunner.waitForTimeout(300);
     const frozen = await c.gunner
       .getByTestId("repair-calibration-result")
@@ -500,14 +506,11 @@ test("瀏覽器崩潰補驗：裝填手無先行釋放的斷線凍結活躍校�
         .getByTestId("repair-calibration-position")
         .textContent())!.split("目標")[1],
     ).toBe(target);
-    await c.loader.keyboard.up("r");
-    await c.loader.keyboard.down("r");
-    await expect
-      .poll(
-        () => c.loader.getByTestId("repair-calibration-result").textContent(),
-        { intervals: [30], timeout: 1000 },
-      )
-      .not.toBe(frozen);
+    await c.loader.waitForTimeout(400);
+    await expect(c.loader.getByTestId("repair-calibration")).toBeHidden();
+    expect(await hp(c.loader)).toBeLessThanOrEqual(
+      Number(health!.split("/")[0]),
+    );
     await c.loader.keyboard.up("r");
   } finally {
     await c.close();

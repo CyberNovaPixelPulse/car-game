@@ -1246,3 +1246,28 @@ legend {
 .repair-calibration-result {
   font-variant-numeric: tabular-nums;
 }
+
+/* Keep the timing workplace below the shared alerts on short desktop views. */
+@media (max-height: 800px) {
+  .repair-workspace:has(.repair-calibration:not([hidden])) {
+    top: calc(50% + 32px);
+    padding: 14px 18px;
+  }
+  .repair-workspace:has(.repair-calibration:not([hidden])) > h3,
+  .repair-workspace:has(.repair-calibration:not([hidden])) .repair-requirements {
+    display: none;
+  }
+  .repair-workspace:has(.repair-calibration:not([hidden])) p {
+    margin: 6px 0;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .repair-workspace:has(.repair-calibration:not([hidden])) .repair-readout {
+    font-size: 16px;
+    margin: 0 0 6px;
+  }
+  .repair-calibration svg {
+    width: 160px;
+    height: 160px;
+  }
+}
