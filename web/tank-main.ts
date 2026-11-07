@@ -1,4 +1,4 @@
-import { TANK_RULES, RECONNECT_GRACE_MS } from "./tank-settings";
+import { TANK_RULES, RECONNECT_GRACE_MS, REPAIR_RULES } from "./tank-settings";
 import { smokeBlocks, smokeSight } from "./tank-smoke";
 import { ENEMY_LABELS } from "./tank-enemies";
 import { MG_FIRE } from "./tank-machine-gun";
@@ -309,7 +309,7 @@ function station(room: Room) {
       content.querySelector<HTMLElement>(".interior-viewport")!;
     interiorViewport.insertAdjacentHTML(
       "beforeend",
-      `<section class="repair-workspace" aria-label="車內維修" hidden><h3>車體維修</h3><p class="repair-readout" data-testid="repair-status" role="status"></p><p>停車並停止轉向，按住 <kbd>R</kbd> 維修</p><p>每秒回復 2 HP · 不需耗材 · 上限 100 HP</p><p class="repair-controls">按住 <kbd>C</kbd> 蹲下避殼 · <kbd>Tab</kbd> 返回裝填</p></section>`,
+      `<section class="repair-workspace" aria-label="車內維修" hidden><h3>車體維修</h3><p class="repair-readout" data-testid="repair-status" role="status"></p><p>停車並停止轉向，按住 <kbd>R</kbd> 維修</p><p>每秒回復 2 HP · 不需耗材 · 上限 100 HP</p><div class="repair-calibration" data-testid="repair-calibration" role="group" aria-label="維修時機校準" hidden><svg viewBox="0 0 200 200" aria-hidden="true"><circle class="calibration-track" cx="100" cy="100" r="76"/><circle class="calibration-zone" cx="100" cy="100" r="76" pathLength="1"/><circle class="calibration-perfect" cx="100" cy="100" r="76" pathLength="1"/><line class="calibration-needle" x1="100" y1="110" x2="100" y2="16"/><circle class="calibration-hub" cx="100" cy="100" r="5"/></svg><p>按 <kbd>空白鍵</kbd> 校準・內圈亮區為完美</p><p class="calibration-position" data-testid="repair-calibration-position"></p></div><p class="repair-controls">按住 <kbd>C</kbd> 蹲下避殼 · <kbd>Tab</kbd> 返回裝填</p></section>`,
     );
     const jamPanel = content.querySelector(".jam-game");
     if (jamPanel)
@@ -331,6 +331,12 @@ function station(room: Room) {
         "無法啟動 3D 車內工作區，請使用支援 WebGL2 的瀏覽器重新加入。";
     }
   }
+  content
+    .querySelector(".battle-station")!
+    .insertAdjacentHTML(
+      "beforeend",
+      '<p class="repair-calibration-result" data-testid="repair-calibration-result" role="status"></p>',
+    );
   const soundButton =
     content.querySelector<HTMLButtonElement>("#station-sound");
   if (soundButton)
@@ -459,6 +465,17 @@ core.present = (state) => {
       .filter((e) => e.hp > 0 && e.phase === "warning" && !obscured(e))
       .map((e) => `${ENEMY_LABELS[e.kind]} 正在瞄準，即將開火！移動或尋找掩護`)
       .join("；");
+  const calibration = state.repair.calibration;
+  const calibrationMessages = {
+    idle: "",
+    active: "維修校準中・按空白鍵停針",
+    success: "校準成功・額外 +1 HP",
+    perfect: "完美校準・額外 +3 HP",
+    failed: "校準失敗・停修兩秒",
+  };
+  content.querySelector(
+    '[data-testid="repair-calibration-result"]',
+  )!.textContent = calibrationMessages[calibration.result];
   const weapon = state.weapon;
   const stunned = state.time < weapon.stunnedUntil;
   if (stationRole === "loader") {
@@ -481,6 +498,35 @@ core.present = (state) => {
       weapon.mode === "machine-gun";
     content.querySelector<HTMLElement>(".repair-workspace")!.hidden =
       weapon.mode !== "repair";
+    const calibrationPanel = content.querySelector<HTMLElement>(
+      '[data-testid="repair-calibration"]',
+    )!;
+    calibrationPanel.hidden = calibration.result !== "active";
+    const target = calibration.target * 360;
+    const width = REPAIR_RULES.calibrationWidth * 360;
+    const perfectWidth = REPAIR_RULES.perfectWidth * 360;
+    const perfectStart = target + (width - perfectWidth) / 2;
+    const needle =
+      (calibration.elapsed / REPAIR_RULES.calibrationDuration) * 360;
+    calibrationPanel.querySelector<SVGElement>(
+      ".calibration-zone",
+    )!.style.strokeDasharray = `${REPAIR_RULES.calibrationWidth} 1`;
+    calibrationPanel.querySelector<SVGElement>(
+      ".calibration-zone",
+    )!.style.transform = `rotate(${target - 90}deg)`;
+    calibrationPanel.querySelector<SVGElement>(
+      ".calibration-perfect",
+    )!.style.strokeDasharray = `${REPAIR_RULES.perfectWidth} 1`;
+    calibrationPanel.querySelector<SVGElement>(
+      ".calibration-perfect",
+    )!.style.transform = `rotate(${perfectStart - 90}deg)`;
+    calibrationPanel.querySelector<SVGElement>(
+      ".calibration-needle",
+    )!.style.transform = `rotate(${needle}deg)`;
+    calibrationPanel.querySelector(
+      '[data-testid="repair-calibration-position"]',
+    )!.textContent =
+      `指針 ${needle.toFixed(0)}° · 目標 ${target.toFixed(0)}°–${(target + width).toFixed(0)}° · 完美 ${perfectStart.toFixed(0)}°–${(perfectStart + perfectWidth).toFixed(0)}°`;
     const repairMessages = {
       inactive: "切換維修模式開始工作",
       destroyed: "坦克已毀・無法維修復活",
