@@ -4,9 +4,9 @@ import { boxHit, type EnemyTarget } from "./tank-weapons";
 import { smokeBlocks } from "./tank-smoke";
 import type { TankState } from "./tank-core";
 import type { CrewRole } from "./crew";
+import { TEAM_INTEL_SECONDS } from "./tank-settings";
 
-/** A copied observation, never a reference to hidden world/AI state.
- * #38 can retain this exact record without refreshing any unobserved field. */
+/** A copied observation, never a reference to hidden world/AI state. */
 export interface EnemyContact {
   id: number;
   x: number;
@@ -16,6 +16,7 @@ export interface EnemyContact {
   maxHp: number;
   phase: EnemyTarget["phase"];
   observedAt: number;
+  visible: boolean;
 }
 export interface TeamIntel {
   contacts: EnemyContact[];
@@ -29,23 +30,36 @@ const phases = [
   "blind-fire",
   "searching",
 ];
-export function validTeamIntel(intel: TeamIntel) {
+export function validTeamIntel(
+  intel: TeamIntel,
+  now: number,
+  targets: readonly EnemyTarget[],
+) {
   return Boolean(
     intel &&
     Array.isArray(intel.contacts) &&
+    Array.isArray(targets) &&
+    Number.isFinite(now) &&
+    now >= 0 &&
     intel.contacts.length <= 16 &&
     new Set(intel.contacts.map((c) => c.id)).size === intel.contacts.length &&
     intel.contacts.every(
       (c) =>
         c &&
         Number.isSafeInteger(c.id) &&
+        targets.some((target) => target.id === c.id) &&
+        typeof c.visible === "boolean" &&
         [c.x, c.z, c.hp, c.maxHp, c.observedAt].every(Number.isFinite) &&
         (c.kind === "panzer" || c.kind === "tiger") &&
         phases.includes(c.phase) &&
         c.hp >= 0 &&
         c.hp <= c.maxHp &&
         c.maxHp > 0 &&
-        c.observedAt >= 0,
+        c.observedAt >= 0 &&
+        c.observedAt <= now &&
+        (c.visible
+          ? c.observedAt === now
+          : now - c.observedAt < TEAM_INTEL_SECONDS),
     ),
   );
 }
@@ -84,7 +98,7 @@ export function stepTeamIntel(
       },
     ];
   });
-  state.intel.contacts = state.weapon.targets
+  const observations: EnemyContact[] = state.weapon.targets
     .filter((target) =>
       views.some((view) => {
         const eye = [view.x, view.y, view.z];
@@ -146,5 +160,18 @@ export function stepTeamIntel(
       maxHp,
       phase,
       observedAt: state.time,
+      visible: true,
     }));
+  const observedIds = new Set(observations.map((contact) => contact.id));
+  // World IDs are used only to retire contacts, never to refresh hidden fields.
+  const activeIds = new Set(state.weapon.targets.map((target) => target.id));
+  const remembered = state.intel.contacts
+    .filter(
+      (contact) =>
+        !observedIds.has(contact.id) &&
+        activeIds.has(contact.id) &&
+        state.time - contact.observedAt < TEAM_INTEL_SECONDS,
+    )
+    .map((contact) => ({ ...contact, visible: false }));
+  state.intel.contacts = [...observations, ...remembered];
 }

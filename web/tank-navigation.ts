@@ -1,4 +1,5 @@
 import { BATTLEFIELD, type TankState } from "./tank-core";
+import { TEAM_INTEL_SECONDS } from "./tank-settings";
 
 /** A north-up schematic of the playable square, independent of station/mode.
  * Terrain follows tools/blender/build_map.py; only BATTLEFIELD cover is solid.
@@ -30,13 +31,13 @@ export function mountBattleNavigation(station: Element) {
         <path class="navigation-gun" aria-label="主炮方向" d="M0 0V-9" transform="rotate(0)"/>
       </g>
       <g class="navigation-contacts" aria-label="隊伍觀測敵車"></g>
-    </svg><p class="navigation-legend" aria-label="箭頭代表車頭，細線代表主炮，方點代表觀測敵車"><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><path class="navigation-hull" d="M0 -3L2.4 3L0 1.5L-2.4 3Z"/></svg>車頭</span><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><path class="navigation-gun" d="M0 3V-3"/></svg>主炮</span><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><rect class="navigation-enemy-key" x="-2" y="-2" width="4" height="4"/></svg>敵車</span></p><p class="navigation-scale">地形示意 · 84 × 84 m</p>`;
+    </svg><p class="navigation-legend" aria-label="箭頭代表車頭，細線代表主炮；實心點為目前觀測，空心點為最後已知，舊情報約五秒淡出"><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><path class="navigation-hull" d="M0 -3L2.4 3L0 1.5L-2.4 3Z"/></svg>車頭</span><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><path class="navigation-gun" d="M0 3V-3"/></svg>主炮</span><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><rect class="navigation-enemy-key" x="-3.5" y="-1.5" width="3" height="3"/><rect class="navigation-stale-key" x="0.5" y="-1.5" width="3" height="3"/></svg>現／舊</span></p><p class="navigation-scale">地形示意 · 84 × 84 m</p>`;
 }
 
 /** SVG's positive rotation is clockwise; world -z is north (SVG's top). */
 export function presentBattleNavigation(
   root: ParentNode,
-  state: Pick<TankState, "tank" | "turret" | "intel">,
+  state: Pick<TankState, "tank" | "turret" | "intel" | "time">,
 ) {
   const player = root.querySelector(".navigation-player");
   if (!player) return;
@@ -68,16 +69,27 @@ export function presentBattleNavigation(
         marker.setAttribute("data-contact", String(contact.id));
         marker.setAttribute("width", "2.8");
         marker.setAttribute("height", "2.8");
-        marker.setAttribute(
-          "aria-label",
-          contact.kind === "panzer"
-            ? "觀測敵車 四號 H 型"
-            : "觀測敵車 虎式 I 型",
-        );
         contacts.appendChild(marker);
       }
       marker.setAttribute("x", (contact.x - 1.4).toFixed(2));
       marker.setAttribute("y", (contact.z - 1.4).toFixed(2));
+      marker.setAttribute(
+        "data-observation",
+        contact.visible ? "current" : "stale",
+      );
+      marker.setAttribute(
+        "opacity",
+        contact.visible
+          ? "1"
+          : (
+              1 -
+              (state.time - contact.observedAt) / TEAM_INTEL_SECONDS
+            ).toFixed(3),
+      );
+      marker.setAttribute(
+        "aria-label",
+        `${contact.visible ? "觀測敵車" : "最後已知敵車"} ${contact.kind === "panzer" ? "四號 H 型" : "虎式 I 型"}`,
+      );
     }
   }
 }

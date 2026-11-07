@@ -398,7 +398,7 @@ core.present = (state) => {
   presentBattleNavigation(content, state);
   const wave = content.querySelector('[data-testid="wave-status"]');
   if (wave)
-    wave.textContent = `第 ${state.battle.wave} / ${TANK_RULES.waves} 波 · 目前觀測敵車 ${state.intel.contacts.filter((e) => e.hp > 0).length}`;
+    wave.textContent = `第 ${state.battle.wave} / ${TANK_RULES.waves} 波 · 目前觀測敵車 ${state.intel.contacts.filter((e) => e.hp > 0 && e.visible).length}${state.intel.contacts.some((e) => e.hp > 0 && !e.visible) ? ` · 舊情報 ${state.intel.contacts.filter((e) => e.hp > 0 && !e.visible).length}` : ""}`;
   const speed = content.querySelector('[data-testid="tank-speed"]');
   if (speed) speed.textContent = Math.abs(state.tank.speed).toFixed(1);
   const motion = content.querySelector('[data-testid="tank-motion"]');
@@ -477,7 +477,7 @@ core.present = (state) => {
   const enemyWarning = content.querySelector('[data-testid="enemy-warning"]');
   if (enemyWarning)
     enemyWarning.textContent = state.intel.contacts
-      .filter((e) => e.hp > 0 && e.phase === "warning")
+      .filter((e) => e.visible && e.hp > 0 && e.phase === "warning")
       .map((e) => `${ENEMY_LABELS[e.kind]} 正在瞄準，即將開火！移動或尋找掩護`)
       .join("；");
   const calibration = state.repair.calibration;
@@ -626,7 +626,10 @@ core.present = (state) => {
       String(weapon.mg.shots);
     content.querySelector('[data-testid="mg-target-status"]')!.textContent =
       state.intel.contacts
-        .map((t) => `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp}`)
+        .map(
+          (t) =>
+            `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp}${t.visible ? " · 目前觀測" : ` · 最後已知 · ${(state.time - t.observedAt).toFixed(1)} 秒前`}`,
+        )
         .join("；") || "目前沒有觀測到敵車";
     const workspace = content.querySelector<HTMLElement>(".loader-workspace");
     if (workspace)
@@ -666,7 +669,7 @@ core.present = (state) => {
     "enemy-activity": [
       ...new Set(
         state.intel.contacts
-          .filter((t) => t.hp > 0)
+          .filter((t) => t.visible && t.hp > 0)
           .map((t) =>
             t.phase === "searching"
               ? "觀測敵車搜尋中"
@@ -679,9 +682,10 @@ core.present = (state) => {
     ].join("；"),
     "target-status":
       state.intel.contacts
-        .map(
-          (t) =>
-            `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp} · ${t.hp <= 0 ? "已擊毀" : t.hp === t.maxHp ? "完好" : "受損"} · ${t.hp <= 0 ? "殘骸" : { approaching: "接近中", aiming: "轉砲瞄準", warning: "瞄準預告", reloading: "重新裝填", "blind-fire": "最後位置射擊", searching: "搜尋中" }[t.phase]}`,
+        .map((t) =>
+          t.visible
+            ? `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp} · ${t.hp <= 0 ? "已擊毀" : t.hp === t.maxHp ? "完好" : "受損"} · ${t.hp <= 0 ? "殘骸" : { approaching: "接近中", aiming: "轉砲瞄準", warning: "瞄準預告", reloading: "重新裝填", "blind-fire": "最後位置射擊", searching: "搜尋中" }[t.phase]}`
+            : `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp} · 最後已知 · ${(state.time - t.observedAt).toFixed(1)} 秒前`,
         )
         .join("；") || "目前沒有觀測到敵車",
     "flight-status": weapon.projectiles.length
