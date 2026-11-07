@@ -858,13 +858,17 @@ legend {
   align-items: center;
   gap: 6px;
   margin: 0;
+  padding-left: 8px;
+  border: 1px solid var(--hud-muted);
+  background: var(--hud-background);
   color: var(--hud-foreground);
   font-size: 14px;
 }
 .battle-station .scene-quality select {
-  min-height: 40px;
+  min-height: 38px;
   padding: 8px;
-  border: 1px solid var(--hud-muted);
+  border: 0;
+  border-left: 1px solid var(--hud-muted);
   border-radius: 0;
   color: var(--hud-foreground);
   background: var(--hud-background);
@@ -891,9 +895,17 @@ legend {
 [data-surface="battle"] .battle-station button:hover:not(:disabled) {
   background: #39473c;
 }
-[data-surface="battle"] .battle-station button[aria-pressed="true"] {
+[data-surface="battle"] .battle-station button[aria-pressed="true"],
+[data-surface="battle"]
+  .battle-station
+  button[aria-pressed="true"]:hover:not(:disabled) {
   background: var(--hud-foreground);
   color: #171e1c;
+}
+[data-surface="battle"] .battle-station button:disabled {
+  color: var(--hud-muted);
+  border-color: var(--hud-rule);
+  background: #171e1c;
 }
 [data-surface="battle"] .battle-station button:focus-visible {
   outline: 3px solid var(--hud-danger);
@@ -941,6 +953,10 @@ legend {
 .battle-intel {
   width: 100%;
   margin-top: 16px;
+}
+.display-status {
+  margin-top: 8px !important;
+  font-size: 13px;
 }
 .battle-intel p + p {
   margin-top: 8px;

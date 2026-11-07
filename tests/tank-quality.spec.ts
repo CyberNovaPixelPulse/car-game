@@ -4,7 +4,8 @@ import { tankCrew } from "./tank-helpers";
 
 const evidence =
   process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/35";
-const quality = (page: Page) => page.getByLabel("畫質", { exact: true });
+const quality = (page: Page) =>
+  page.getByRole("combobox", { name: "畫質", exact: true });
 const drawingBuffer = (page: Page, name: string) =>
   page.getByRole("img", { name, exact: true }).evaluate((element) => {
     const canvas = element as HTMLCanvasElement;
