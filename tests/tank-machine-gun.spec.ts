@@ -43,6 +43,8 @@ test("Tab互斥切換，保留裝填進度且機槍按住瞄準放開停止", as
     await expect(crew.loader.getByTestId("load-progress")).toHaveText(saved!);
     await crew.loader.keyboard.up("r");
     await crew.loader.keyboard.press("Tab");
+    await expect(crew.loader.getByTestId("loader-mode")).toHaveText("維修模式");
+    await crew.loader.keyboard.press("Tab");
     await expect(crew.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
     await expect(
       crew.loader.getByRole("img", { name: "機槍戰場視野" }),
@@ -85,6 +87,8 @@ test("機槍連射小傷害，五秒過熱且切模式不能繞過三秒冷卻",
     expect(overheatedAt - burstAt).toBeLessThan(6200);
     await crew.loader.keyboard.up("Space");
     const shots = await crew.loader.getByTestId("mg-shot-count").textContent();
+    await crew.loader.keyboard.press("Tab");
+    await expect(crew.loader.getByTestId("loader-mode")).toHaveText("維修模式");
     await crew.loader.keyboard.press("Tab");
     await expect(crew.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
     await crew.loader.keyboard.down("Space");
@@ -190,6 +194,8 @@ test("跨機槍模式保留AP卡彈，蹲下與退殼暈眩封鎖全部工作", 
     await crew.loader.keyboard.up("r");
     await crew.loader.keyboard.up("c");
     await crew.loader.keyboard.press("Tab");
+    await expect(crew.loader.getByTestId("loader-mode")).toHaveText("維修模式");
+    await crew.loader.keyboard.press("Tab");
     await expect(crew.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
     await expect(crew.loader.getByTestId("jam-result")).toHaveText(
       "按空白鍵停針",
@@ -242,6 +248,8 @@ test("跨機槍模式保留AP卡彈，蹲下與退殼暈眩封鎖全部工作", 
       "蹲下",
     );
     await crew.loader.keyboard.up("c");
+    await crew.loader.keyboard.press("Tab");
+    await expect(crew.loader.getByTestId("loader-mode")).toHaveText("維修模式");
     await crew.loader.keyboard.press("Tab");
     await crew.loader.keyboard.down("r");
     await expect(crew.gunner.getByTestId("chamber-state")).toHaveText(
@@ -309,6 +317,8 @@ test("客端立即Tab接按住空白，不因舊模式快照漏掉連射", async
       )
       .toBeGreaterThan(0);
     await crew.loader.keyboard.up("Space");
+    await crew.loader.keyboard.press("Tab");
+    await expect(crew.loader.getByTestId("loader-mode")).toHaveText("維修模式");
     await crew.loader.keyboard.press("Tab");
     await expect(crew.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
     const shots = await crew.loader.getByTestId("mg-shot-count").textContent();

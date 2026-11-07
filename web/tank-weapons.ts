@@ -64,7 +64,7 @@ export interface EnemyTarget {
   flashUntil: number;
 }
 export interface WeaponState {
-  mode: "loading" | "machine-gun";
+  mode: "loading" | "machine-gun" | "repair";
   mg: {
     yaw: number;
     pitch: number;
@@ -424,7 +424,7 @@ export function stepWeapon(
 export function validWeapon(w: WeaponState | undefined): w is WeaponState {
   return (
     !!w &&
-    ["loading", "machine-gun"].includes(w.mode) &&
+    ["loading", "machine-gun", "repair"].includes(w.mode) &&
     !!w.mg &&
     [
       w.mg.yaw,
