@@ -15,6 +15,7 @@ import { MuzzleFlash } from "./tank-muzzle-flash";
 import { FIRING_FEEDBACK } from "./tank-settings";
 import { DRIVER_VIEW, driverView } from "./tank-driver-view";
 import { buildDriverArmour } from "./tank-driver-armour";
+import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
 
 /** Metres from the eye within which an enemy tank keeps full detail. */
 const LOD_RANGE = 28;
@@ -51,6 +52,7 @@ export class TankScene {
   constructor(
     private canvas: HTMLCanvasElement,
     private view: "gunner" | "machine-gun" | "driver" = "gunner",
+    private quality: SceneQuality = "medium",
   ) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     const software = noteRenderer(this.renderer);
@@ -58,7 +60,6 @@ export class TankScene {
     this.tank = this.player.root;
     this.turret = this.player.turret;
     this.elevation = this.player.elevation;
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.autoUpdate = false;
     this.renderer.shadowMap.needsUpdate = true;
@@ -135,19 +136,25 @@ export class TankScene {
     this.observer.observe(canvas);
     this.resize();
   }
-  private resize() {
+  setQuality(quality: SceneQuality) {
+    if (this.quality === quality) return;
+    this.quality = quality;
+    this.resize(true);
+  }
+  private resize(force = false) {
     // Hidden/detached retained canvases keep their real buffer. Never reallocate at 1px.
     const w = this.canvas.clientWidth,
       h = this.canvas.clientHeight;
     const width = w || this.width || 1024,
       height = h || this.height || 576;
-    if (width === this.width && height === this.height) return;
+    if (!force && width === this.width && height === this.height) return;
     this.width = width;
     this.height = height;
-    this.renderer.setPixelRatio(
-      Math.min(devicePixelRatio, 1.5, 1024 / width, 576 / height),
+    this.renderer.setDrawingBufferSize(
+      width,
+      height,
+      scenePixelRatio(width, height, this.quality),
     );
-    this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     if (this.view === "driver")
       this.camera.fov = THREE.MathUtils.radToDeg(

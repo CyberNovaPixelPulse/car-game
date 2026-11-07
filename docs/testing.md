@@ -33,3 +33,5 @@ WEB_PORT=5054 PEER_PORT=5055 TANK_NATIVE_BROWSER=1 TANK_THREE_BROWSERS=1 TANK_EV
 #33 的 `tests/tank-hud.spec.ts` 從正常三人房間驗證各視野填滿 1280×720、1440×1050 的實際頁面邊界，共用方向／速度／HP 與退出控制完整同屏；涵蓋裝填、機槍、維修及缺員返回。使用 `TANK_EVIDENCE_DIR` 將新截圖留在指定證據目錄，不覆寫歷史 captures。
 
 校準的瀏覽器崩潰案例是外部 renderer 故障補驗：不呼叫遊戲規則，只確認失聯被權威偵測前繼續正常結算、缺員暫停後凍結。它不代表一般鍵盤操作，也不宣稱 Playwright 能對已崩潰 Page 自動重載；正常離頁／回同一分頁另行驗證原職位重連。
+
+#35 的 `tank-quality` 從正常三人房間觀察可見畫質選單、實際 canvas width／height 與 CSS 尺寸，確認不改視窗大小也能切換低／中／高、HUD 獨立、其他乘員設定不變。像素預算、保留畫布與資產層級的界線見 [本機場景畫質](tank-quality.md)；實測版本、資產回應及畫面證據留在各票報告，不能推論未量測 FPS。

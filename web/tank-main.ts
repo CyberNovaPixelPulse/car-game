@@ -8,6 +8,7 @@ import { GameRuntime } from "./game-runtime";
 import { TankCore, DRIVE, AIM } from "./tank-core";
 import { TankScene } from "./tank-scene";
 import { TankInteriorScene } from "./tank-interior-scene";
+import type { SceneQuality } from "./tank-scene-quality";
 import { TankMechanicalAudio } from "./tank-mechanical-audio";
 import {
   mountBattleNavigation,
@@ -50,6 +51,7 @@ let scene: TankScene | undefined;
 let interiorScene: TankInteriorScene | undefined;
 let mgCanvas: HTMLCanvasElement | undefined;
 let stationRole: string | undefined;
+let sceneQuality: SceneQuality = "medium";
 interface PreparedViews {
   role: CrewRole;
   code: string;
@@ -101,13 +103,20 @@ async function prepareVote(room: Room, role: CrewRole) {
       views.exteriorCanvas = artCanvas(
         role === "driver" ? "駕駛裝甲觀察窗" : "主炮戰場視野",
       );
-      views.exterior = new TankScene(views.exteriorCanvas, role);
+      views.exterior = new TankScene(views.exteriorCanvas, role, sceneQuality);
       await views.exterior.prepare(core.view());
     } else if (role === "loader") {
       views.interiorCanvas = artCanvas("車內炮膛與彈藥架");
-      views.interior = new TankInteriorScene(views.interiorCanvas);
+      views.interior = new TankInteriorScene(
+        views.interiorCanvas,
+        sceneQuality,
+      );
       views.exteriorCanvas = artCanvas("機槍戰場視野");
-      views.exterior = new TankScene(views.exteriorCanvas, "machine-gun");
+      views.exterior = new TankScene(
+        views.exteriorCanvas,
+        "machine-gun",
+        sceneQuality,
+      );
       // Both actual views are prepared before the loader's existing ready vote.
       await views.interior.prepare(core.view());
       await views.exterior.prepare(core.view());
@@ -347,12 +356,27 @@ function station(room: Room) {
       } else
         interiorScene = new TankInteriorScene(
           content.querySelector(".interior-viewport canvas")!,
+          sceneQuality,
         );
     } catch {
       message.textContent =
         "無法啟動 3D 車內工作區，請使用支援 WebGL2 的瀏覽器重新加入。";
     }
   }
+  const qualitySelect =
+    content.querySelector<HTMLSelectElement>("#station-quality")!;
+  qualitySelect.value = sceneQuality;
+  qualitySelect.onchange = () => {
+    const quality = qualitySelect.value;
+    if (quality !== "low" && quality !== "medium" && quality !== "high") return;
+    sceneQuality = quality;
+    // Prepared and retained views may be detached or hidden. Resize their real
+    // buffers too, without rebuilding resources, the station or authority.
+    for (const view of new Set([scene, prepared?.exterior]))
+      view?.setQuality(quality);
+    for (const view of new Set([interiorScene, prepared?.interior]))
+      view?.setQuality(quality);
+  };
   const soundButton =
     content.querySelector<HTMLButtonElement>("#station-sound");
   if (soundButton)
@@ -368,7 +392,12 @@ function station(room: Room) {
       if (ready && prepared?.exterior && prepared.exteriorCanvas) {
         content.querySelector("canvas")!.replaceWith(prepared.exteriorCanvas);
         scene = prepared.exterior;
-      } else scene = new TankScene(content.querySelector("canvas")!, role);
+      } else
+        scene = new TankScene(
+          content.querySelector("canvas")!,
+          role,
+          sceneQuality,
+        );
     } catch {
       message.textContent =
         "無法啟動 3D 戰場，請使用支援 WebGL2 的瀏覽器重新加入。";
@@ -587,7 +616,7 @@ core.present = (state) => {
         mgWorkspace.querySelector(".battle-viewport")!.prepend(mgCanvas);
       if (!scene) {
         try {
-          scene = new TankScene(mgCanvas, "machine-gun");
+          scene = new TankScene(mgCanvas, "machine-gun", sceneQuality);
         } catch {
           message.textContent =
             "無法啟動 3D 機槍視野，請使用支援 WebGL2 的瀏覽器重新加入。";

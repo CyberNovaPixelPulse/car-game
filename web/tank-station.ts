@@ -25,6 +25,7 @@ export function stationMarkup(role: CrewRole, soundEnabled: boolean) {
       ${role === "loader" ? '<p class="loader-mode-line"><strong data-testid="loader-mode">裝填模式</strong> · Tab 切換工作</p>' : ""}
     </div>
     <div class="battle-utility"><div class="battle-actions">
+      <label class="scene-quality">畫質 <select id="station-quality"><option value="low">低</option><option value="medium" selected>中</option><option value="high">高</option></select></label>
       ${role === "loader" ? `<button type="button" class="secondary" id="station-sound" aria-pressed="${soundEnabled}">音效：${soundEnabled ? "開" : "關"}</button>` : ""}
       <button class="secondary" id="station-leave">離開房間</button>
     </div>
