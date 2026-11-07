@@ -76,6 +76,7 @@ export function stopRepairCalibration(state: TankState) {
   if (
     weapon.mode !== "repair" ||
     c.result !== "active" ||
+    c.suspended ||
     (repair.status !== "repairing" && repair.status !== "full")
   )
     return;
