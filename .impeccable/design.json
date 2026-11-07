@@ -178,8 +178,13 @@
       },
       {
         "name": "Transition scroll placement",
-        "body": "進入主選單、工作站、新大廳、結算與暫停時，轉換當下捲至頁首一次；一般狀態更新不重複捲動。",
+        "body": "進入主選單、工作站、新大廳、結算與暫停時，轉換當下捲至頁首一次；一般狀態更新不重複捲動。 Recovery rejection preserves an existing join form and its input; stale retry is hidden.",
         "section": "layout"
+      },
+      {
+        "name": "Authority muzzle flashes",
+        "body": "主炮／敵炮火光為 0.18 秒、機槍每發 0.07 秒共同遊戲時間；短促暖橙與亮黃白加色星芒讀實際炮口 anchor。玩家主炮／敵炮／機槍大小為 0.6／0.85／0.22 世界單位；與彈道、曳光及命中分開，保留深度遮擋及 HUD／準星。暫停凍結，換局與資源釋放清除。",
+        "section": "motion"
       }
     ],
     "dos": [

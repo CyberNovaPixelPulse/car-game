@@ -1,6 +1,10 @@
-import { LAST_SEEN_SECONDS, ENEMY_RULES } from "./tank-settings";
+import {
+  LAST_SEEN_SECONDS,
+  ENEMY_RULES,
+  FIRING_FEEDBACK,
+} from "./tank-settings";
 import { smokeBlocks, type SmokeCloud } from "./tank-smoke";
-import { boxHit, type EnemyTarget } from "./tank-weapons";
+import { boxHit, createEnemyTarget, type EnemyTarget } from "./tank-weapons";
 
 export { LAST_SEEN_SECONDS } from "./tank-settings";
 export const ENEMY_LABELS = {
@@ -191,6 +195,7 @@ export function stepEnemies(
       // Commit to the announced heading. A moving crew can leave the shot line.
       const dx = Math.sin(e.turretYaw),
         dz = -Math.cos(e.turretYaw);
+      e.flashUntil = now + FIRING_FEEDBACK.cannon;
       b.projectiles.push({
         id: ++b.shots,
         // Sweep from the firing hull: a muzzle projecting past a nearby wall must not skip it.
@@ -263,24 +268,12 @@ export function createWaveTargets(wave: number, now: number): EnemyTarget[] {
         ];
   return positions.map(([x, z], index) => {
     const kind = wave === 3 && index === 3 ? "tiger" : "panzer";
-    return {
-      id: wave * 100 + index,
+    return createEnemyTarget(
+      kind,
+      wave * 100 + index,
       x,
       z,
-      width: kind === "tiger" ? 3.7 : 3.2,
-      height: kind === "tiger" ? 3.2 : 3,
-      depth: kind === "tiger" ? 6 : 5.5,
-      hp: ENEMY_RULES.hp[kind],
-      maxHp: ENEMY_RULES.hp[kind],
-      kind,
-      yaw: Math.PI,
-      turretYaw: Math.PI,
-      phase: "approaching",
-      lastSeenX: 0,
-      lastSeenZ: 0,
-      lastSeenAt: -100,
-      readyAt: now + ENEMY_RULES.spawnGrace,
-      fireAt: 0,
-    };
+      now + ENEMY_RULES.spawnGrace,
+    );
   });
 }

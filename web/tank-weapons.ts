@@ -4,6 +4,7 @@ import {
   SHELL_DAMAGE,
   BALLISTICS,
   ENEMY_RULES,
+  FIRING_FEEDBACK,
 } from "./tank-settings";
 export { SHELL_DAMAGE } from "./tank-settings";
 import { SMOKE_RADIUS, SMOKE_SECONDS, type SmokeCloud } from "./tank-smoke";
@@ -60,6 +61,7 @@ export interface EnemyTarget {
   lastSeenAt: number;
   readyAt: number;
   fireAt: number;
+  flashUntil: number;
 }
 export interface WeaponState {
   mode: "loading" | "machine-gun";
@@ -69,6 +71,7 @@ export interface WeaponState {
     heat: number;
     coolUntil: number;
     nextShot: number;
+    flashUntil: number;
     shots: number;
     tracers: {
       id: number;
@@ -89,6 +92,7 @@ export interface WeaponState {
   loadProgress: number;
   ejectAt: number;
   shotsFired: number;
+  flashUntil: number;
   randomState: number;
   jamChecked: boolean;
   jamPending: boolean;
@@ -125,6 +129,65 @@ interface Cover {
   depth: number;
   height: number;
 }
+/** Shared first-wave/reinforcement shape; callers own spawn positions and grace deadlines. */
+export function createEnemyTarget(
+  kind: EnemyTarget["kind"],
+  id: number,
+  x: number,
+  z: number,
+  readyAt: number,
+): EnemyTarget {
+  return {
+    id,
+    x,
+    z,
+    kind,
+    width: kind === "tiger" ? 3.7 : 3.2,
+    height: kind === "tiger" ? 3.2 : 3,
+    depth: kind === "tiger" ? 6 : 5.5,
+    hp: ENEMY_RULES.hp[kind],
+    maxHp: ENEMY_RULES.hp[kind],
+    yaw: Math.PI,
+    turretYaw: Math.PI,
+    phase: "approaching",
+    lastSeenX: 0,
+    lastSeenZ: 0,
+    lastSeenAt: -100,
+    readyAt,
+    fireAt: 0,
+    flashUntil: 0,
+  };
+}
+
+/** Strict nearest segment hit. Cover wins ties; callers retain ground/range limits and damage. */
+export function nearestHostileHit(
+  from: number[],
+  to: number[],
+  cover: readonly Cover[],
+  targets: readonly EnemyTarget[],
+  initialFraction: number,
+) {
+  let fraction = initialFraction;
+  let target: EnemyTarget | undefined;
+  for (const candidate of [...cover, ...targets.filter((t) => t.hp > 0)]) {
+    const hit = boxHit(
+      from,
+      to,
+      [candidate.x - candidate.width / 2, 0, candidate.z - candidate.depth / 2],
+      [
+        candidate.x + candidate.width / 2,
+        candidate.height,
+        candidate.z + candidate.depth / 2,
+      ],
+    );
+    if (hit !== undefined && hit < fraction) {
+      fraction = hit;
+      target = "hp" in candidate ? (candidate as EnemyTarget) : undefined;
+    }
+  }
+  return { fraction, target };
+}
+
 export function createWeaponState(seed = 1): WeaponState {
   return {
     mode: "loading",
@@ -134,6 +197,7 @@ export function createWeaponState(seed = 1): WeaponState {
       heat: 0,
       coolUntil: 0,
       nextShot: 0,
+      flashUntil: 0,
       shots: 0,
       tracers: [],
     },
@@ -145,6 +209,7 @@ export function createWeaponState(seed = 1): WeaponState {
     loadProgress: 0,
     ejectAt: 0,
     shotsFired: 0,
+    flashUntil: 0,
     randomState: seed >>> 0,
     jamChecked: false,
     jamPending: false,
@@ -160,44 +225,8 @@ export function createWeaponState(seed = 1): WeaponState {
     projectiles: [],
     impacts: [],
     targets: [
-      {
-        id: 1,
-        x: 0,
-        z: -13,
-        width: 3.2,
-        height: 3,
-        depth: 5.5,
-        hp: ENEMY_RULES.hp.panzer,
-        maxHp: ENEMY_RULES.hp.panzer,
-        kind: "panzer",
-        yaw: Math.PI,
-        turretYaw: Math.PI,
-        phase: "approaching",
-        lastSeenX: 0,
-        lastSeenZ: 0,
-        lastSeenAt: -100,
-        readyAt: ENEMY_RULES.spawnGrace,
-        fireAt: 0,
-      },
-      {
-        id: 2,
-        x: 4,
-        z: -29,
-        width: 3.7,
-        height: 3.2,
-        depth: 6,
-        hp: ENEMY_RULES.hp.tiger,
-        maxHp: ENEMY_RULES.hp.tiger,
-        kind: "tiger",
-        yaw: Math.PI,
-        turretYaw: Math.PI,
-        phase: "approaching",
-        lastSeenX: 0,
-        lastSeenZ: 0,
-        lastSeenAt: -100,
-        readyAt: ENEMY_RULES.initialTigerGrace,
-        fireAt: 0,
-      },
+      createEnemyTarget("panzer", 1, 0, -13, ENEMY_RULES.spawnGrace),
+      createEnemyTarget("tiger", 2, 4, -29, ENEMY_RULES.initialTigerGrace),
     ],
   };
 }
@@ -207,6 +236,7 @@ export function fireWeapon(w: WeaponState, pose: GunPose, now: number) {
   const dy = Math.sin(pose.pitch);
   const dz = -Math.cos(pose.yaw) * Math.cos(pose.pitch);
   w.shotsFired++;
+  w.flashUntil = now + FIRING_FEEDBACK.cannon;
   w.projectiles.push({
     shell: w.chamberShell!,
     id: w.shotsFired,
@@ -335,20 +365,13 @@ export function stepWeapon(
     p.vy -= BALLISTICS.gravity * dt;
     p.age += dt;
     const to = [p.x, p.y, p.z];
-    let nearest = p.y <= 0 ? from[1] / (from[1] - p.y) : Infinity;
-    let target: EnemyTarget | undefined;
-    for (const c of [...cover, ...w.targets.filter((t) => t.hp > 0)]) {
-      const hit = boxHit(
-        from,
-        to,
-        [c.x - c.width / 2, 0, c.z - c.depth / 2],
-        [c.x + c.width / 2, c.height, c.z + c.depth / 2],
-      );
-      if (hit !== undefined && hit < nearest) {
-        nearest = hit;
-        target = "hp" in c ? (c as EnemyTarget) : undefined;
-      }
-    }
+    const { fraction: nearest, target } = nearestHostileHit(
+      from,
+      to,
+      cover,
+      w.targets,
+      p.y <= 0 ? from[1] / (from[1] - p.y) : Infinity,
+    );
     if (nearest <= 1) {
       const point = from.map((v, axis) => v + (to[axis] - v) * nearest);
       const damage = SHELL_DAMAGE[p.shell];
