@@ -119,6 +119,10 @@ export class GameRuntime<View> {
     this.held = 0;
     if (this.mode === "online" && this.session.isHost)
       this.core.input(this.session.slot, 0);
+    else if (this.mode === "online")
+      // A hidden tab may stop receiving animation frames. Release on the same
+      // reliable ordered channel now, without waiting for its next frame.
+      this.session.input(0);
   }
 
   frame(now: number): { participant: number; view: View } {

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { tankCrew } from "./tank-helpers";
+import { tankCrew, aimAtHeading } from "./tank-helpers";
 
 test("三位乘員看見同一個第一波與存活敵車數", async ({ browser }) => {
   const c = await tankCrew(browser);
@@ -12,7 +12,7 @@ test("三位乘員看見同一個第一波與存活敵車數", async ({ browser 
       await expect(page.getByTestId("wave-status")).toBeInViewport();
     }
     await c.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/wave-hud-loader.png",
+      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/wave-hud-loader.png",
     });
   } finally {
     await c.close();
@@ -75,7 +75,7 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
     await loadAndFire(c);
     // The remaining Tiger must actually move around the wall into the sight.
     await c.gunner.waitForTimeout(23000);
-    for (let i = 0; i < 3; i++) await c.gunner.keyboard.press("a");
+    await aimAtHeading(c.gunner, 320);
     await expect(c.gunner.getByTestId("turret-yaw-rate")).toHaveText("0.0°/s");
     await loadAndFire(c);
     await loadAndFire(c);
@@ -83,21 +83,8 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
       await expect(page.getByTestId("wave-status")).toHaveText(
         "第 2 / 3 波 · 存活敵車 3",
       );
-    for (let i = 0; i < 3; i++) await c.gunner.keyboard.press("d");
+    await aimAtHeading(c.gunner, 0);
     await expect(c.gunner.getByTestId("turret-yaw-rate")).toHaveText("0.0°/s");
-    async function turn(key: string, count: number) {
-      await expect(c.gunner.getByTestId("battle-result")).toBeHidden();
-      // Four rapid taps store more inertia than two separated pairs.
-      for (const taps of count === 4 ? [2, 2] : [count]) {
-        for (let i = 0; i < taps; i++) await c.gunner.keyboard.press(key);
-        await expect(c.gunner.getByTestId("turret-yaw-rate")).not.toHaveText(
-          "0.0°/s",
-        );
-        await expect(c.gunner.getByTestId("turret-yaw-rate")).toHaveText(
-          "0.0°/s",
-        );
-      }
-    }
     for (const wave of [2, 3]) {
       await loadAndFire(c, "1");
       // A real HE hit damages all three approaching tanks in this formation.
@@ -112,19 +99,19 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
         expect(hp.every((value) => value < 200)).toBe(true);
       }
       await loadAndFire(c, "1");
-      await turn("d", 2);
+      await aimAtHeading(c.gunner, 16);
       await loadAndFire(c);
-      await turn("a", 4);
+      await aimAtHeading(c.gunner, 344);
       await loadAndFire(c);
       if (wave === 2) {
         for (const page of [c.driver, c.loader, c.gunner])
           await expect(page.getByTestId("wave-status")).toHaveText(
             "第 3 / 3 波 · 存活敵車 4",
           );
-        await turn("d", 2);
+        await aimAtHeading(c.gunner, 0);
       } else {
-        await turn("d", 2);
-        await turn("a", 3);
+        await aimAtHeading(c.gunner, 0);
+        await aimAtHeading(c.gunner, 320);
         await loadAndFire(c);
         await loadAndFire(c);
       }
@@ -145,10 +132,10 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
       await expect(page.getByTestId("tank-health")).toBeInViewport();
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({
-        path: `/tmp/car-game-to-spec/visual27-final/victory-${role}-1280.png`,
+        path: `/tmp/car-game-spec30/evidence/32/regression/visual27-final/victory-${role}-1280.png`,
       });
       await page.screenshot({
-        path: `/tmp/car-game-to-spec/visual27-final/victory-${role}-1280-full.png`,
+        path: `/tmp/car-game-spec30/evidence/32/regression/visual27-final/victory-${role}-1280-full.png`,
         fullPage: true,
       });
     }
@@ -166,7 +153,7 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
     "loader",
     0,
     1000,
-    "/tmp/car-game-to-spec/visual27-final/replay-videos",
+    "/tmp/car-game-spec30/evidence/32/regression/visual27-final/replay-videos",
   );
   try {
     await c.loader.keyboard.press("2");
@@ -199,10 +186,10 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
       await page.setViewportSize({ width: 1280, height: 720 });
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({
-        path: `/tmp/car-game-to-spec/visual27-final/defeat-${role}.png`,
+        path: `/tmp/car-game-spec30/evidence/32/regression/visual27-final/defeat-${role}.png`,
       });
       await page.screenshot({
-        path: `/tmp/car-game-to-spec/visual27-final/defeat-${role}-full.png`,
+        path: `/tmp/car-game-spec30/evidence/32/regression/visual27-final/defeat-${role}-full.png`,
         fullPage: true,
       });
     }
@@ -238,10 +225,10 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
       await expect(page.getByTestId("room-code")).toBeInViewport();
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({
-        path: `/tmp/car-game-to-spec/visual27-final/return-${role}-1280.png`,
+        path: `/tmp/car-game-spec30/evidence/32/regression/visual27-final/return-${role}-1280.png`,
       });
       await page.screenshot({
-        path: `/tmp/car-game-to-spec/visual27-final/return-${role}-1280-full.png`,
+        path: `/tmp/car-game-spec30/evidence/32/regression/visual27-final/return-${role}-1280-full.png`,
         fullPage: true,
       });
     }
@@ -276,7 +263,7 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
     ).toBeDisabled();
     await c.driver.getByRole("button", { name: "準備", exact: true }).click();
     await host.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/swapped-crew-ready.png",
+      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/swapped-crew-ready.png",
     });
     await host.getByRole("button", { name: "開始戰鬥", exact: true }).click();
     for (const page of [c.loader, c.driver, c.gunner]) {
@@ -305,7 +292,7 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
       [c.gunner, "loader"],
     ] as const)
       await page.screenshot({
-        path: `/tmp/car-game-to-spec/visual27-final/new-round-${role}.png`,
+        path: `/tmp/car-game-spec30/evidence/32/regression/visual27-final/new-round-${role}.png`,
       });
     // The swapped roles really work in the new round.
     await newLoader.keyboard.down("r");

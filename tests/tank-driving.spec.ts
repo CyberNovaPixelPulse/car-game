@@ -20,9 +20,17 @@ test("非房主駕駛從受限裝甲觀察窗操控同車，裝填手仍留在�
     await expect(
       crew.loader.getByRole("img", { name: "車內炮膛與彈藥架" }),
     ).toBeVisible();
-    await crew.gunner.keyboard.down("w");
-    await crew.gunner.waitForTimeout(500);
-    await crew.gunner.keyboard.up("w");
+    await crew.gunner.keyboard.down("ArrowUp");
+    await expect
+      .poll(async () =>
+        Number(
+          (await crew.gunner
+            .getByTestId("turret-pitch")
+            .textContent())!.replace("°", ""),
+        ),
+      )
+      .toBeGreaterThan(5);
+    await crew.gunner.keyboard.up("ArrowUp");
     await expect(crew.driver.getByTestId("tank-speed")).toHaveText("0.0");
     const before = await crew.driver
       .getByRole("img", { name: "駕駛裝甲觀察窗" })

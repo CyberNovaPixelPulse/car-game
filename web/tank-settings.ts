@@ -15,10 +15,9 @@ export const DRIVING = {
   turnAcceleration: 1.4,
 } as const;
 export const AIMING = {
-  impulse: 0.18,
+  rampSeconds: 0.5,
   maxYawRate: 0.85,
   maxPitchRate: 0.5,
-  drag: 0.23,
   minPitch: -0.18,
   maxPitch: 0.5,
 } as const;
