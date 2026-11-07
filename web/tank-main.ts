@@ -1,4 +1,4 @@
-import { TANK_RULES, RECONNECT_GRACE_MS } from "./tank-settings";
+import { TANK_RULES, RECONNECT_GRACE_MS, REPAIR_RULES } from "./tank-settings";
 import { smokeBlocks, smokeSight } from "./tank-smoke";
 import { ENEMY_LABELS } from "./tank-enemies";
 import { MG_FIRE } from "./tank-machine-gun";
@@ -327,7 +327,24 @@ function station(room: Room) {
       content.querySelector<HTMLElement>(".interior-viewport")!;
     interiorViewport.insertAdjacentHTML(
       "beforeend",
-      `<section class="repair-workspace" aria-label="車內維修" hidden><h3>車體維修</h3><p class="repair-readout" data-testid="repair-status" role="status"></p><p>停車並停止轉向，按住 <kbd>R</kbd> 維修</p><p>每秒回復 2 HP · 不需耗材 · 上限 100 HP</p><p class="repair-controls">按住 <kbd>C</kbd> 蹲下避殼 · <kbd>Tab</kbd> 返回裝填</p></section>`,
+      `<section class="repair-workspace" aria-label="車內維修" hidden>
+        <h3>車體維修</h3>
+        <p class="repair-readout" data-testid="repair-status" role="status"></p>
+        <p class="repair-requirements">停車並停止轉向，按住 <kbd>R</kbd> 維修</p>
+        <p class="repair-requirements">每秒回復 2 HP · 不需耗材 · 上限 100 HP</p>
+        <div class="repair-calibration" data-testid="repair-calibration" role="group" aria-label="維修時機校準" hidden>
+          <svg viewBox="0 0 200 200" aria-hidden="true">
+            <circle class="calibration-track" cx="100" cy="100" r="76"/>
+            <circle class="calibration-zone" cx="100" cy="100" r="76" pathLength="1"/>
+            <circle class="calibration-perfect" cx="100" cy="100" r="76" pathLength="1"/>
+            <line class="calibration-needle" x1="100" y1="110" x2="100" y2="16"/>
+            <circle class="calibration-hub" cx="100" cy="100" r="5"/>
+          </svg>
+          <p>按住 <kbd>R</kbd> 維修 · <kbd>空白鍵</kbd> 校準</p>
+          <p class="calibration-position" data-testid="repair-calibration-position"></p>
+        </div>
+        <p class="repair-controls">按住 <kbd>C</kbd> 蹲下避殼 · <kbd>Tab</kbd> 返回裝填</p>
+      </section>`,
     );
     try {
       if (ready && prepared?.interior && prepared.interiorCanvas) {
@@ -469,6 +486,29 @@ core.present = (state) => {
       .filter((e) => e.hp > 0 && e.phase === "warning" && !obscured(e))
       .map((e) => `${ENEMY_LABELS[e.kind]} 正在瞄準，即將開火！移動或尋找掩護`)
       .join("；");
+  const calibration = state.repair.calibration;
+  const calibrationMessages = {
+    idle: "",
+    active: `維修校準中${calibration.suspended ? "・重新按住 R 續接" : ""}`,
+    success: "校準成功・額外 +1 HP",
+    perfect: "完美校準・額外 +3 HP",
+    failed:
+      state.time < state.repair.failureUntil
+        ? "校準失敗・停修兩秒"
+        : "上次校準失敗・停修已結束",
+  };
+  const calibrationResult = content.querySelector<HTMLElement>(
+    '[data-testid="repair-calibration-result"]',
+  )!;
+  calibrationResult.hidden = calibration.result === "idle";
+  calibrationResult.querySelector(".calibration-result-message")!.textContent =
+    calibrationMessages[calibration.result];
+  // The visible shared needle is useful crew information. Keep rapid degree
+  // updates outside the live status so assistive tech announces each result once.
+  calibrationResult.querySelector(".calibration-shared-needle")!.textContent =
+    calibration.result === "active"
+      ? `・指針 ${((calibration.elapsed / REPAIR_RULES.calibrationDuration) * 360).toFixed(0)}°`
+      : "";
   const weapon = state.weapon;
   const stunned = state.time < weapon.stunnedUntil;
   if (stationRole === "loader") {
@@ -491,13 +531,42 @@ core.present = (state) => {
       weapon.mode === "machine-gun";
     content.querySelector<HTMLElement>(".repair-workspace")!.hidden =
       weapon.mode !== "repair";
+    const calibrationPanel = content.querySelector<HTMLElement>(
+      '[data-testid="repair-calibration"]',
+    )!;
+    calibrationPanel.hidden = calibration.result !== "active";
+    const target = calibration.target * 360;
+    const width = REPAIR_RULES.calibrationWidth * 360;
+    const perfectWidth = REPAIR_RULES.perfectWidth * 360;
+    const perfectStart = target + (width - perfectWidth) / 2;
+    const needle =
+      (calibration.elapsed / REPAIR_RULES.calibrationDuration) * 360;
+    calibrationPanel.querySelector<SVGElement>(
+      ".calibration-zone",
+    )!.style.strokeDasharray = `${REPAIR_RULES.calibrationWidth} 1`;
+    calibrationPanel.querySelector<SVGElement>(
+      ".calibration-zone",
+    )!.style.transform = `rotate(${target - 90}deg)`;
+    calibrationPanel.querySelector<SVGElement>(
+      ".calibration-perfect",
+    )!.style.strokeDasharray = `${REPAIR_RULES.perfectWidth} 1`;
+    calibrationPanel.querySelector<SVGElement>(
+      ".calibration-perfect",
+    )!.style.transform = `rotate(${perfectStart - 90}deg)`;
+    calibrationPanel.querySelector<SVGElement>(
+      ".calibration-needle",
+    )!.style.transform = `rotate(${needle}deg)`;
+    calibrationPanel.querySelector(
+      '[data-testid="repair-calibration-position"]',
+    )!.textContent =
+      `指針 ${needle.toFixed(0)}° · 目標 ${target.toFixed(0)}°–${(target + width).toFixed(0)}° · 完美 ${perfectStart.toFixed(0)}°–${(perfectStart + perfectWidth).toFixed(0)}°`;
     const repairMessages = {
       inactive: "切換維修模式開始工作",
       destroyed: "坦克已毀・無法維修復活",
       stunned: "彈殼命中・暈眩中無法維修",
       crouching: "蹲下避險・暫停維修",
       moving: "停車並停止轉向後才能維修",
-      waiting: `受擊等待・${Math.max(0, state.repair.blockedUntil - state.time).toFixed(1)} 秒後可維修`,
+      waiting: `${state.repair.failureUntil > state.battle.lastHitAt + REPAIR_RULES.damageWait ? "校準失敗等待" : "受擊等待"}・${Math.max(0, state.repair.blockedUntil - state.time).toFixed(1)} 秒後可維修`,
       full: "車體完好・100 / 100 HP",
       ready: "已停穩・按住 R 維修",
       repairing: "維修中・每秒回復 2 HP",

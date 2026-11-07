@@ -3,6 +3,14 @@ export const TANK_RULES = { maxHp: 100, waves: 3 } as const;
 export const REPAIR_RULES = {
   hpPerSecond: 2,
   damageWait: 3,
+  calibrationMinWork: 3,
+  calibrationWorkRange: 3,
+  calibrationDuration: 2,
+  calibrationWidth: 0.25,
+  perfectWidth: 0.06,
+  successHp: 1,
+  perfectHp: 3,
+  failureWait: 2,
   stoppedSpeed: 0.01,
   stoppedTurnRate: 0.01,
 } as const;

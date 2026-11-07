@@ -26,7 +26,7 @@ WEB_PORT=5054 PEER_PORT=5055 TANK_NATIVE_BROWSER=1 TANK_THREE_BROWSERS=1 TANK_EV
 
 最終完整批次須全數執行，不以舊票各批通過相加代替新來源整合通過。保留原始失敗與重試紀錄，不能放寬產品限值製造綠燈。視覺驗收包含 1280×720 各職位戰鬥／結算／返回、1440×1050、390 入口；駕駛依 #30／#31 使用固定車頭、水平約 60°且垂直狹窄的裝甲觀察窗，須檢查實際開口、厚度與場景移動，不只檢查 canvas；不使用隱藏敵座標。裝填模式只顯示車內。截圖須開啟確認；音訊、FPS 與部署狀態各按實際證據描述。
 
-#39 新增 `tank-repair` 與 `tank-repair-lifecycle`：以普通敵彈先造成損傷，再用 R、Tab、C 與駕駛鍵驗證維修、限制、三方一致、HP0 不復活及同房換職。修理狀態與工作介面見 `docs/tank-repair.md`；校準由 #40 另行接上。原機槍、車內與煙幕案例已更新為三模式的 Tab 次序，不再假設機槍後直接返回裝填。
+#39 新增 `tank-repair` 與 `tank-repair-lifecycle`：以普通敵彈先造成損傷，再用 R、Tab、C 與駕駛鍵驗證維修、限制、三方一致、HP0 不復活及同房換職。修理狀態與工作介面見 `docs/tank-repair.md`；`tank-repair-calibration` 由真實敵彈、可見圓形／角度與 HP 驗證一般／完美獎勵、完整兩秒漏按、各類工作中斷、等待重疊及原位重連，與武器卡彈使用分開狀態。原機槍、車內與煙幕案例已更新為三模式的 Tab 次序，不再假設機槍後直接返回裝填。
 
 #36 的 `tank-navigation` 使用真正三人連線、W 行駛至固定石牆、D 原地轉向及方向鍵長按轉砲，直接觀察可見 SVG 的位置／方向與原有 HUD。SVG 的變換就是實際繪圖，不是隱藏座標鏡像；純垂直的主炮線幾何寬度為零，須檢查實際描邊及截圖，不能只靠框尺寸判斷可見。全角色、裝填手三種工作及兩種桌機尺寸另留首屏截圖；地圖行為見 `docs/tank-navigation.md`。本票局部結果不能代替整合後完整批次。
 
@@ -35,3 +35,5 @@ WEB_PORT=5054 PEER_PORT=5055 TANK_NATIVE_BROWSER=1 TANK_THREE_BROWSERS=1 TANK_EV
 #34 的 `tests/tank-fullscreen.spec.ts` 使用各自可信點擊及鍵盤 Esc／Space，觀察公開 `document.fullscreenElement`、完整場景／HUD／小地圖、切換後實際轉砲／裝填、三種工作與暫停／結算／回房重玩／離房。瀏覽器不可用路徑由真實 `Permissions-Policy: fullscreen=()` 回應驗證；被攔截的本機測試文件另外授予該暫時 context 的 `local-network-access`，讓 Chromium 能使用本機 PeerServer，沒有修改正式產品的網路設定。
 
 `tests/tank-fullscreen-native.spec.ts` 是明確啟動的補驗，預設略過。`TANK_BROWSER_ESCAPE=1` 以 headed 瀏覽器可信鍵盤事件驗證 Esc 與立即操作；`TANK_NATIVE_ESCAPE=1` 使用 macOS System Events，只向本次測試瀏覽器的公開 CDP 程序 ID 發送原生 Esc；`TANK_CUA_ESCAPE=1` 留下 `native-ready.json`，供電腦控制工具對該測試視窗正常按 Esc。原生 OS／CUA 需要已解鎖的 Mac；邏輯 `document.hasFocus()` 不證明鎖定桌面上的實體按鍵已送達。補驗保留事件可信度觀察，從不替換全螢幕 API。三個 context 與三台電腦、瀏覽器可信事件與 OS 原生輸入須按實際證據分別描述。
+
+校準的瀏覽器崩潰案例是外部 renderer 故障補驗：不呼叫遊戲規則，只確認失聯被權威偵測前繼續正常結算、缺員暫停後凍結。它不代表一般鍵盤操作，也不宣稱 Playwright 能對已崩潰 Page 自動重載；正常離頁／回同一分頁另行驗證原職位重連。
