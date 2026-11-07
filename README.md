@@ -33,3 +33,5 @@
 本機完整 Chromium 可明確選用 `TANK_NATIVE_BROWSER=1 npm test`；它啟用完整 Chromium、保留 sandbox 並移除預設 unsafe SwiftShader，沒有放寬瀏覽器安全性。預設仍使用 Playwright 標準設定。這是測試環境選項，不是 FPS 保證。詳細驗證、三獨立瀏覽器及證據指令見 [測試說明](docs/testing.md)。
 
 目前為使用者接受的簡化二戰程序外觀；不是原先寫實材質標準已通過。模型、地形為原創幾何，本機 CC0 材質出處與雜湊見 [素材來源](public/art/README.md)、[車內來源](public/assets/interior/sources.json)。設計見 [DESIGN.md](DESIGN.md)，規則起始值見 [平衡設定](docs/tank-balance.md)。
+
+戰鬥採全頁場景與角落 HUD，大廳維持手冊風格；HUD／工作面與後續顯示功能接點見 [戰鬥頁面](docs/tank-hud.md)。
