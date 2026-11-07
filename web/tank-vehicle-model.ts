@@ -503,12 +503,15 @@ export class VehicleModel {
       roofY,
       -0.02,
     );
+    const capCentreY = roofY + 0.115;
+    const capThickness = 0.045;
+    const capTopY = capCentreY + capThickness / 2;
     part(
       this.turret,
-      new THREE.CylinderGeometry(0.32, 0.32, 0.045, 16),
+      new THREE.CylinderGeometry(0.32, 0.32, capThickness, 16),
       worn,
       cupolaX,
-      roofY + 0.115,
+      capCentreY,
       -0.02,
     );
     for (let i = 0; i < 6; i++) {
@@ -573,22 +576,38 @@ export class VehicleModel {
         sherman ? 2.15 : 1.91,
         -1.87,
       );
+      // Seat the lamp against the actual sloped front plate, not ahead of it.
+      const lampY = 1.55;
+      const frontPlateZ =
+        -(this.length - 0.12) / 2 +
+        (sherman ? 1.04 : 0.28) *
+          ((lampY - 1.05) / ((sherman ? 1.98 : 1.72) - 1.05));
+      const lampX = side * (sherman ? 0.92 : 0.97);
+      if (sherman)
+        part(
+          this.root,
+          armour(0.15, 0.12, 0.12, 0.015),
+          steel,
+          lampX,
+          lampY - 0.06,
+          frontPlateZ - 0.02,
+        );
       const lamp = part(
         this.root,
         new THREE.CylinderGeometry(0.095, 0.095, 0.14, 10),
         paint,
-        side * 0.97,
-        1.55,
-        -this.length / 2 + 0.28,
+        lampX,
+        lampY,
+        frontPlateZ - 0.06,
       );
       lamp.rotation.x = Math.PI / 2;
       const lens = part(
         this.root,
         new THREE.CircleGeometry(0.07, 10),
         worn,
-        side * 0.97,
-        1.55,
-        -this.length / 2 + 0.2,
+        lampX,
+        lampY,
+        frontPlateZ - 0.14,
       );
       lens.rotation.y = Math.PI;
       // Weld seams and local chipped edges follow plate joints rather than random noise.
@@ -670,9 +689,9 @@ export class VehicleModel {
         this.turret,
         new THREE.CylinderGeometry(0.022, 0.022, 0.024, 6),
         worn,
-        Math.sin(angle) * 0.35,
-        roofY + 0.135,
-        -0.02 + Math.cos(angle) * 0.35,
+        cupolaX + Math.sin(angle) * 0.26,
+        capTopY + 0.024 / 2 - 0.001,
+        -0.02 + Math.cos(angle) * 0.26,
       );
     }
     // Deck grille, stowage and exhaust distinguish the rear from the glacis.
