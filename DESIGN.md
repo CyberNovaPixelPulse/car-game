@@ -11,7 +11,6 @@ colors:
   rule: "#b3aa8f"
   ink-hover: "#36352d"
   ink-disabled: "#857f69"
-  mg-reticle: "#ede8c5"
   hud-background: "#171e1ce8"
   hud-foreground: "#f5f1e4"
   hud-muted: "#d2cbb4"
@@ -31,78 +30,126 @@ colors:
   ground-grass: "#7d8259"
   field-soil: "#8d805c"
   masonry: "#d2cbb4"
+  navigation-ground: "#60694e"
+  navigation-plough: "#55472f"
+  navigation-stubble: "#817348"
+  navigation-pasture: "#556342"
+  navigation-lane: "#a18e6b"
+  navigation-cover-outline: "#252a24"
+  navigation-gun: "#ffe4a3"
+  calibration-track: "#6f7970"
+  calibration-zone: "#d6c984"
+  calibration-perfect: "#fff8db"
 typography:
   plate-display:
-    fontFamily: '"Noto Serif TC", "Songti TC", serif'
+    fontFamily: "\"Noto Serif TC\", \"Songti TC\", serif"
     fontSize: "clamp(28px, 3.4vw, 40px)"
     fontWeight: 900
     letterSpacing: "0.06em"
   plate-headline:
-    fontFamily: '"Noto Serif TC", "Songti TC", serif'
+    fontFamily: "\"Noto Serif TC\", \"Songti TC\", serif"
     fontSize: "22px"
     fontWeight: 700
     letterSpacing: "0.04em"
   plate-role:
-    fontFamily: '"Noto Serif TC", "Songti TC", serif'
+    fontFamily: "\"Noto Serif TC\", \"Songti TC\", serif"
     fontSize: "23px"
     fontWeight: 700
     lineHeight: 1.3
   plate-room-code:
-    fontFamily: '"Noto Serif TC", "Songti TC", serif'
+    fontFamily: "\"Noto Serif TC\", \"Songti TC\", serif"
     fontSize: "44px"
     fontWeight: 900
     lineHeight: 1.2
     letterSpacing: "0.16em"
   plate-numeral:
-    fontFamily: '"Noto Serif TC", "Songti TC", serif'
+    fontFamily: "\"Noto Serif TC\", \"Songti TC\", serif"
     fontSize: "17px"
     fontWeight: 900
   station-title:
-    fontFamily: '"Noto Serif TC", "Songti TC", serif'
-    fontSize: "22px"
-    fontWeight: 900
-    letterSpacing: "0.06em"
-  station-title-driver:
-    fontFamily: '"Noto Serif TC", "Songti TC", serif'
+    fontFamily: "\"Noto Serif TC\", \"Songti TC\", serif"
     fontSize: "20px"
     fontWeight: 900
     letterSpacing: "0.06em"
+    lineHeight: 1.3
   station-readout:
-    fontFamily: '"Noto Serif TC", "Songti TC", serif'
+    fontFamily: "\"Noto Serif TC\", \"Songti TC\", serif"
     fontWeight: 700
     fontFeature: "tnum"
   driver-speed:
-    fontFamily: '"Noto Serif TC", "Songti TC", serif'
+    fontFamily: "\"Noto Serif TC\", \"Songti TC\", serif"
     fontSize: "32px"
-    fontWeight: 900
-    lineHeight: 1
+    fontWeight: 700
+    lineHeight: 1.1
     fontFeature: "tnum"
   driver-status:
-    fontFamily: '"PingFang TC", "Noto Sans TC", sans-serif'
+    fontFamily: "\"PingFang TC\", \"Noto Sans TC\", sans-serif"
     fontSize: "14px"
     fontWeight: 400
   plate-body:
-    fontFamily: '"PingFang TC", "Noto Sans TC", sans-serif'
+    fontFamily: "\"PingFang TC\", \"Noto Sans TC\", sans-serif"
     fontSize: "15px"
     lineHeight: 1.7
   plate-label:
-    fontFamily: '"PingFang TC", "Noto Sans TC", sans-serif'
+    fontFamily: "\"PingFang TC\", \"Noto Sans TC\", sans-serif"
     fontSize: "14px"
     lineHeight: 1.6
   plate-caption:
-    fontFamily: '"PingFang TC", "Noto Sans TC", sans-serif'
+    fontFamily: "\"PingFang TC\", \"Noto Sans TC\", sans-serif"
     fontSize: "13px"
     lineHeight: 1.6
   work-line:
-    fontFamily: '"PingFang TC", "Noto Sans TC", sans-serif'
+    fontFamily: "\"PingFang TC\", \"Noto Sans TC\", sans-serif"
     fontSize: "14px"
     lineHeight: 1.5
   work-readout:
-    fontFamily: '"PingFang TC", "Noto Sans TC", sans-serif'
-    fontSize: "16px"
+    fontFamily: "\"PingFang TC\", \"Noto Sans TC\", sans-serif"
+    fontSize: "14px"
   compact-control:
-    fontFamily: '"PingFang TC", "Noto Sans TC", sans-serif'
-    fontSize: "13px"
+    fontFamily: "\"PingFang TC\", \"Noto Sans TC\", sans-serif"
+    fontSize: "14px"
+    fontWeight: 700
+  plate-compact-code:
+    fontFamily: "\"Noto Serif TC\", \"Songti TC\", serif"
+    fontSize: "36px"
+    fontWeight: 900
+    lineHeight: 1.2
+    letterSpacing: "0.16em"
+  plate-action:
+    fontFamily: "\"PingFang TC\", \"Noto Sans TC\", sans-serif"
+    fontSize: "18px"
+    fontWeight: 700
+  crew-seat:
+    fontFamily: "\"Noto Serif TC\", \"Songti TC\", serif"
+    fontSize: "18px"
+    fontWeight: 900
+  station-speed:
+    fontFamily: "\"Noto Serif TC\", \"Songti TC\", serif"
+    fontSize: "22px"
+    fontWeight: 700
+    lineHeight: 1.2
+  station-health:
+    fontFamily: "\"Noto Serif TC\", \"Songti TC\", serif"
+    fontSize: "20px"
+    fontWeight: 900
+  battle-outcome:
+    fontFamily: "\"Noto Serif TC\", \"Songti TC\", serif"
+    fontSize: "28px"
+    fontWeight: 900
+    lineHeight: 1.3
+    letterSpacing: "0.06em"
+  work-heading:
+    fontFamily: "\"PingFang TC\", \"Noto Sans TC\", sans-serif"
+    fontSize: "22px"
+    fontWeight: 700
+    lineHeight: 1.3
+  work-emphasis:
+    fontFamily: "\"PingFang TC\", \"Noto Sans TC\", sans-serif"
+    fontSize: "18px"
+    fontWeight: 700
+  battle-small:
+    fontFamily: "\"PingFang TC\", \"Noto Sans TC\", sans-serif"
+    fontSize: "12px"
 rounded:
   plate: "0"
   seat-marker: "50%"
@@ -114,8 +161,9 @@ spacing:
   plate-shell: "48px"
   work-gap: "8px"
   station-edge: "12px"
-  station-column: "20px"
-  driver-column: "20px"
+  hud-edge: "16px"
+  hud-panel-x: "14px"
+  hud-panel-y: "12px"
 components:
   plate-button-primary:
     backgroundColor: "{colors.ink}"
@@ -177,24 +225,14 @@ components:
     textColor: "{colors.hud-foreground}"
     rounded: "{rounded.plate}"
     padding: "0"
-  station-plate-driver:
-    backgroundColor: "{colors.interior-background}"
-    textColor: "{colors.hud-foreground}"
-    rounded: "{rounded.plate}"
-    padding: "0"
   scene-figure:
     backgroundColor: "{colors.interior-background}"
     rounded: "{rounded.plate}"
-  scene-label:
-    backgroundColor: "{colors.hud-background}"
-    textColor: "{colors.hud-foreground}"
-    rounded: "{rounded.plate}"
-    padding: "0.3rem 0.6rem"
   mg-hud:
     backgroundColor: "{colors.hud-background}"
     textColor: "{colors.hud-foreground}"
     rounded: "{rounded.plate}"
-    padding: "8px 12px"
+    padding: "12px 14px"
   mg-hud-overheated:
     textColor: "{colors.hud-danger}"
   enemy-warning:
@@ -213,21 +251,61 @@ components:
     backgroundColor: "{colors.hud-danger}"
     width: "4px"
   battle-pause:
-    backgroundColor: "{colors.interior-background}"
+    backgroundColor: "{colors.hud-background}"
     textColor: "{colors.hud-foreground}"
     rounded: "{rounded.plate}"
-    padding: "1rem"
+    padding: "8px 12px"
   battle-result-failed:
     textColor: "{colors.hud-danger}"
   battle-result-won:
     textColor: "{colors.hud-foreground}"
   station-sound-on:
     backgroundColor: "{colors.hud-foreground}"
-    textColor: "{colors.hud-background}"
+    textColor: "{colors.interior-background}"
     rounded: "{rounded.plate}"
   driver-speed:
     textColor: "{colors.hud-foreground}"
     typography: "{typography.driver-speed}"
+  hud-panel:
+    backgroundColor: "{colors.hud-background}"
+    textColor: "{colors.hud-foreground}"
+    rounded: "{rounded.plate}"
+    padding: "12px 14px"
+  battle-button:
+    backgroundColor: "{colors.hud-background}"
+    textColor: "{colors.hud-foreground}"
+    typography: "{typography.compact-control}"
+    rounded: "{rounded.plate}"
+    padding: "8px 14px"
+  battle-button-hover:
+    backgroundColor: "{colors.interior-dark-paint}"
+  battle-button-pressed:
+    backgroundColor: "{colors.hud-foreground}"
+    textColor: "{colors.interior-background}"
+  battle-button-disabled:
+    backgroundColor: "{colors.interior-background}"
+    textColor: "{colors.hud-muted}"
+  battle-quality-select:
+    backgroundColor: "{colors.hud-background}"
+    textColor: "{colors.hud-foreground}"
+    rounded: "{rounded.plate}"
+    padding: "8px"
+  battle-navigation:
+    backgroundColor: "{colors.hud-background}"
+    textColor: "{colors.hud-foreground}"
+    typography: "{typography.battle-small}"
+    rounded: "{rounded.plate}"
+    width: "192px"
+  repair-workspace:
+    backgroundColor: "{colors.hud-background}"
+    textColor: "{colors.hud-foreground}"
+    rounded: "{rounded.plate}"
+    padding: "22px 24px"
+    width: "min(420px, calc(100% - 32px))"
+  repair-calibration:
+    size: "200px"
+  repair-calibration-compact:
+    size: "160px"
 ---
 
 # Design System: 三人坦克合作戰鬥
@@ -256,31 +334,36 @@ components:
 
 ## Colors
 
-紙上雙色印刷：一種墨、一種朱紅、三層紙；兩個表面相同。3D 材質基色另成一組，只作 renderer 輸入。
+大廳沿用雙色手冊印刷；戰鬥以深橄欖底、亮字、暖色敵情及低彩度地形建立獨立的操作層。上方 frontmatter 是實作值；下文名稱說明使用範圍。3D 材質基色另成一組，只作 renderer 輸入。
 
 ### Primary
 
-- **手冊墨**（ink）：線圖、2px 結構框與規線、正文、實心主按鈕、「他人已佔」座位記號；戰鬥中也是工作站框、場景外框、覆蓋層框線、進度條填色、卡彈目標區斜線與音效開關 pressed 底。主按鈕 hover 使用略淺的 ink-hover。
+- **手冊墨**（ink）：大廳線圖、結構框、正文、實心主按鈕與「他人已佔」座位記號。主按鈕 hover 使用略淺的 ink-hover；戰鬥只在砲手準星描邊保留此墨色。
 
 ### Secondary
 
-- **第二墨朱紅**（ink-red）：兩個表面共用的鍵盤焦點框、文字選取底色與輸入游標。大廳：只屬於「你」：你的座位記號、你已按下的職位、乘員表中你的名字與座位數字、「你已擔任」，以及房間代碼。戰鬥：只屬於現在的危險：敵方瞄準預告（紅字紅框）、受擊一秒內的受傷文字與 3px 外框、退殼警示、暈眩倒數與 4px 車內框、卡彈標題與指針、機槍過熱（框、字與熱量條），以及戰鬥失敗結果；駕駛座位圖例上的座位 1 沿用大廳「你」的語意。
+- **第二墨朱紅**（ink-red）：大廳中你的座位、職位選擇、名字與座位數字、房間代碼，以及手冊控制的鍵盤焦點、輸入游標與文字選取。戰鬥按鈕與選單使用 hud-danger 焦點，不把大廳朱紅直接套在深底 HUD。
+- **敵情與危險暖色**（hud-danger）：即時受擊、退殼、暈眩、卡彈、過熱及失敗；也是地圖敵車的識別色。目前觀測用實心方點，最後已知用空心方點並淡出，文字明示兩者狀態。
+- **主炮方向暖黃**（navigation-gun）：地圖的獨立細線，與亮紙色的車頭箭頭並列；兩者的幾何及文字圖例同樣重要。
+- **校準工作色**：calibration-track 是灰綠軌道；calibration-zone 是一般成功區的黃銅淺色；calibration-perfect 是其中更細、更亮的完美區。指針與中心點沿用 hud-foreground。這些色只服務車內時機判讀。
 
 ### Neutral
 
-- **三層手冊紙**：paper 是頁面底、空位記號、場景覆蓋標籤、卡彈軌與裝填手場景內結果層；paper-deep 是大廳右側面板，也是 3D canvas 繪出前看得到的場景底；paper-field 是輸入、hover、進度條槽、卡彈目標區斜線間隙、暫停底與砲手十字準星線色。
-- **淡墨與規線**：ink-soft 用於說明、圖說、欄位標頭、未準備狀態、駕駛「速度」標籤，以及已過一秒受擊窗口的受傷文字；rule 是 1px 列分隔線與裝填手武器狀態列上下線。ink-disabled 只用於停用按鈕文字，停用框線取 rule；停用按鈕不降透明度。
-- **機槍準星**（mg-reticle）：機槍外景中央 18px 圓形準星的 1px 線色；仍是戰鬥中唯一沿用舊淺色的介面元素，直接疊在明亮 3D 場景上。
+- **三層手冊紙**：paper 是大廳頁面底與空位記號；paper-deep 是右側面板；paper-field 是輸入與次要按鈕／職位列 hover。戰鬥不再用紙色鋪底。
+- **戰鬥深底與亮字**：hud-background 是近九成不透明的深橄欖底襯，hud-foreground 是主要文字、進度填色與兩種準星，hud-muted 是說明／已過受擊窗口的文字及控制邊線，hud-rule 是面板 hairline。interior-background 同時作場景載入前底色、進度槽及停用按鈕底；hover 使用 interior-dark-paint。
+- **淡墨與規線**：ink-soft 用於大廳說明、圖說、欄位標頭與未準備狀態；rule 是列分隔線與停用框。ink-disabled 只用於大廳停用按鈕文字，不降透明度。
+- **導航地形**：navigation-ground／plough／stubble／pasture／lane 分別表示底地、耕地、收割田、牧地與道路，保留低彩度土綠關係。固定掩體沿用 hud-muted 填色、navigation-cover-outline 描邊；地圖是地形示意，未增加裝飾性軍事符號。
+- **導航 fallback**：地圖比例文字的 CSS fallback `#d3d9c7` 只在 `--hud-muted` 缺失時生效；正常戰鬥實際使用 hud-muted。它不是新增的可見主題色，也不作新表面的預設。
 - **車內機械色**：interior-background 襯托 paint／dark-paint、裸鋼、深色機械、黃銅與橡膠；不把暗部照成第二個室外場景。
 - **外景材質基色**：Sherman 灰綠、Panzer／Tiger 沙土色，以及 earth／grass／field-soil／masonry 共同建立可辨識的簡化農村場景。3D 基色是材質輸入，不是最後畫面像素或歷史軍漆規格。
 
-**The Second Ink Rule.** 大廳朱紅只標示你的座位、選擇及房間代碼。戰鬥危險暖色只標示現在需要行動的狀態，並配合中文與數字；一般工作保持亮字。
+**The Second Ink Rule.** 大廳朱紅標示你的座位、選擇與房間代碼，並服務手冊焦點。戰鬥暖色用於危險和敵方聯絡的識別；用實心／空心、文字及數字區分即時與最後已知，不以色相單獨宣告正在受威脅。
 
 **The Danger Is Now Rule.** 受傷文字只在 `.under-fire` 受擊一秒內使用 hud-danger，之後回 hud-muted；機槍只有 `data-overheated` 使用危險色；失敗使用危險色，勝利用一般前景色。
 
 **The Role Truth Rule.** 視覺只呈現職位獲准知道的資訊；駕駛實際開口限制為水平 60°、垂直 16°，不自由轉頭。
 
-隊伍偵察由實際前窗／主炮／當前機槍外景共同提供，暖色方點標示觀測到的存活敵車。三方地圖、觀測數與敵情文字使用同份房主情報；車內模式只讀共享情報。未觀測敵車的血量、種類、階段及警示不顯示。方點沿用 hud-danger，己方箭頭及主炮細線保留原樣，避免只靠色彩區分。
+隊伍偵察由實際前窗／主炮／當前機槍外景共同提供，暖色方點標示已知的存活敵車；實心為目前觀測，空心為最後已知。三方地圖、觀測數與敵情文字使用同份房主情報；車內模式只讀共享情報。未觀測敵車的血量、種類、階段及警示不顯示。方點沿用 hud-danger，己方箭頭及主炮細線保留原樣，避免只靠色彩區分。
 
 ## Typography
 
@@ -292,19 +375,21 @@ components:
 ### Hierarchy
 
 - **Plate display**：大廳頁首 h1，900、流動字級、寬字距。
-- **Plate headline**：兩個表面的 h2 基礎與大廳 legend（與隊友集合、乘員集合、選擇你的職位）。
+- **Plate headline**：大廳 h2 與 legend（與隊友集合、乘員集合、選擇你的職位）。
 - **Plate role**：大廳可認領職位按鈕，下方 2px 墨線；主選單圖例職位名稱同明體 22px。
 - **Plate room code**：朱紅大字房間代碼；600px 以下 36px。
 - **Plate numeral**：座位記號與圖例圓圈內的 1／2／3；乘員表座位欄 18px。
-- **Station title**：砲手與裝填手工作站標題，明體 900、0.06em；駕駛為 20px（station-title-driver）。戰鬥結算 h2 同為明體 900、0.06em。
+- **Station title**：三個職位的左上標題統一採明體 900、行高 1.3；結算沿用同字重與字距，升為 battle-outcome。
 - **Station readout**：工作站內所有 strong 讀數（朝向、轉速、彈種、裝填進度、發射數、機槍熱度、暈眩倒數等）為明體 700、表格數字，字級沿用所在行；共用血量為 900、20px。
-- **Driver speed**：駕駛速度數字 32px／900、行高 1；其旁動態與車體狀態行為 14px 系統黑體（driver-status）。
+- **Driver speed**：駕駛速度數字為明體 700、行高 1.1；其餘職位速度使用 station-speed。動態與車體狀態是系統黑體（driver-status）。
 - **Plate body／label／caption**：大廳說明 15px、標籤與狀態 14px、圖說與欄位標頭 13px，皆系統黑體；表單 label 600。
 - **Work line**：砲手工作站直屬行與武器狀態列 14px、行高 1.5；機槍 HUD 14px、行高 1.5。退殼警示為 14px／700 黑體。
-- **Work readout**：砲手朝向讀數行 16px。
-- **Compact control**：戰鬥操作列 14px，最小高度 40px。
+- **Work readout**：朝向行與工作內文共用緊湊字級；strong 讀數切回明體，不能沿用舊版較大的朝向字級。
+- **Compact control**：全螢幕、音效、離開及畫質控制共用系統黑體字級；按鈕為 700 字重，原生 select 為一般字重；按鈕最小高度 40px，原生 select 最小高度 38px。
+- **Work heading／emphasis**：維修標題用系統黑體 700；維修狀態與卡彈標題使用 work-emphasis，不把每一則工作指令改成展示明體。
+- **Battle small**：導航標題、圖例、比例與精確校準角度的緊湊黑體。導航行高 1.4；校準角度沿用維修行高 1.6。高度不超過 800px 的活躍校準內文採 13px、行高 1.4，主讀數採 16px。
 
-**The Serif Is For Names And Numbers Rule.** 明體只用在標題、職位名稱、座位與讀數數字、房間代碼、駕駛狀態行與結算；說明、警示句與按鍵提示一律系統黑體。
+**The Serif Is For Names And Numbers Rule.** 明體用於手冊標題、職位名稱、座位、房間代碼與戰鬥 strong 讀數、職位標題及結算。說明、警示、維修標題／狀態與按鍵提示使用系統黑體；導航標題也保持黑體。
 
 ## Layout
 
@@ -312,7 +397,7 @@ components:
 
 **The Always Three Seats Rule.** 圖版、圖例與乘員表永遠呈現三個座位；人數不足時以「空位・等待隊友加入」列補齊，座位數字取自職位順序（1 駕駛、2 砲手、3 裝填手）。
 
-1000px 以下圖版改單欄，面板改上緣 2px 墨線。600px 以下主容器 20px 16px 32px、頁首單欄、圖區單欄、車體圖縮為 220px 置中並隱藏引線，圖例取消固定高度，乘員表欄寬縮為 32px 與 8px 欄距。390px 寬度仍明示需要三位玩家、三台電腦與實體鍵盤；這是窄桌機視窗，不是觸控設計。
+1000px 以下圖版改單欄，面板改上緣 2px 墨線；入口表單移到未認領的參考圖版之前。600px 以下主容器 20px 16px 32px、頁首單欄、圖區單欄、車體圖縮為 220px 置中並隱藏引線，圖例取消固定高度，乘員表欄寬縮為 32px 與 8px 欄距。390px 寬度仍明示需要三位玩家、三台電腦與實體鍵盤；這是窄桌機視窗，不是觸控設計。
 
 **共用戰鬥頁面。** `.battle-station` 高 100dvh、無外距內距或邊框，實際 canvas 從 (0,0) 延伸至頁面右下。左上 300px HUD 顯示職位、HP、波次、速度、車況、車頭及主炮方向；右上 `.battle-utility` 讓操作列換行後自然推移下方敵情，中央警示保留獨立欄位。右下 340px 工作區顯示彈藥、裝填、轉速或機槍熱度／冷卻與當前按鍵。HUD 外緣統一留 16px 安全距離，不需要頁面捲動。
 
@@ -320,15 +405,17 @@ components:
 
 **暫停、結算與返回。** 缺員提示保留等待對象、現實倒數與凍結語意，離房始終在右上。結算與回房接管中央，隱藏後方維修／卡彈工作面，HP 留在左上。回房恢復手冊版面。主選單、工作站、新大廳、結算與暫停只在轉場時回到頁首。
 
-桌機驗收為 1280×720 與 1440×1050；1000px 以下縮小 HUD 並調整警示，600px 以下保留主要工作與離房。390px 入口仍提示三台電腦與實體鍵盤，不宣稱觸控玩法。
+桌機驗收為 1280×720 與 1440×1050。本次 #33 加入的 1000px／600px 寬度區段含有緊縮 HUD 變數宣告，但其 `.battle-station` 選擇器優先度低於正式 battle 範圍的預設值，不能視為有效的欄寬／inset 切換規則。600px 以下另有可生效的面板內距、字級、警示位置及隱藏文字敵情處理。這些窄版退讓不代表已支援手機戰鬥；390px 入口仍提示三台電腦與實體鍵盤。這是已審查 1280／1440 寬度之外的現存 fallback 限制，於 documenter 接手版本已存在，但不在 2e2 美術基準；本次未改 CSS，也不把未生效值加入規範 token。
+
+**短桌機校準。** 高度不超過 800px 的活躍校準面板向下移 32px、內距收為 14px 18px，隱藏重複標題與基本維修條件段落，保留當前狀態、量表、精確角度及 R／空白鍵／C／Tab。量表收為 repair-calibration-compact，避開上方暫停及危險列；更高視窗保留完整標題與條件。
 
 ## Elevation & Depth
 
-HTML 保持平面。大廳以紙色與墨線分層；戰鬥以 #171e1c／91% 底襯、#f5f1e4 主文字、#d2cbb4 次文字、#858b79 的 1px 規線及 #ffba9f 危險色分層。不加入模糊、陰影或玻璃裝飾。受擊為頁面內側 3px 框、暈眩為車內 4px 框、暫停為 4px 雙線。
+HTML 保持平面。大廳以紙色與墨線分層；戰鬥以 hud-background 深底、hud-foreground 主文字、hud-muted 次文字、hud-rule 的 1px 規線及 hud-danger 狀態色分層。不加入模糊、陰影或玻璃裝飾。受擊為頁面內側 3px 框、暈眩為車內 4px 框、暫停為 4px 雙線。
 
 ### Shadow Vocabulary
 
-- **準星墨環**（`box-shadow: 0 0 0 1px #1c1c18`）：零位移、零模糊的 1px 墨色外環，只用在砲手十字準星的兩條 paper-field 細線，讓它在明亮與陰暗場景上都可讀。這是描邊，不是投影。
+- **準星墨環**（`box-shadow: 0 0 0 1px #1c1c18`）：零位移、零模糊的 1px 墨色外環，只用在砲手十字準星的兩條 hud-foreground 細線，讓它在明亮與陰暗場景上都可讀。這是描邊，不是投影。
 
 **The Ruled, Not Raised Rule.** 大廳以紙色分層，戰鬥以半透明深底與亮字分層；不用陰影或模糊，強調使用規線與明確文字。
 
@@ -340,7 +427,7 @@ HTML 保持平面。大廳以紙色與墨線分層；戰鬥以 #171e1c／91% 底
 
 ## Shapes
 
-所有按鈕、輸入、面板、工作站、場景框、覆蓋標籤、進度條與卡彈軌都是方角。圓形只出現在手冊圖版的編號記號（車體圖座位圓半徑 15、圖例 34px 編號圓圈）與機槍 18px 圓形準星。車體圖為線稿：左右履帶帶 14 組履帶節線、圓角車首、砲塔圓、主炮管、兩個前艙口（駕駛實線、副駕虛線）及艙間分隔虛線；圖說明示「示意，未依比例」。可認領職位以 2px 底線表示可按，已被他人擔任時底線消失。
+所有按鈕、輸入、面板、工作站、進度條與卡彈軌都是方角。圓形用於手冊圖版的編號記號（車體圖座位圓半徑 15、圖例 34px 編號圓圈）、機槍 18px 圓形準星與維修的精確時機量表；這些是有功能的幾何，並非圓角卡片語言。車體圖為線稿：左右履帶帶 14 組履帶節線、圓角車首、砲塔圓、主炮管、兩個前艙口（駕駛實線、副駕虛線）及艙間分隔虛線；圖說明示「示意，未依比例」。可認領職位以 2px 底線表示可按，已被他人擔任時底線消失。
 
 砲手準星由兩條 28px 亮色細線交叉，外加 1px 深色墨環。機槍為 18px 圓形準星。卡彈軌高 38px，目標區亮底深字、2px 線，指針寬 4px、危險暖色、1px 深色描邊。
 
@@ -372,6 +459,16 @@ Sherman 俯視線圖上的三個座位記號：空位為紙色填、墨框墨字
 
 右上提供每名玩家自己的進入／退出全螢幕。啟用狀態為亮底深字，hover 保留此對比；暫時停用為深底次文字，不沿用手冊的墨色停用字。退出提示或失敗恢復提示接在操作列下方，不擠進中央警示。完整工作站為全螢幕目標，包含小地圖、工作與返回控制。滑鼠啟用顯示／音效控制後焦點交回戰場，鍵盤啟用保留原生控制焦點；Esc 保留瀏覽器控制並可退出本機工作站。
 
+### 維修與圓形校準
+
+中央面板保持實際車內背景可見，以明確文字說明停穩、按住 R、目前修復／受擊等待／失敗等待／暈眩／蹲下／滿血狀態。校準 SVG 使用 200×200 viewBox、中心 (100,100)、半徑 76 的軌道；灰綠軌寬 13、一般目標寬 17、完美區寬 9、亮色指針寬 3，中心點半徑 5。工作回饋以文字顯示一般 +1、完美 +3 或失敗等待，不只換色。
+
+維修校準在既有中央車內工作面板呈現精確圓形量表：一般區 90°、內含較細亮色的 21.6° 完美區，順時針指針與角度文字讀同一份權威快照。一般／完美／失敗及暫停後重新按 R 的提示放在共用警示區，避免擠壓角落狀態；結算仍優先於中央維修與卡彈介面。短音由快照邊緣觸發，靜音時保留所有可見提示。
+
+### 共享導航與偵察
+
+北向固定的 SVG 地形示意在所有職位及裝填／機槍／維修模式共用同一位置。車頭是亮色箭頭、主炮是獨立暖黃細線；圖例以形狀和中文說明兩者。地形不隨鏡頭旋轉，固定掩體與權威場地一致。填實暖色方點是目前觀測，空心方點是最後已知；不能在車內憑空新增接觸。
+
 ### Motion, visibility and ownership
 
 敵情圖例維持單行，以實心點表示目前觀測、空心點表示最後已知。舊標記停在觀察位置，透明度隨五秒共同遊戲時間下降；HUD 同時標示最後已知數量及敵情的「幾秒前」，不顯示舊階段為當前警報。缺員暫停時點位、透明度與文字年齡一起停止。駕駛 720px 視窗的 160px 地圖與緊縮圖例仍留在觀察窗下方。
@@ -384,7 +481,9 @@ Sherman 俯視線圖上的三個座位記號：空位為紙色填、墨框墨字
 
 ### 驗證狀態
 
-#33 桌機、模式、警示與轉場證據依 `/tmp/car-game-spec30/reports/33.md` 的實際來源。先前 #31 的 720px 標題裁切與 #39 的 HP／傷害文字重疊是被替換的舊版問題，不繼承為新版通過證據。完整回歸、全螢幕與小地圖依後續整合驗證。
+這份紀錄由整合版本 `fc945735e4a072db64de39a6813932c0e0b427de` 的實作擷取，並對照獨立 finish reviewer 的 SHIP 畫面判定與 64 張必要截圖清單 `.impeccable/review/spec30/manifest.json`。畫面審查不等於執行期全套驗證；完整回歸數量與結果以 #41／PR #42 的最終證據為準，這裡不預先認證。此處也不認證實體 Esc／select 操作、人工音效聆聽、三台實體電腦、所有瀏覽器、FPS、部署或 main 合併。
+
+既有 CSS 前段仍有被 data-surface 規則覆蓋的暗色基礎、5px／8px 圓角及舊字級；本次未改寫，也不提升為新表面應繼承的 token。表面 brief 的大廳 FORM 與 seed 文字沿用已接受的美術基準；歷史 roll 機器紀錄目前不可取得，不能把本次 #30 的既有表面延伸宣稱為重新抽選的視覺世界。
 
 ### Art provenance
 
@@ -397,24 +496,23 @@ Sherman 俯視線圖上的三個座位記號：空位為紙色填、墨框墨字
 - Do 讓新介面元素待在 `data-surface` 範圍內，大廳用紙／墨 token，戰鬥用 hud token。
 - Do 讓座位記號、圖例與乘員表從同一份權威房間狀態產生，並永遠呈現三個座位。
 - Do 在大廳以墨線框結構與欄位，在戰鬥以 1px HUD 規線分隔；名稱與數字用 Noto Serif TC，說明用系統黑體。
-- Do 讓戰鬥危險色跟著即時狀態出現與消失，過去狀態回到一般或次要文字。
+- Do 讓危險警示跟著即時狀態出現與消失；最後已知敵情維持空心點、淡出與時間文字，避免看成當前威脅。
 - Do 讓戰鬥場景鋪滿頁面，把工作資訊與控制留在角落；中央只放當前車內工作或結算。
 - Do 在明體位置新增中文字串時，依字型 README 重新產生 Noto Serif TC 子集並更新雜湊。
 - Do 保留六個 Sherman 路輪、三組 VVSS 及三種車型的不同輪組、炮塔與炮長。
 - Do 讓實際貼圖、shader 編譯與首個 GPU draw 完成後才送出準備票，保留可見準備中與取消狀態。
 - Do 讓警示、暫停與結算文字和退出／返回操作保持可讀，並在靜音時保留可見危險提示。
+- Do 讓地圖與校準的幾何、文字和顏色共同表達狀態；暫停時讀共同遊戲時鐘，結算接管中央工作面。
 - Do 延續本機素材出處、授權及雜湊紀錄，模型與地景維持原創程序幾何。
 - Do 讓低草保持裝飾，石造掩體對齊權威碰撞盒，動畫只讀權威快照。
 
 ### Don't:
 
 - Don't 在大廳用朱紅表示一般狀態，或在戰鬥用危險色表示過去的傷害與勝利。
-- Don't 加入陰影、模糊、玻璃、圓角卡片、英雄插圖或角色卡；強調用更粗或雙墨線。
+- Don't 為 HTML 面板加入投影、模糊、玻璃、圓角卡片、英雄插圖或角色卡；強調用更粗或雙墨線。保留既有準星描邊與場景內的真實光影。
 - Don't 加入軍徽、部隊標誌或旗幟。
 - Don't 重新引入外部字型服務或系統內建的替代展示字體來取代自託管明體。
 - Don't 把接受的簡化外觀改述為原先偏寫實標準已通過，或新增未經要求的寫實重建義務。
 - Don't 讓駕駛裝甲窗口外洩漏視野、把機槍視角綁到主炮，或用美術改變碰撞、傷害與權威時鐘。
 - Don't 把博物館研究影像、材質色或光照資產說成掃描模型、歷史軍漆色號或諾曼第實景照片。
-- Don't 宣稱窄螢幕已有觸控玩法，或把此設計紀錄當作 FPS、音效聆聽、未截圖戰鬥狀態或完整 #27 驗證證書。
-
-維修校準在既有中央車內工作面板呈現精確圓形量表：一般區 90°、內含較細亮色的 21.6° 完美區，順時針指針與角度文字讀同一份權威快照。一般／完美／失敗及暫停後重新按 R 的提示放在共用警示區，避免擠壓角落狀態；結算仍優先於中央維修與卡彈介面。短音由快照邊緣觸發，靜音時保留所有可見提示。
+- Don't 宣稱窄螢幕已有觸控玩法，或把此設計紀錄當作 FPS、音效聆聽、未截圖狀態或完整執行期回歸的驗證證書。
