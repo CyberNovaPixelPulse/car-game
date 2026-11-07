@@ -70,7 +70,7 @@ typography:
     fontFamily: '"Noto Serif TC", "Songti TC", serif'
     fontSize: "32px"
     fontWeight: 900
-    lineHeight: 1.1
+    lineHeight: 1
     fontFeature: "tnum"
   driver-status:
     fontFamily: '"PingFang TC", "Noto Sans TC", sans-serif'
