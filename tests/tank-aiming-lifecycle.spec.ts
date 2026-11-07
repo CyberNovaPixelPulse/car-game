@@ -57,6 +57,23 @@ test("砲手離焦、缺員暫停與重新連線後不延續長按或自動開�
     await expect(rate).toHaveText("48.7°/s");
     await crew.driver.goto("about:blank");
     await expect(crew.gunner.getByTestId("battle-pause")).toBeVisible();
+    // The room notice and final authority snapshot travel separately. Establish
+    // the final visible paused compass value before checking an exact freeze.
+    let pausedHeading = "";
+    let stableReadings = 0;
+    await expect
+      .poll(
+        async () => {
+          const current = (await crew.gunner
+            .getByTestId("turret-heading")
+            .textContent())!;
+          stableReadings = current === pausedHeading ? stableReadings + 1 : 0;
+          pausedHeading = current;
+          return stableReadings;
+        },
+        { intervals: [50] },
+      )
+      .toBeGreaterThanOrEqual(2);
     const frozen = await crew.gunner
       .getByTestId("turret-heading")
       .textContent();
