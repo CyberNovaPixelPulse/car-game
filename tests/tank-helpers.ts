@@ -53,6 +53,32 @@ export async function observeTiger(c: { gunner: Page }) {
   );
 }
 
+/** Crew can report a bearing from the actual north-up map. These are the
+ * painted rect/arrow coordinates; no hidden world-state mirror is read. */
+export async function aimAtObservedEnemy(page: Page, label: string) {
+  const map = page.getByRole("img", { name: "北方固定朝上的戰場導航" });
+  await expect(
+    map.locator(`.navigation-enemy[aria-label="觀測敵車 ${label}"]`),
+  ).toHaveCount(1);
+  const bearing = await map.evaluate((svg, label) => {
+    const marker = svg.querySelector<SVGRectElement>(
+      `.navigation-enemy[aria-label="觀測敵車 ${label}"]`,
+    )!;
+    const player = svg
+      .querySelector(".navigation-player")!
+      .getAttribute("transform")!
+      .match(/-?[\d.]+/g)!
+      .map(Number);
+    const x = marker.x.baseVal.value + marker.width.baseVal.value / 2;
+    const z = marker.y.baseVal.value + marker.height.baseVal.value / 2;
+    return (
+      ((Math.atan2(x - player[0], -(z - player[1])) * 180) / Math.PI + 360) %
+      360
+    );
+  }, label);
+  await aimAtHeading(page, bearing);
+}
+
 /** Genuine browser key events, scheduled independently of protocol acknowledgement.
  * This keeps a rapid burst / 90ms rhythm rapid while screenshots stall individual RPCs.
  * Sessions are attached before navigation; no post-start warmup, DOM dispatch or clock hook.

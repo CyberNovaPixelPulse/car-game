@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { tankCrew, aimAtHeading } from "./tank-helpers";
+import {
+  tankCrew,
+  aimAtHeading,
+  observeTiger,
+  aimAtObservedEnemy,
+} from "./tank-helpers";
 
 test("三位乘員看見同一個第一波與目前觀測敵車數", async ({ browser }) => {
   const c = await tankCrew(browser);
@@ -22,6 +27,7 @@ test("三位乘員看見同一個第一波與目前觀測敵車數", async ({ br
 async function loadAndFire(
   c: Awaited<ReturnType<typeof tankCrew>>,
   shell = "2",
+  aim?: () => Promise<void>,
 ) {
   await c.loader.keyboard.press(shell);
   await c.loader.keyboard.down("r");
@@ -47,6 +53,7 @@ async function loadAndFire(
     await c.loader.waitForTimeout(30);
   }
   await c.loader.keyboard.up("r");
+  await aim?.();
   await c.loader.keyboard.down("c");
   await c.gunner.keyboard.press("Space");
   await expect
@@ -78,12 +85,12 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
         nodes.map((n) => n.getAttribute("data-contact")!),
       );
     await loadAndFire(c);
-    // The remaining Tiger must actually move around the wall into the sight.
-    await c.gunner.waitForTimeout(23000);
-    await aimAtHeading(c.gunner, 320);
+    // Observe its ordinary flank and report its actual map bearing. A fixed
+    // wait and stale 320° guess can waste the crew's remaining health.
+    await observeTiger(c);
     await expect(c.gunner.getByTestId("turret-yaw-rate")).toHaveText("0.0°/s");
-    await loadAndFire(c);
-    await loadAndFire(c);
+    await loadAndFire(c, "2", () => aimAtObservedEnemy(c.gunner, "虎式 I 型"));
+    await loadAndFire(c, "2", () => aimAtObservedEnemy(c.gunner, "虎式 I 型"));
     for (const page of [c.driver, c.loader, c.gunner])
       await expect(page.getByTestId("wave-status")).toHaveText(
         "第 2 / 3 波 · 目前觀測敵車 3",
@@ -120,10 +127,13 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
           );
         await aimAtHeading(c.gunner, 0);
       } else {
-        await aimAtHeading(c.gunner, 0);
-        await aimAtHeading(c.gunner, 320);
-        await loadAndFire(c);
-        await loadAndFire(c);
+        await observeTiger(c);
+        await loadAndFire(c, "2", () =>
+          aimAtObservedEnemy(c.gunner, "虎式 I 型"),
+        );
+        await loadAndFire(c, "2", () =>
+          aimAtObservedEnemy(c.gunner, "虎式 I 型"),
+        );
       }
     }
     for (const page of [c.driver, c.loader, c.gunner])
