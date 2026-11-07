@@ -1,16 +1,22 @@
+import { RECONNECT_GRACE_MS, TRANSPORT } from "./tank-settings";
+import { isCrewRole, type CrewRole } from "./crew";
 import Peer, { type DataConnection, type PeerOptions } from "peerjs";
 
-export const COLORS = ["#fc7039", "#765cd4", "#1ea1b3", "#efbb31", "#e1669f"];
 export interface Member {
   slot: number;
   name: string;
   connected: boolean;
+  role: CrewRole | null;
+  ready: boolean;
 }
 export interface Room {
   code: string;
   members: Member[];
-  phase: "lobby" | "racing" | "results";
+  phase: "lobby" | "battle" | "results";
+  game: "tank";
   epoch: string;
+  reconnectDeadline?: number;
+  notice?: string;
 }
 interface HostMember extends Member {
   token: string;
@@ -24,7 +30,7 @@ interface Credentials {
   token: string;
   epoch: string;
 }
-const storageKey = "pocket-circuit-seat-v1";
+
 const record = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null;
 const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -53,10 +59,16 @@ function validRoom(value: unknown): value is Room {
     !record(value) ||
     typeof value.code !== "string" ||
     !/^[A-Z2-9]{6}$/.test(value.code) ||
-    !["lobby", "racing", "results"].includes(String(value.phase)) ||
+    !["lobby", "battle", "results"].includes(String(value.phase)) ||
+    value.game !== "tank" ||
     typeof value.epoch !== "string" ||
+    (value.reconnectDeadline !== undefined &&
+      (typeof value.reconnectDeadline !== "number" ||
+        !Number.isFinite(value.reconnectDeadline))) ||
+    (value.notice !== undefined &&
+      (typeof value.notice !== "string" || value.notice.length > 200)) ||
     !Array.isArray(value.members) ||
-    value.members.length > 5
+    value.members.length > 3
   )
     return false;
   const slots = new Set<number>();
@@ -65,10 +77,12 @@ function validRoom(value: unknown): value is Room {
       !record(member) ||
       !Number.isInteger(member.slot) ||
       Number(member.slot) < 0 ||
-      Number(member.slot) > 4 ||
+      Number(member.slot) >= 3 ||
       typeof member.name !== "string" ||
       member.name.length > 16 ||
       typeof member.connected !== "boolean" ||
+      typeof member.ready !== "boolean" ||
+      (member.role !== null && !isCrewRole(member.role)) ||
       slots.has(Number(member.slot))
     )
       return false;
@@ -77,6 +91,16 @@ function validRoom(value: unknown): value is Room {
   });
 }
 export class Session {
+  readonly game = "tank";
+  private get storageKey() {
+    return "tank-crew-seat-v1";
+  }
+  private get peerPrefix() {
+    return "tank-crew-v1";
+  }
+  private get playing() {
+    return this.room?.phase === "battle";
+  }
   slot = 0;
   room?: Room;
   private peer?: Peer;
@@ -93,9 +117,10 @@ export class Session {
   private credentials?: Credentials;
   onRoom: (room: Room) => void = () => {};
   onError: (message: string) => void = () => {};
-  onStart: (mask: number, seed: number) => void = () => {};
+  onStart: (participants: number[], seed: number) => void = () => {};
   onState: (data: string) => void = () => {};
   onInput: (slot: number, keys: number) => void = () => {};
+  onAction: (slot: number, action: number) => void = () => {};
   onEnded: (message: string) => void = () => {};
   onRetryAvailable: () => void = () => {};
   get isHost() {
@@ -104,7 +129,7 @@ export class Session {
 
   private save() {
     if (this.credentials)
-      sessionStorage.setItem(storageKey, JSON.stringify(this.credentials));
+      sessionStorage.setItem(this.storageKey, JSON.stringify(this.credentials));
   }
   private async open(id?: string): Promise<Peer> {
     const peer = id ? new Peer(id, options()) : new Peer(options());
@@ -114,7 +139,7 @@ export class Session {
       const timer = setTimeout(() => {
         peer.destroy();
         reject(new Error("連線逾時，請確認網路後再試。"));
-      }, 18000);
+      }, TRANSPORT.open);
       peer.once("open", () => {
         clearTimeout(timer);
         resolve();
@@ -146,7 +171,7 @@ export class Session {
       const code = roomCode();
       let peer: Peer;
       try {
-        peer = await this.open(`pocket-circuit-v1-${code}`);
+        peer = await this.open(`${this.peerPrefix}-${code}`);
       } catch (error) {
         if (attempt < 2 && (error as Error).message.includes("代碼衝突")) {
           this.leave();
@@ -154,11 +179,19 @@ export class Session {
         }
         throw error;
       }
-      this.room = { code, members: [], phase: "lobby", epoch: "" };
+      this.room = {
+        code,
+        members: [],
+        phase: "lobby",
+        epoch: "",
+        game: this.game,
+      };
       this.members.set(0, {
         slot: 0,
         name: name.trim().slice(0, 16),
         connected: true,
+        role: null,
+        ready: false,
         token: crypto.randomUUID(),
         sequence: -1,
         seen: Date.now(),
@@ -180,9 +213,9 @@ export class Session {
   async resumeSaved() {
     let saved: unknown;
     try {
-      saved = JSON.parse(sessionStorage.getItem(storageKey) || "null");
+      saved = JSON.parse(sessionStorage.getItem(this.storageKey) || "null");
     } catch {
-      sessionStorage.removeItem(storageKey);
+      sessionStorage.removeItem(this.storageKey);
     }
     if (
       !record(saved) ||
@@ -193,13 +226,12 @@ export class Session {
     )
       return;
     this.onError("正在重新連回原本的比賽…");
+    const attemptCredentials = saved as unknown as Credentials;
     try {
-      await this.connect(
-        saved.code,
-        saved.name,
-        saved as unknown as Credentials,
-      );
+      await this.connect(saved.code, saved.name, attemptCredentials);
     } catch (error) {
+      // A newer join/resume owns its own credentials and must not be torn down here.
+      if (this.credentials !== attemptCredentials) return;
       if (this.credentials) {
         this.leave(false);
         this.onRetryAvailable();
@@ -213,7 +245,7 @@ export class Session {
     this.credentials = resume;
     const peer = await this.open();
     const generation = this.generation;
-    const link = peer.connect(`pocket-circuit-v1-${code}`, {
+    const link = peer.connect(`${this.peerPrefix}-${code}`, {
       reliable: true,
       serialization: "json",
     });
@@ -231,12 +263,15 @@ export class Session {
         }
         reject(new Error(message));
       };
-      const timer = setTimeout(() => fail("連線逾時，請稍後重新加入。"), 18000);
+      const timer = setTimeout(
+        () => fail("連線逾時，請稍後重新加入。"),
+        TRANSPORT.open,
+      );
       peer.on("error", (error) => {
         if (error.type === "peer-unavailable")
           fail(
             resume
-              ? "房主已離線，本場比賽已結束。"
+              ? "房主已離線，本場戰鬥已結束。"
               : "找不到這個房間，請確認代碼。",
             !!resume,
           );
@@ -257,7 +292,7 @@ export class Session {
           data.type === "welcome" &&
           Number.isInteger(data.slot) &&
           Number(data.slot) > 0 &&
-          Number(data.slot) < 5 &&
+          Number(data.slot) < 3 &&
           typeof data.token === "string" &&
           validRoom(data.room)
         ) {
@@ -276,7 +311,7 @@ export class Session {
           this.sequence = 0;
           this.receivedSequence = -1;
           if (data.resumed === true && typeof data.payload === "string") {
-            this.onStart(this.mask(), 1);
+            this.onStart(this.participants(), 1);
             this.onState(data.payload);
           }
           this.watch();
@@ -284,29 +319,35 @@ export class Session {
         } else if (data.type === "room" && validRoom(data.room) && welcomed) {
           this.room = data.room;
           this.onRoom(this.room);
-        } else if (data.type === "error" && typeof data.message === "string")
+        } else if (data.type === "notice" && typeof data.message === "string")
+          this.onError(data.message);
+        else if (data.type === "error" && typeof data.message === "string")
           fail(data.message, !!resume);
         else if (data.type === "ended") {
           this.leave();
-          this.onEnded("房主已離線，本場比賽已結束。");
+          this.onEnded("房主已離線，本場戰鬥已結束。");
         } else if (data.type === "ping") link.send({ type: "pong" });
         else if (
           data.type === "start" &&
           welcomed &&
           typeof data.epoch === "string" &&
-          Number.isInteger(data.mask) &&
-          typeof data.seed === "number" &&
+          Array.isArray(data.participants) &&
+          data.participants.length === 3 &&
+          data.participants.every((slot, index) => slot === index) &&
+          Number.isSafeInteger(data.seed) &&
+          Number(data.seed) >= 0 &&
+          Number(data.seed) <= 0xffffffff &&
           this.room
         ) {
           this.room.epoch = data.epoch;
-          this.room.phase = "racing";
+          this.room.phase = "battle";
           this.sequence = 0;
           this.receivedSequence = -1;
           if (this.credentials) {
             this.credentials.epoch = data.epoch;
             this.save();
           }
-          this.onStart(Number(data.mask), data.seed);
+          this.onStart(data.participants as number[], Number(data.seed));
         } else if (
           data.type === "state" &&
           welcomed &&
@@ -327,10 +368,10 @@ export class Session {
           reject(new Error("連線中斷，請重新加入。"));
           return;
         }
-        this.onError("連線中斷，正在重新連回比賽…");
+        this.onError("連線中斷，正在重新連回戰鬥…");
         this.retry = setTimeout(() => {
           void this.resumeSaved();
-        }, 650);
+        }, TRANSPORT.retry);
       });
       link.on("error", () => {
         if (generation === this.generation) link.close();
@@ -345,7 +386,7 @@ export class Session {
     let assigned = -1;
     const timer = setTimeout(() => {
       if (assigned < 0) link.close();
-    }, 10000);
+    }, TRANSPORT.handshake);
     link.on("data", (data) => {
       if (generation !== this.generation || !record(data)) return;
       if (assigned >= 0) {
@@ -354,16 +395,35 @@ export class Session {
         member.seen = Date.now();
         if (
           data.type === "input" &&
-          this.room?.phase === "racing" &&
-          data.epoch === this.room.epoch &&
+          this.playing &&
+          data.epoch === this.room?.epoch &&
           Number.isSafeInteger(data.sequence) &&
           Number(data.sequence) > member.sequence &&
           Number.isInteger(data.keys) &&
           Number(data.keys) >= 0 &&
-          Number(data.keys) <= 63
+          Number(data.keys) <= 127
         ) {
           member.sequence = Number(data.sequence);
           this.onInput(assigned, Number(data.keys));
+        } else if (
+          data.type === "action" &&
+          this.playing &&
+          data.epoch === this.room?.epoch &&
+          Number.isSafeInteger(data.sequence) &&
+          Number(data.sequence) > member.sequence &&
+          Number.isInteger(data.action) &&
+          Number(data.action) >= 0 &&
+          Number(data.action) <= 63
+        ) {
+          member.sequence = Number(data.sequence);
+          this.onAction(assigned, Number(data.action));
+        } else if (
+          data.type === "return-to-lobby" &&
+          data.epoch === this.room?.epoch
+        ) {
+          this.returnToLobby();
+        } else if (data.type === "crew") {
+          this.updateCrew(assigned, data.role, data.ready);
         }
         return;
       }
@@ -373,16 +433,17 @@ export class Session {
         setTimeout(() => link.close(), 200);
       };
       if (data.type === "resume") {
+        this.expireBattlePause();
         const member = [...this.members.values()].find(
           (m) => m.slot !== 0 && m.token === data.token,
         );
         if (
           !member ||
-          this.room?.phase !== "racing" ||
-          data.epoch !== this.room.epoch ||
+          !this.playing ||
+          data.epoch !== this.room?.epoch ||
           !this.latestState
         ) {
-          deny("原本的賽局已結束或已更換，請重新加入。");
+          deny("原本的戰鬥已結束或已更換，請重新加入。");
           return;
         }
         const old = member.link;
@@ -391,6 +452,11 @@ export class Session {
         member.connected = true;
         member.sequence = -1;
         member.seen = Date.now();
+        if (
+          this.room &&
+          [...this.members.values()].every((crew) => crew.connected)
+        )
+          this.room.reconnectDeadline = undefined;
         old?.close();
         clearTimeout(timer);
         this.publishRoom();
@@ -406,18 +472,18 @@ export class Session {
       }
       if (data.type !== "join") return;
       if (this.room?.phase !== "lobby") {
-        deny("比賽已開始，請等下一場再加入。");
+        deny("戰鬥已開始，請等下一場再加入。");
         return;
       }
       const name =
         typeof data.name === "string" ? data.name.trim().slice(0, 16) : "";
       if (!name) {
-        deny("請輸入車手名。");
+        deny("請輸入乘員名稱。");
         return;
       }
-      const slot = [1, 2, 3, 4].find((i) => !this.members.has(i));
+      const slot = [1, 2].find((i) => !this.members.has(i));
       if (slot === undefined) {
-        deny("房間已滿，最多五位車手。");
+        deny("房間已滿，最多三名乘員。");
         return;
       }
       clearTimeout(timer);
@@ -426,6 +492,8 @@ export class Session {
         slot,
         name,
         connected: true,
+        role: null,
+        ready: false,
         token: crypto.randomUUID(),
         link,
         sequence: -1,
@@ -449,6 +517,11 @@ export class Session {
       else {
         member.connected = false;
         member.link = undefined;
+        if (
+          this.room?.phase === "battle" &&
+          this.room.reconnectDeadline === undefined
+        )
+          this.room.reconnectDeadline = Date.now() + RECONNECT_GRACE_MS;
         this.onInput(assigned, 0);
       }
       this.publishRoom();
@@ -458,7 +531,13 @@ export class Session {
   private publishRoom() {
     if (!this.room) return;
     this.room.members = [...this.members.values()]
-      .map(({ slot, name, connected }) => ({ slot, name, connected }))
+      .map(({ slot, name, connected, role, ready }) => ({
+        slot,
+        name,
+        connected,
+        role,
+        ready,
+      }))
       .sort((a, b) => a.slot - b.slot);
     this.onRoom(this.room);
     this.broadcast({ type: "room", room: this.room });
@@ -467,55 +546,123 @@ export class Session {
     for (const member of this.members.values())
       if (member.link?.open) member.link.send(data);
   }
-  private mask() {
-    return (
-      this.room?.members.reduce(
-        (mask, member) => mask | (1 << member.slot),
-        0,
-      ) || 0
-    );
+  private participants() {
+    return this.room?.members.map((member) => member.slot) || [];
   }
   private watch() {
     clearInterval(this.heartbeat);
     this.seen = Date.now();
     this.heartbeat = setInterval(() => {
       if (this.isHost) {
+        this.expireBattlePause();
         for (const member of this.members.values())
           if (
             member.slot &&
             member.connected &&
-            Date.now() - member.seen > 6500
+            Date.now() - member.seen > TRANSPORT.stale
           )
             member.link?.close();
         this.broadcast({ type: "ping" });
-      } else if (this.uplink?.open && Date.now() - this.seen > 6500)
+      } else if (this.uplink?.open && Date.now() - this.seen > TRANSPORT.stale)
         this.uplink.close();
-    }, 1000);
+    }, TRANSPORT.heartbeat);
+  }
+  /** One real-time deadline per uninterrupted missing-crew pause, never per retry. */
+  private expireBattlePause() {
+    if (
+      this.room?.phase !== "battle" ||
+      this.room.reconnectDeadline === undefined ||
+      Date.now() < this.room.reconnectDeadline
+    )
+      return;
+    this.room.phase = "lobby";
+    this.room.reconnectDeadline = undefined;
+    this.room.notice = `等待重連已超過 ${RECONNECT_GRACE_MS / 1000} 秒，本局已結束。請三位乘員重新選擇職位並準備。`;
+    this.latestState = "";
+    for (const [slot, member] of this.members) {
+      if (!member.connected) this.members.delete(slot);
+      else {
+        member.role = null;
+        member.ready = false;
+      }
+    }
+    this.publishRoom();
+  }
+  chooseRole(role: CrewRole) {
+    if (this.isHost) this.updateCrew(this.slot, role, undefined);
+    else if (this.room?.phase === "lobby")
+      this.uplink?.send({ type: "crew", role });
+  }
+  setReady(ready: boolean) {
+    if (this.isHost) this.updateCrew(this.slot, undefined, ready);
+    else if (this.room?.phase === "lobby")
+      this.uplink?.send({ type: "crew", ready });
+  }
+  private updateCrew(slot: number, role: unknown, ready: unknown) {
+    if (this.room?.phase !== "lobby") return;
+    const member = this.members.get(slot);
+    if (!member?.connected) return;
+    const notice = (message: string) => {
+      if (slot === 0) this.onError(message);
+      else member.link?.send({ type: "notice", message });
+    };
+    if (isCrewRole(role)) {
+      if (
+        [...this.members.values()].some(
+          (m) => m.slot !== slot && m.role === role,
+        )
+      ) {
+        notice("這個職位已有人擔任，請選擇其他職位。");
+        return;
+      }
+      if (member.role !== role) {
+        member.role = role;
+        member.ready = false;
+      }
+    }
+    if (typeof ready === "boolean") {
+      if (!member.role) {
+        notice("請先選擇職位再準備。");
+        return;
+      }
+      member.ready = ready;
+    }
+    this.publishRoom();
   }
   start() {
     if (
       !this.isHost ||
       !this.room ||
-      this.room.phase === "racing" ||
-      [...this.members.values()].filter((m) => m.connected).length < 2
+      this.room.phase !== "lobby" ||
+      this.members.size !== 3 ||
+      [...this.members.values()].some(
+        (m) => !m.connected || !m.role || !m.ready,
+      )
     )
       return;
     for (const [slot, member] of this.members)
       if (!member.connected) this.members.delete(slot);
-    this.room.phase = "racing";
+    this.room.phase = "battle";
     this.room.epoch = crypto.randomUUID();
+    this.room.reconnectDeadline = undefined;
+    this.room.notice = undefined;
     this.sequence = 0;
     this.stateSequence = 0;
     this.latestState = "";
     for (const member of this.members.values()) member.sequence = -1;
     this.publishRoom();
-    const mask = this.mask(),
+    const participants = this.participants(),
       seed = crypto.getRandomValues(new Uint32Array(1))[0];
-    this.broadcast({ type: "start", epoch: this.room.epoch, mask, seed });
-    this.onStart(mask, seed);
+    this.broadcast({
+      type: "start",
+      epoch: this.room.epoch,
+      participants,
+      seed,
+    });
+    this.onStart(participants, seed);
   }
   input(keys: number) {
-    if (this.uplink?.open && this.room?.phase === "racing")
+    if (this.uplink?.open && this.room && this.playing)
       this.uplink.send({
         type: "input",
         epoch: this.room.epoch,
@@ -523,8 +670,17 @@ export class Session {
         keys,
       });
   }
+  action(action: number) {
+    if (this.uplink?.open && this.room && this.playing)
+      this.uplink.send({
+        type: "action",
+        epoch: this.room.epoch,
+        sequence: this.sequence++,
+        action,
+      });
+  }
   state(payload: string) {
-    if (this.isHost && this.room?.phase === "racing") {
+    if (this.isHost && this.room && this.playing) {
       this.latestState = payload;
       this.broadcast({
         type: "state",
@@ -535,11 +691,32 @@ export class Session {
     }
   }
   finish(payload: string) {
-    if (this.isHost && this.room?.phase === "racing") {
+    if (this.isHost && this.room && this.playing) {
       this.state(payload);
       this.room.phase = "results";
       this.publishRoom();
     }
+  }
+  /** A result returns the whole crew to the same room, with fresh role choices. */
+  returnToLobby() {
+    if (this.room?.phase !== "results") return;
+    if (!this.isHost) {
+      this.uplink?.send({ type: "return-to-lobby", epoch: this.room.epoch });
+      return;
+    }
+    this.room.phase = "lobby";
+    this.room.reconnectDeadline = undefined;
+    this.room.notice = undefined;
+    this.latestState = "";
+    for (const [slot, member] of this.members) {
+      if (!member.connected) {
+        this.members.delete(slot);
+        continue;
+      }
+      member.role = null;
+      member.ready = false;
+    }
+    this.publishRoom();
   }
   leave(clearCredentials = true) {
     if (this.isHost && this.room) this.broadcast({ type: "ended" });
@@ -552,7 +729,7 @@ export class Session {
     this.members.clear();
     this.room = undefined;
     if (clearCredentials) {
-      sessionStorage.removeItem(storageKey);
+      sessionStorage.removeItem(this.storageKey);
       this.credentials = undefined;
     }
   }

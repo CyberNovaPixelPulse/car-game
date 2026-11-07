@@ -7,3 +7,6 @@ public/wasm/
 test-results/
 playwright-report/
 .DS_Store
+
+# Local visual review captures
+.impeccable/review/
