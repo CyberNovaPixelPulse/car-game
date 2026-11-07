@@ -226,5 +226,111 @@
   "downloaded_asset_bytes": 18454407,
   "hdri_candidate_manifest": "hdri-candidate.json",
   "human_readable_manifest": "asset-manifest.md",
-  "visual_inspection": "All three actual diffuse textures opened locally and inspected. No preview renders downloaded."
+  "visual_inspection": "All three actual diffuse textures opened locally and inspected. No preview renders downloaded.",
+  "generated_vehicles": {
+    "note": "Original tank models built by tools/blender/build_tank.py (Blender 5.4, `npm run art:tanks`). The bake inputs below are not shipped; only the baked GLB atlases are.",
+    "outputs": [
+      "public/art/vehicles/sherman.glb",
+      "public/art/vehicles/panzer.glb",
+      "public/art/vehicles/tiger.glb"
+    ],
+    "bake_inputs": [
+      {
+        "file": "blue_metal_plate_diff_2k.jpg",
+        "sha256": "82855f6297ad07ea7ea4d1c501e6b56ed4c9c758653ca126bda9fd0ebba63c59",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/blue_metal_plate",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/blue_metal_plate/blue_metal_plate_diff_2k.jpg"
+      },
+      {
+        "file": "blue_metal_plate_nor_gl_2k.jpg",
+        "sha256": "4cd3069a918cf891295b369b26f47c0a0631c634d0fd1006b6b7412a8f2b3550",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/blue_metal_plate",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/blue_metal_plate/blue_metal_plate_nor_gl_2k.jpg"
+      },
+      {
+        "file": "blue_metal_plate_rough_2k.jpg",
+        "sha256": "dd1726d8217fe4f6c3947cb20700d51774a0773e9abaeb4120769c8f6fce1d69",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/blue_metal_plate",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/blue_metal_plate/blue_metal_plate_rough_2k.jpg"
+      },
+      {
+        "file": "brown_mud_02_diff_2k.jpg",
+        "sha256": "5c735b1df784ab1990f4e209c55d27fa4e7a19508e40484ed5aa783266783726",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/brown_mud_02",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/brown_mud_02/brown_mud_02_diff_2k.jpg"
+      },
+      {
+        "file": "brown_mud_02_nor_gl_2k.jpg",
+        "sha256": "3d6eec0adba8fd514d5634c56f806ad40206975c3ef17de1e2468b9e3ebcf719",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/brown_mud_02",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/brown_mud_02/brown_mud_02_nor_gl_2k.jpg"
+      },
+      {
+        "file": "brown_mud_02_rough_2k.jpg",
+        "sha256": "00ef047ecda114930311efd31cbdb371c7a236f211a00f1dfeb6b1b73ac2f674",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/brown_mud_02",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/brown_mud_02/brown_mud_02_rough_2k.jpg"
+      },
+      {
+        "file": "green_metal_rust_diff_2k.jpg",
+        "sha256": "727515554ffb6410be82d3625a2837fe46612cb186ec391f77c50bd52c4d7ab2",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/green_metal_rust",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/green_metal_rust/green_metal_rust_diff_2k.jpg"
+      },
+      {
+        "file": "green_metal_rust_nor_gl_2k.jpg",
+        "sha256": "45ec5d256c91ccf4a87dd4c4a90f6c58b460f3862287f014bfde432055ece239",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/green_metal_rust",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/green_metal_rust/green_metal_rust_nor_gl_2k.jpg"
+      },
+      {
+        "file": "green_metal_rust_rough_2k.jpg",
+        "sha256": "0a691b35df773ab86dbbc86b787f8efaa81497780820abec0832b1e7aac309a6",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/green_metal_rust",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/green_metal_rust/green_metal_rust_rough_2k.jpg"
+      },
+      {
+        "file": "rusty_painted_metal_diff_2k.jpg",
+        "sha256": "883118fafabb56304f9e33ea2da3c183379b1c1b1c5a4702fdc335b0cf84614f",
+        "author": "Amal Kumar",
+        "asset_page": "https://polyhaven.com/a/rusty_painted_metal",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rusty_painted_metal/rusty_painted_metal_diff_2k.jpg"
+      },
+      {
+        "file": "rusty_painted_metal_nor_gl_2k.jpg",
+        "sha256": "2289c10422d5082aea3cf37661008b281c4aec20f6d0b574df6d7887573eb70c",
+        "author": "Amal Kumar",
+        "asset_page": "https://polyhaven.com/a/rusty_painted_metal",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rusty_painted_metal/rusty_painted_metal_nor_gl_2k.jpg"
+      },
+      {
+        "file": "rusty_painted_metal_rough_2k.jpg",
+        "sha256": "17e6a4cab6d42576ce0bffecc53ba364d18a40b5d941471273b947e6f347a3b5",
+        "author": "Amal Kumar",
+        "asset_page": "https://polyhaven.com/a/rusty_painted_metal",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rusty_painted_metal/rusty_painted_metal_rough_2k.jpg"
+      }
+    ]
+  }
 }

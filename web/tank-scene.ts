@@ -1,13 +1,21 @@
 import * as THREE from "three";
 import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
 import { type TankState } from "./tank-core";
-import { VehicleModel, buildBrowning } from "./tank-vehicle-model";
+import {
+  VehicleModel,
+  buildBrowning,
+  preloadVehicles,
+  noteRenderer,
+} from "./tank-vehicle-model";
 import { buildNormandy } from "./tank-environment";
 import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import { disposeArt } from "./tank-art-materials";
 import { SmokeScene } from "./tank-smoke-scene";
 import { MuzzleFlash } from "./tank-muzzle-flash";
 import { FIRING_FEEDBACK } from "./tank-settings";
+
+/** Metres from the eye within which an enemy tank keeps full detail. */
+const LOD_RANGE = 28;
 
 /** The gunner's real 3D view; no renderer is created for the blind driver. */
 export class TankScene {
@@ -25,12 +33,12 @@ export class TankScene {
   private enemyFlashes = new Map<number, MuzzleFlash>();
   private camera = new THREE.PerspectiveCamera(65, 1, 0.1, 180);
   private assets = new ArtPreparation();
-  private player = new VehicleModel("sherman", this.assets.manager);
+  private player: VehicleModel;
   private width = 0;
   private height = 0;
-  private tank = this.player.root;
-  private turret = this.player.turret;
-  private elevation = this.player.elevation;
+  private tank: THREE.Group;
+  private turret: THREE.Group;
+  private elevation: THREE.Group;
   private observer: ResizeObserver;
   private targetMeshes = new Map<number, THREE.Group>();
   private enemyModels = new Map<number, VehicleModel>();
@@ -43,6 +51,11 @@ export class TankScene {
     private view: "gunner" | "machine-gun" = "gunner",
   ) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    const software = noteRenderer(this.renderer);
+    this.player = new VehicleModel("sherman", this.assets.manager);
+    this.tank = this.player.root;
+    this.turret = this.player.turret;
+    this.elevation = this.player.elevation;
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.autoUpdate = false;
@@ -56,7 +69,10 @@ export class TankScene {
     const sun = new THREE.DirectionalLight(0xffefd6, 2.3);
     sun.position.set(-25, 40, 15);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(512, 512);
+    // Baked tank detail needs a finer shadow map on the target discrete GPU;
+    // a software rasteriser keeps the old coarse map (and procedural tanks).
+    const shadow = software ? 512 : 2048;
+    sun.shadow.mapSize.set(shadow, shadow);
     Object.assign(sun.shadow.camera, {
       left: -48,
       right: 48,
@@ -81,6 +97,7 @@ export class TankScene {
       },
     );
     buildNormandy(this.scene, this.assets.manager);
+    preloadVehicles(this.assets.manager);
     this.scene.add(this.tank);
     if (this.view === "machine-gun") {
       const steel = new THREE.MeshStandardMaterial({
@@ -227,6 +244,13 @@ export class TankScene {
       }
       const mesh = model.root;
       model.animate(target.x, target.z, target.yaw);
+      // Decimated meshes past close range keep many baked tanks affordable.
+      model.setDetail(
+        Math.hypot(
+          target.x - this.camera.position.x,
+          target.z - this.camera.position.z,
+        ) < LOD_RANGE,
+      );
       mesh.position.set(target.x, 0, target.z);
       mesh.rotation.y = -target.yaw;
       model.turret.rotation.y = -(target.turretYaw - target.yaw);
