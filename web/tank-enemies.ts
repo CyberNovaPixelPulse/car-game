@@ -1,7 +1,8 @@
+import { LAST_SEEN_SECONDS, ENEMY_RULES } from "./tank-settings";
 import { smokeBlocks, type SmokeCloud } from "./tank-smoke";
-import { boxHit, type PracticeTarget } from "./tank-weapons";
+import { boxHit, type EnemyTarget } from "./tank-weapons";
 
-export const LAST_SEEN_SECONDS = 2.5;
+export { LAST_SEEN_SECONDS } from "./tank-settings";
 export const ENEMY_LABELS = {
   panzer: "四號 H 型",
   tiger: "虎式 I 型",
@@ -56,7 +57,7 @@ function intersection(a: number[], b: number[], c: Box, margin = 0) {
 }
 /** Visibility graph around expanded cover corners: both crews can drive around solid cover. */
 function nextPoint(
-  enemy: PracticeTarget,
+  enemy: EnemyTarget,
   tank: Pick<Vehicle, "x" | "z">,
   cover: readonly Box[],
 ) {
@@ -109,7 +110,7 @@ function nextPoint(
 }
 export function stepEnemies(
   b: EnemyBattle,
-  enemies: PracticeTarget[],
+  enemies: EnemyTarget[],
   tank: Vehicle,
   cover: readonly Box[],
   dt: number,
@@ -143,22 +144,29 @@ export function stepEnemies(
     const desired = Math.atan2(goal.x - e.x, -(goal.z - e.z));
     const searching = hiddenBySmoke && !remembered;
     const scan = searching
-      ? Math.sin((now - e.lastSeenAt - LAST_SEEN_SECONDS) * 0.8) * 0.6
+      ? Math.sin(
+          (now - e.lastSeenAt - LAST_SEEN_SECONDS) *
+            ENEMY_RULES.searchFrequency,
+        ) * ENEMY_RULES.searchAmplitude
       : 0;
     const delta = angle(desired + scan - e.turretYaw);
     if (e.phase !== "warning")
       e.turretYaw +=
         Math.sign(delta) *
-        Math.min(Math.abs(delta), dt * (e.kind === "tiger" ? 0.45 : 0.7));
+        Math.min(Math.abs(delta), dt * ENEMY_RULES.turn[e.kind]);
     const blocked = coverBlocked(goal);
     if (e.phase !== "warning") {
-      if (distance > (searching ? 6 : 11) || blocked) {
+      if (
+        distance >
+          (searching ? ENEMY_RULES.searchStop : ENEMY_RULES.fightingStop) ||
+        blocked
+      ) {
         const point = nextPoint(e, goal, cover);
         const dx = point[0] - e.x,
           dz = point[1] - e.z,
           length = Math.hypot(dx, dz);
         if (length > 0.05) {
-          const speed = e.kind === "tiger" ? 0.9 : 1.25;
+          const speed = ENEMY_RULES.speed[e.kind];
           const step = Math.min(length, speed * dt);
           e.x += (dx / length) * step;
           e.z += (dz / length) * step;
@@ -171,13 +179,13 @@ export function stepEnemies(
     if (
       !blocked &&
       (!hiddenBySmoke || remembered) &&
-      distance < 34 &&
-      Math.abs(delta) < 0.06 &&
+      distance < ENEMY_RULES.fireRange &&
+      Math.abs(delta) < ENEMY_RULES.alignment &&
       now >= e.readyAt &&
       e.phase !== "warning"
     ) {
       e.phase = "warning";
-      e.fireAt = now + 1.6;
+      e.fireAt = now + ENEMY_RULES.warning;
     }
     if (e.phase === "warning" && now >= e.fireAt) {
       // Commit to the announced heading. A moving crew can leave the shot line.
@@ -189,15 +197,17 @@ export function stepEnemies(
         x: e.x,
         y: 2.4,
         z: e.z,
-        vx: dx * 23,
-        vz: dz * 23,
+        vx: dx * ENEMY_RULES.projectileSpeed,
+        vz: dz * ENEMY_RULES.projectileSpeed,
         // The three-wave operation gives a coordinated crew time to load, clear
         // jams and traverse the turret, while ignoring incoming fire still loses.
-        damage: e.kind === "tiger" ? 10 : 6,
+        damage: ENEMY_RULES.damage[e.kind],
         age: 0,
       });
       e.readyAt =
-        now + (e.kind === "tiger" ? 9 : 7) * (1 - (b.wave - 1) * 0.15);
+        now +
+        ENEMY_RULES.cooldown[e.kind] *
+          (1 - (b.wave - 1) * ENEMY_RULES.waveCooldownReduction);
       e.phase = "reloading";
     }
   }
@@ -231,13 +241,13 @@ export function stepEnemies(
       }
       return false;
     }
-    return p.age < 5;
+    return p.age < ENEMY_RULES.projectileLifetime;
   });
   b.failed = tank.hp <= 0;
 }
 
 /** Reinforcements enter as actual combatants. Deadlines use the current battle clock. */
-export function createWaveTargets(wave: number, now: number): PracticeTarget[] {
+export function createWaveTargets(wave: number, now: number): EnemyTarget[] {
   const positions =
     wave === 2
       ? [
@@ -260,8 +270,8 @@ export function createWaveTargets(wave: number, now: number): PracticeTarget[] {
       width: kind === "tiger" ? 3.7 : 3.2,
       height: kind === "tiger" ? 3.2 : 3,
       depth: kind === "tiger" ? 6 : 5.5,
-      hp: kind === "tiger" ? 360 : 200,
-      maxHp: kind === "tiger" ? 360 : 200,
+      hp: ENEMY_RULES.hp[kind],
+      maxHp: ENEMY_RULES.hp[kind],
       kind,
       yaw: Math.PI,
       turretYaw: Math.PI,
@@ -269,7 +279,7 @@ export function createWaveTargets(wave: number, now: number): PracticeTarget[] {
       lastSeenX: 0,
       lastSeenZ: 0,
       lastSeenAt: -100,
-      readyAt: now + 12,
+      readyAt: now + ENEMY_RULES.spawnGrace,
       fireAt: 0,
     };
   });

@@ -21,7 +21,7 @@ test("駕駛離頁全場暫停，裝填與戰況凍結，原職位重連後安�
     await expect(c.loader.getByTestId("battle-pause")).toBeVisible();
     await expect(c.gunner.getByTestId("battle-pause")).toBeVisible();
     await c.loader.screenshot({
-      path: "/tmp/car-game-to-spec/ticket24-loader-pause-fixed-1280.png",
+      path: "/tmp/car-game-to-spec/visual27-final/regression/ticket24-loader-pause-fixed-1280.png",
       fullPage: true,
     });
     const leave = await c.loader
@@ -38,7 +38,7 @@ test("駕駛離頁全場暫停，裝填與戰況凍結，原職位重連後安�
     await expect(c.gunner.getByTestId("tank-health")).toHaveText(health!);
     await expect(c.gunner.getByTestId("target-status")).toHaveText(enemies!);
     await expect(c.gunner.getByTestId("turret-yaw-rate")).toHaveText("0.0°/s");
-    await c.driver.goto("/tank.html");
+    await c.driver.goto("/");
     await expect(
       c.driver.getByRole("heading", { name: "駕駛工作站" }),
     ).toBeVisible();
@@ -91,7 +91,7 @@ test("缺員以現實60秒到期回同房，舊戰鬥不能續接，新局須三
     await expect(
       c.loader.getByRole("button", { name: "開始戰鬥", exact: true }),
     ).toBeDisabled();
-    await c.driver.goto("/tank.html");
+    await c.driver.goto("/");
     await expect(c.driver.getByRole("status")).toContainText("已結束");
     await expect(
       c.driver.getByRole("heading", { name: "駕駛工作站" }),
@@ -151,18 +151,18 @@ test("非房主裝填手帶同一發卡彈重連，原職位與目標區保留",
         "等待裝填手",
       );
     await c.driver.screenshot({
-      path: "/tmp/car-game-to-spec/ticket24-paused-driver.png",
+      path: "/tmp/car-game-to-spec/visual27-final/regression/ticket24-paused-driver.png",
       fullPage: true,
     });
     await c.gunner.screenshot({
-      path: "/tmp/car-game-to-spec/ticket24-paused-gunner.png",
+      path: "/tmp/car-game-to-spec/visual27-final/regression/ticket24-paused-gunner.png",
       fullPage: true,
     });
     const hp = await c.gunner.getByTestId("tank-health").textContent();
     await c.gunner.waitForTimeout(1500);
     await expect(c.gunner.getByTestId("chamber-state")).toHaveText("卡彈");
     await expect(c.gunner.getByTestId("tank-health")).toHaveText(hp!);
-    await c.loader.goto("/tank.html");
+    await c.loader.goto("/");
     await expect(
       c.loader.getByRole("heading", { name: "裝填手工作站" }),
     ).toBeVisible();
@@ -203,7 +203,7 @@ test("非房主砲手離頁凍結卡彈指針，全員恢復後才繼續移動",
       needle!,
     );
     await expect(c.loader.getByTestId("load-progress")).toHaveText("40");
-    await c.gunner.goto("/tank.html");
+    await c.gunner.goto("/");
     await expect(
       c.gunner.getByRole("heading", { name: "砲手工作站" }),
     ).toBeVisible();
@@ -251,7 +251,7 @@ test("真實會合服務暫時中斷時可明確重試並恢復原駕駛席", as
       `Pausing actual own PeerServer PID ${relayPid}, port ${peerPort}, cwd ${process.cwd()}`,
     );
     process.kill(relayPid, "SIGSTOP");
-    await c.driver.goto("/tank.html");
+    await c.driver.goto("/");
     await expect(c.driver.getByRole("status")).toContainText("逾時", {
       timeout: 24000,
     });
@@ -296,11 +296,11 @@ test("缺員超過八秒仍保留煙幕與五秒暈眩，重連後只走剩餘�
     const stun = await c.loader.getByTestId("stun-remaining").textContent();
     const health = await c.gunner.getByTestId("tank-health").textContent();
     await c.loader.screenshot({
-      path: "/tmp/car-game-to-spec/ticket24-paused-stun.png",
+      path: "/tmp/car-game-to-spec/visual27-final/regression/ticket24-paused-stun.png",
       fullPage: true,
     });
     await c.gunner.screenshot({
-      path: "/tmp/car-game-to-spec/ticket24-paused-smoke.png",
+      path: "/tmp/car-game-to-spec/visual27-final/regression/ticket24-paused-smoke.png",
       fullPage: true,
     });
     await c.loader.waitForTimeout(9000);
@@ -309,7 +309,7 @@ test("缺員超過八秒仍保留煙幕與五秒暈眩，重連後只走剩餘�
       "煙幕遮蔽視線",
     );
     await expect(c.gunner.getByTestId("tank-health")).toHaveText(health!);
-    await c.driver.goto("/tank.html");
+    await c.driver.goto("/");
     await expect(
       c.driver.getByRole("heading", { name: "駕駛工作站" }),
     ).toBeVisible();
@@ -352,7 +352,7 @@ test("缺員時機槍熱度與強制冷卻凍結，恢復不補算或自動開�
     await expect(c.loader.getByTestId("mg-heat")).toHaveText(heat!);
     await expect(c.loader.getByTestId("mg-cooldown")).toHaveText(cooldown!);
     await expect(c.loader.getByTestId("mg-shot-count")).toHaveText(shots!);
-    await c.driver.goto("/tank.html");
+    await c.driver.goto("/");
     await expect(
       c.driver.getByRole("heading", { name: "駕駛工作站" }),
     ).toBeVisible();
@@ -414,7 +414,7 @@ test("退殼預警遇斷線保留未退空殼，恢復後才判定退殼與暈�
     await expect(c.loader.getByTestId("loader-status")).not.toContainText(
       "暈眩",
     );
-    await c.driver.goto("/tank.html");
+    await c.driver.goto("/");
     await expect(c.loader.getByTestId("chamber-state")).toHaveText("空膛");
     await expect(c.loader.getByTestId("loader-status")).toContainText("暈眩");
   } finally {

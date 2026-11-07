@@ -1,13 +1,12 @@
 {
-  "name": "pocket-circuit",
+  "name": "three-crew-tank",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "relay": "tsx server/index.ts",
-    "build:wasm": "node scripts/build-wasm.mjs",
-    "build": "npm run build:wasm && tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build",
     "check": "tsc --noEmit",
     "test": "playwright test",
     "test:ui": "playwright test --ui",

@@ -62,11 +62,11 @@ for (const [key, direct, adjacent] of [
         `虎式 I 型 ${adjacent}/360`,
       );
       await c.gunner.screenshot({
-        path: `/tmp/car-game-to-spec/visual17/${key === "1" ? "he" : "ap"}-impact.png`,
+        path: `/tmp/car-game-to-spec/visual27-final/regression/visual17/${key === "1" ? "he" : "ap"}-impact.png`,
         fullPage: true,
       });
       await c.loader.screenshot({
-        path: `/tmp/car-game-to-spec/visual17/${key === "1" ? "he" : "ap"}-loader.png`,
+        path: `/tmp/car-game-to-spec/visual27-final/regression/visual17/${key === "1" ? "he" : "ap"}-loader.png`,
         fullPage: true,
       });
     } finally {
@@ -99,7 +99,7 @@ test("近距高爆會傷敵而不傷共用坦克，仍可裝填下一發擊毀",
     for (const p of [c.driver, c.loader, c.gunner])
       await expect(p.getByTestId("tank-health")).toHaveText(healthBefore!);
     await c.gunner.screenshot({
-      path: "/tmp/car-game-to-spec/visual17/near-he.png",
+      path: "/tmp/car-game-to-spec/visual27-final/regression/visual17/near-he.png",
       fullPage: true,
     });
     await c.loader.keyboard.down("r");
@@ -171,7 +171,7 @@ test("穿甲彈在卡彈與蹲下期間保持鎖定，排除故障後仍射出�
       "穿甲彈（已鎖定）",
     );
     await c.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual17/ap-jammed-crouch.png",
+      path: "/tmp/car-game-to-spec/visual27-final/regression/visual17/ap-jammed-crouch.png",
       fullPage: true,
     });
     await c.loader.keyboard.up("c");

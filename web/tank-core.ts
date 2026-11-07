@@ -1,3 +1,4 @@
+import { AIMING, DRIVING, MG_AIMING, TANK_RULES } from "./tank-settings";
 import {
   createEnemyBattle,
   createWaveTargets,
@@ -27,14 +28,7 @@ import {
 
 export const DRIVE = { forward: 1, reverse: 2, left: 4, right: 8 } as const;
 export const AIM = { left: 0, right: 1, up: 2, down: 3 } as const;
-export const AIMING = {
-  impulse: 0.18,
-  maxYawRate: 0.85,
-  maxPitchRate: 0.5,
-  drag: 0.23,
-  minPitch: -0.18,
-  maxPitch: 0.5,
-} as const;
+export { AIMING } from "./tank-settings";
 export const BATTLEFIELD = {
   limit: 42,
   tankRadius: 3.4,
@@ -67,7 +61,15 @@ const initial = (seed = 1): TankState => ({
   weapon: createWeaponState(seed),
   battle: createEnemyBattle(),
   turret: { yaw: 0, pitch: 0, yawRate: 0, pitchRate: 0 },
-  tank: { hp: 100, x: 0, z: 0, yaw: 0, speed: 0, turnRate: 0, blocked: false },
+  tank: {
+    hp: TANK_RULES.maxHp,
+    x: 0,
+    z: 0,
+    yaw: 0,
+    speed: 0,
+    turnRate: 0,
+    blocked: false,
+  },
 });
 const approach = (value: number, target: number, amount: number) =>
   value < target
@@ -193,18 +195,18 @@ export class TankCore implements GameCore<TankState> {
           (Number(Boolean(loaderKeys & DRIVE.right)) -
             Number(Boolean(loaderKeys & DRIVE.left))) *
             dt *
-            0.8 +
+            MG_AIMING.yawSpeed +
           Math.PI * 2) %
         (Math.PI * 2);
       w.mg.pitch = Math.max(
-        -0.6,
+        MG_AIMING.minPitch,
         Math.min(
-          0.8,
+          MG_AIMING.maxPitch,
           w.mg.pitch +
             (Number(Boolean(loaderKeys & DRIVE.forward)) -
               Number(Boolean(loaderKeys & DRIVE.reverse))) *
               dt *
-              0.6,
+              MG_AIMING.pitchSpeed,
         ),
       );
     }
@@ -234,7 +236,7 @@ export class TankCore implements GameCore<TankState> {
     // across waves; only a new round starts from initial().
     if (this.state.battle.failed) return;
     if (this.state.weapon.targets.every((enemy) => enemy.hp <= 0)) {
-      if (this.state.battle.wave === 3) {
+      if (this.state.battle.wave === TANK_RULES.waves) {
         this.state.battle.won = true;
         return;
       }
@@ -269,10 +271,14 @@ export class TankCore implements GameCore<TankState> {
       Number(Boolean(keys & DRIVE.right)) - Number(Boolean(keys & DRIVE.left));
     t.speed = approach(
       t.speed,
-      propulsion * (propulsion < 0 ? 3 : 6),
-      dt * (propulsion ? 2.6 : 3.5),
+      propulsion * (propulsion < 0 ? DRIVING.reverse : DRIVING.forward),
+      dt * (propulsion ? DRIVING.acceleration : DRIVING.coast),
     );
-    t.turnRate = approach(t.turnRate, steering * 0.65, dt * 1.4);
+    t.turnRate = approach(
+      t.turnRate,
+      steering * DRIVING.turnRate,
+      dt * DRIVING.turnAcceleration,
+    );
     t.yaw = (t.yaw + t.turnRate * dt + Math.PI * 2) % (Math.PI * 2);
     const x = t.x + Math.sin(t.yaw) * t.speed * dt;
     const z = t.z - Math.cos(t.yaw) * t.speed * dt;
@@ -312,7 +318,7 @@ export class TankCore implements GameCore<TankState> {
       typeof next.battle.won !== "boolean" ||
       !Number.isInteger(next.battle.wave) ||
       next.battle.wave < 1 ||
-      next.battle.wave > 3 ||
+      next.battle.wave > TANK_RULES.waves ||
       !Array.isArray(next.battle.projectiles) ||
       ![next.battle.shots, next.battle.lastHitAt, next.battle.lastDamage].every(
         Number.isFinite,

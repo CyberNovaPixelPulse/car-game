@@ -7,8 +7,7 @@ export interface SmokeCloud {
   radius: number;
   until: number;
 }
-export const SMOKE_SECONDS = 8;
-export const SMOKE_RADIUS = 5;
+export { SMOKE_SECONDS, SMOKE_RADIUS } from "./tank-settings";
 export function smokeBlocks(
   clouds: readonly SmokeCloud[],
   from: readonly number[],

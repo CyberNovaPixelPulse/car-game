@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { tankCrew } from "./tank-helpers";
+import { tankCrew, nativeTaps } from "./tank-helpers";
 
 test("裝填中斷可續接，砲手就緒後射擊敵車，再退殼裝下一發", async ({
   browser,
@@ -73,18 +73,78 @@ test("只有裝填手能裝彈、只有砲手能射擊，連點不會複製同�
     await crew.driver.keyboard.press("Space");
     await crew.gunner.waitForTimeout(150);
     await expect(crew.gunner.getByTestId("shot-count")).toHaveText("0");
+    // Observe only the loader's real visible HUD before the short ejection window.
+    // Serial Playwright round trips can finish after that 0.8s window has ended.
+    await crew.loader.evaluate(() => {
+      const chamber = document.querySelector('[data-testid="chamber-state"]')!;
+      const progress = document.querySelector('[data-testid="load-progress"]')!;
+      const shots = document.querySelector('[data-testid="shot-count"]')!;
+      const timeline: {
+        chamber: string;
+        progress: string;
+        shots: string;
+        at: number;
+      }[] = [];
+      const observer = new MutationObserver(() => {
+        const row = {
+          chamber: chamber.textContent!,
+          progress: progress.textContent!,
+          shots: shots.textContent!,
+          at: performance.timeOrigin + performance.now(),
+        };
+        const prior = timeline.at(-1);
+        if (
+          !prior ||
+          row.chamber !== prior.chamber ||
+          row.progress !== prior.progress ||
+          row.shots !== prior.shots
+        )
+          timeline.push(row);
+      });
+      for (const node of [chamber, progress, shots])
+        observer.observe(node, {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
+      (window as any).__weaponHudObservation = { timeline, observer };
+    });
     await crew.loader.keyboard.down("c");
-    await crew.gunner.keyboard.press("Space");
-    await crew.gunner.keyboard.press("Space");
-    await crew.gunner.keyboard.press("Space");
+    // Held R now spans the entire warning/ejection, including when crouched.
     await crew.loader.keyboard.down("r");
-    await expect(crew.loader.getByTestId("chamber-state")).toHaveText(
-      "正在退殼",
-    );
-    await crew.loader.waitForTimeout(200);
-    await expect(crew.loader.getByTestId("load-progress")).toHaveText("0");
+    // Three genuinely rapid trusted keydown/up pairs, not three delayed RPCs.
+    await nativeTaps(crew.gunner, 3, 0, "Space");
+    await expect
+      .poll(async () =>
+        crew.loader.evaluate(() =>
+          (window as any).__weaponHudObservation.timeline.some(
+            (row: { chamber: string; progress: string; shots: string }) =>
+              row.chamber === "正在退殼" &&
+              row.progress === "0" &&
+              row.shots === "1",
+          ),
+        ),
+      )
+      .toBe(true);
     await expect(crew.gunner.getByTestId("shot-count")).toHaveText("1");
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText("空膛");
+    await expect(crew.loader.getByTestId("load-progress")).toHaveText("0");
+    const observed = await crew.loader.evaluate(() => {
+      const entry = (window as any).__weaponHudObservation;
+      entry.observer.disconnect();
+      delete (window as any).__weaponHudObservation;
+      return entry.timeline as {
+        chamber: string;
+        progress: string;
+        shots: string;
+        at: number;
+      }[];
+    });
+    expect(
+      observed
+        .filter((row) => row.chamber === "正在退殼")
+        .every((row) => row.progress === "0" && row.shots === "1"),
+    ).toBe(true);
     await crew.loader.keyboard.up("c");
     await expect(crew.gunner.getByTestId("chamber-state")).toHaveText(
       "主炮就緒",

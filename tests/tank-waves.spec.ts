@@ -12,7 +12,7 @@ test("三位乘員看見同一個第一波與存活敵車數", async ({ browser 
       await expect(page.getByTestId("wave-status")).toBeInViewport();
     }
     await c.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual23/wave-hud-loader.png",
+      path: "/tmp/car-game-to-spec/visual27-final/wave-hud-loader.png",
     });
   } finally {
     await c.close();
@@ -61,7 +61,15 @@ async function loadAndFire(
 
 test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ browser }) => {
   test.setTimeout(240000);
-  const c = await tankCrew(browser);
+  const c = await tankCrew(
+    browser,
+    "loader",
+    0,
+    1000,
+    process.env.TANK_EVIDENCE_DIR
+      ? `${process.env.TANK_EVIDENCE_DIR}/win-videos`
+      : undefined,
+  );
   try {
     await loadAndFire(c);
     await loadAndFire(c);
@@ -125,6 +133,25 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
       await expect(
         page.getByRole("heading", { name: "戰鬥勝利", exact: true }),
       ).toBeVisible();
+    for (const [page, role] of [
+      [c.driver, "driver"],
+      [c.loader, "loader"],
+      [c.gunner, "gunner"],
+    ] as const) {
+      await page.setViewportSize({ width: 1280, height: 720 });
+      await expect(
+        page.getByRole("heading", { name: "戰鬥勝利", exact: true }),
+      ).toBeInViewport();
+      await expect(page.getByTestId("tank-health")).toBeInViewport();
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({
+        path: `/tmp/car-game-to-spec/visual27-final/victory-${role}-1280.png`,
+      });
+      await page.screenshot({
+        path: `/tmp/car-game-to-spec/visual27-final/victory-${role}-1280-full.png`,
+        fullPage: true,
+      });
+    }
   } finally {
     await c.close();
   }
@@ -139,7 +166,7 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
     "loader",
     0,
     1000,
-    "/tmp/car-game-to-spec/visual23/replay-videos",
+    "/tmp/car-game-to-spec/visual27-final/replay-videos",
   );
   try {
     await c.loader.keyboard.press("2");
@@ -168,10 +195,17 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
       [c.driver, "driver"],
       [c.gunner, "gunner"],
       [c.loader, "loader"],
-    ] as const)
+    ] as const) {
+      await page.setViewportSize({ width: 1280, height: 720 });
+      await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({
-        path: `/tmp/car-game-to-spec/visual23/defeat-${role}.png`,
+        path: `/tmp/car-game-to-spec/visual27-final/defeat-${role}.png`,
       });
+      await page.screenshot({
+        path: `/tmp/car-game-to-spec/visual27-final/defeat-${role}-full.png`,
+        fullPage: true,
+      });
+    }
     const shots = await c.gunner.getByTestId("shot-count").textContent();
     const mgShots = await c.loader.getByTestId("mg-shot-count").textContent();
     await c.gunner.keyboard.press("Space");
@@ -196,9 +230,21 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
       await expect(page.getByTestId("crew-list")).toContainText("尚未選擇職位");
       await expect(page.getByTestId("crew-list")).not.toContainText("已準備");
     }
-    await host.screenshot({
-      path: "/tmp/car-game-to-spec/visual23/same-room-cleared.png",
-    });
+    for (const [page, role] of [
+      [c.loader, "loader"],
+      [c.driver, "driver"],
+      [c.gunner, "gunner"],
+    ] as const) {
+      await expect(page.getByTestId("room-code")).toBeInViewport();
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({
+        path: `/tmp/car-game-to-spec/visual27-final/return-${role}-1280.png`,
+      });
+      await page.screenshot({
+        path: `/tmp/car-game-to-spec/visual27-final/return-${role}-1280-full.png`,
+        fullPage: true,
+      });
+    }
     await expect(
       host.getByRole("button", { name: "開始戰鬥", exact: true }),
     ).toBeDisabled();
@@ -230,7 +276,7 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
     ).toBeDisabled();
     await c.driver.getByRole("button", { name: "準備", exact: true }).click();
     await host.screenshot({
-      path: "/tmp/car-game-to-spec/visual23/swapped-crew-ready.png",
+      path: "/tmp/car-game-to-spec/visual27-final/swapped-crew-ready.png",
     });
     await host.getByRole("button", { name: "開始戰鬥", exact: true }).click();
     for (const page of [c.loader, c.driver, c.gunner]) {
@@ -259,7 +305,7 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
       [c.gunner, "loader"],
     ] as const)
       await page.screenshot({
-        path: `/tmp/car-game-to-spec/visual23/new-round-${role}.png`,
+        path: `/tmp/car-game-to-spec/visual27-final/new-round-${role}.png`,
       });
     // The swapped roles really work in the new round.
     await newLoader.keyboard.down("r");

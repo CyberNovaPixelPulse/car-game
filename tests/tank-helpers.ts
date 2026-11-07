@@ -1,3 +1,4 @@
+import { mkdir, writeFile } from "node:fs/promises";
 import {
   expect,
   type Browser,
@@ -54,10 +55,32 @@ export async function tankCrew(
   beforeNavigation?: () => void,
 ) {
   const pages: Page[] = [];
+  const separateBrowsers: Browser[] = [];
+  const independent = process.env.TANK_THREE_BROWSERS === "1";
+  const evidence = process.env.TANK_EVIDENCE_DIR;
+  if (evidence) await mkdir(evidence, { recursive: true });
   for (const name of hostRole === "loader"
     ? ["裝填房主", "駕駛乘員", "砲手乘員"]
     : ["砲手房主", "駕駛乘員", "裝填乘員"]) {
-    const context = await browser.newContext({
+    const owner = independent
+      ? await browser.browserType().launch({
+          channel: "chromium",
+          headless: true,
+          chromiumSandbox: true,
+          ignoreDefaultArgs: ["--enable-unsafe-swiftshader"],
+          args: [
+            "--disable-background-timer-throttling",
+            "--disable-renderer-backgrounding",
+            "--disable-backgrounding-occluded-windows",
+          ],
+        })
+      : browser;
+    if (independent) separateBrowsers.push(owner);
+    const context = await owner.newContext({
+      baseURL:
+        process.env.BASE_URL ||
+        `http://127.0.0.1:${process.env.WEB_PORT || 4273}`,
+      viewport: { width: 1440, height: 1050 },
       ...(recordVideoDir ? { viewport: { width: 1280, height: 720 } } : {}),
       recordVideo: recordVideoDir
         ? { dir: recordVideoDir, size: { width: 1280, height: 720 } }
@@ -73,11 +96,77 @@ export async function tankCrew(
         return original(array) as T;
       };
     }, seed);
+    if (process.env.TANK_AUDIO_COLLECTOR) {
+      await context.addInitScript({ path: process.env.TANK_AUDIO_COLLECTOR });
+      await context.addInitScript(() => {
+        addEventListener("keydown", (event) => {
+          if (!event.isTrusted || !document.querySelector(".battle-station"))
+            return;
+          const observer = (window as any).__actualAudioOutputObservation;
+          if (
+            [
+              "KeyR",
+              "KeyC",
+              "Tab",
+              "Space",
+              "Digit1",
+              "Digit2",
+              "Digit3",
+            ].includes(event.code)
+          )
+            observer?.mark(
+              `${event.code}; chamber=${document.querySelector('[data-testid="chamber-state"]')?.textContent || "absent"}; mode=${document.querySelector('[data-testid="loader-mode"]')?.textContent || "absent"}`,
+            );
+        });
+      });
+    }
     if (beforeNavigation) await context.addInitScript(beforeNavigation);
     const page = await context.newPage();
-    keyboards.set(page, await context.newCDPSession(page));
+    if (evidence)
+      page.on("response", (response) => {
+        const url = new URL(response.url());
+        if (
+          response.status() === 404 &&
+          url.origin ===
+            new URL(
+              process.env.BASE_URL ||
+                `http://127.0.0.1:${process.env.WEB_PORT || 4273}`,
+            ).origin
+        ) {
+          // Static path only: never retain query, headers, peer IDs or payloads.
+          if (/^\/(favicon[^/]*|(?:art|assets|web)\/[^?]*)$/.test(url.pathname))
+            void writeFile(
+              `${evidence}/missing-resource-${pages.length}.json`,
+              JSON.stringify({ path: url.pathname, status: 404 }),
+            );
+        }
+      });
+    const keyboard = await context.newCDPSession(page);
+    keyboards.set(page, keyboard);
+    if (evidence) {
+      const statuses: Record<string, number> = {};
+      keyboard.on("Network.responseReceived", ({ response }) => {
+        const url = new URL(response.url);
+        if (
+          url.origin ===
+            new URL(
+              process.env.BASE_URL ||
+                `http://127.0.0.1:${process.env.WEB_PORT || 4273}`,
+            ).origin &&
+          /^\/(favicon[^/]*|(?:art|assets)\/[^?]*)$/.test(url.pathname)
+        )
+          statuses[url.pathname] = response.status;
+      });
+      await keyboard.send("Network.enable");
+      page.on("close", () => {
+        void writeFile(
+          `${evidence}/resources-${Date.now()}-${pages.indexOf(page)}.json`,
+          JSON.stringify(statuses, null, 2),
+        );
+      });
+    }
     pages.push(page);
-    await page.goto("/tank.html");
+    await page.goto("/");
     await page.getByLabel("乘員名稱").fill(name);
   }
   const [host, driver, other] = pages;
@@ -112,7 +201,35 @@ export async function tankCrew(
     driver,
     gunner,
     close: async () => {
-      for (const page of pages) await page.context().close();
+      for (const [index, page] of pages.entries()) {
+        if (evidence && process.env.TANK_AUDIO_COLLECTOR) {
+          const audio = await page.evaluate(async () => {
+            const observer = (window as any).__actualAudioOutputObservation;
+            return observer ? await observer.stop() : null;
+          });
+          if (audio) {
+            for (const stream of audio.streams) {
+              await writeFile(
+                `${evidence}/audio-${index}-${stream.id}-${Date.now()}.webm`,
+                Buffer.from(stream.base64, "base64"),
+              );
+              delete stream.base64;
+            }
+            await writeFile(
+              `${evidence}/audio-${index}-${Date.now()}.json`,
+              JSON.stringify(audio, null, 2),
+            );
+          }
+        }
+        await page.context().close();
+        if (evidence && page.video() && recordVideoDir?.includes("win-videos"))
+          await page
+            .video()!
+            .saveAs(
+              `${evidence}/win-${[hostRole, "driver", hostRole === "loader" ? "gunner" : "loader"][index]}.webm`,
+            );
+      }
+      for (const owner of separateBrowsers) await owner.close();
     },
   };
 }

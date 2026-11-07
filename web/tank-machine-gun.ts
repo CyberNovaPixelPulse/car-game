@@ -1,13 +1,8 @@
+import { MG_RULES } from "./tank-settings";
 import { boxHit, loaderCanWork, type WeaponState } from "./tank-weapons";
 
 export const MG_FIRE = 64;
-export const MG_RULES = {
-  burst: 5,
-  cooldown: 3,
-  cooling: 0.3,
-  interval: 0.1,
-  damage: 1,
-} as const;
+export { MG_RULES } from "./tank-settings";
 interface Pose {
   x: number;
   z: number;
@@ -47,9 +42,9 @@ export function stepMachineGun(
     mg.shots++;
     const from = [pose.x, 3.1, pose.z];
     const to = [
-      pose.x + Math.sin(pose.yaw) * Math.cos(pose.pitch) * 100,
-      3.1 + Math.sin(pose.pitch) * 100,
-      pose.z - Math.cos(pose.yaw) * Math.cos(pose.pitch) * 100,
+      pose.x + Math.sin(pose.yaw) * Math.cos(pose.pitch) * MG_RULES.range,
+      3.1 + Math.sin(pose.pitch) * MG_RULES.range,
+      pose.z - Math.cos(pose.yaw) * Math.cos(pose.pitch) * MG_RULES.range,
     ];
     let nearest = to[1] <= 0 ? from[1] / (from[1] - to[1]) : 1;
     let target: WeaponState["targets"][number] | undefined;

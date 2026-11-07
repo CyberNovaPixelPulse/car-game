@@ -93,7 +93,7 @@ test("持續連點可水平繞行整圈且轉速有上限", async ({ browser }) 
   const crew = await tankCrew(browser);
   try {
     await crew.gunner.screenshot({
-      path: "/tmp/car-game-to-spec/visual15/gunner-before.png",
+      path: "/tmp/car-game-to-spec/visual27-final/regression/visual15/gunner-before.png",
       fullPage: true,
     });
     // Observe the public instruments in-page so reading each frame over CDP
@@ -132,7 +132,7 @@ test("持續連點可水平繞行整圈且轉速有上限", async ({ browser }) 
     expect(observation.maximumRate).toBeLessThanOrEqual(48.8);
     expect(observation.wrapped).toBeTruthy();
     await crew.gunner.screenshot({
-      path: "/tmp/car-game-to-spec/visual15/gunner-after.png",
+      path: "/tmp/car-game-to-spec/visual27-final/regression/visual15/gunner-after.png",
       fullPage: true,
     });
     await expect(crew.gunner.getByTestId("hull-heading")).toHaveText("0°");

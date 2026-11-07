@@ -1,3 +1,11 @@
+import {
+  JAM_RULES,
+  WEAPON_TIMING,
+  SHELL_DAMAGE,
+  BALLISTICS,
+  ENEMY_RULES,
+} from "./tank-settings";
+export { SHELL_DAMAGE } from "./tank-settings";
 import { SMOKE_RADIUS, SMOKE_SECONDS, type SmokeCloud } from "./tank-smoke";
 export const LOAD = 16;
 export const FIRE = 4;
@@ -12,22 +20,11 @@ export const SHELL_LABELS = {
 } as const;
 export const STOP_JAM = 9;
 export const MODE = 8;
-export const JAM_RULES = {
-  chance: 0.25,
-  progress: 0.4,
-  width: 0.24,
-  speed: 0.65,
-  retry: 1,
-} as const;
+export { JAM_RULES } from "./tank-settings";
 export const CROUCH = 32;
 /** Fixed gameplay rule: ejected cases disable only the loader for five seconds. */
 export const LOADER_STUN_SECONDS = 5;
-export const WEAPON_TIMING = { load: 3, eject: 0.8 } as const;
-export const SHELL_DAMAGE = {
-  he: { direct: 100, radius: 5, splash: 60 },
-  ap: { direct: 180, radius: 0, splash: 0 },
-  smoke: { direct: 0, radius: 0, splash: 0 },
-} as const;
+export { WEAPON_TIMING } from "./tank-settings";
 export interface ShellFlight {
   shell: ShellType;
   id: number;
@@ -39,7 +36,7 @@ export interface ShellFlight {
   vz: number;
   age: number;
 }
-export interface PracticeTarget {
+export interface EnemyTarget {
   id: number;
   x: number;
   z: number;
@@ -105,7 +102,7 @@ export interface WeaponState {
   };
   smoke: SmokeCloud[];
   projectiles: ShellFlight[];
-  targets: PracticeTarget[];
+  targets: EnemyTarget[];
   impacts: {
     id: number;
     x: number;
@@ -170,8 +167,8 @@ export function createWeaponState(seed = 1): WeaponState {
         width: 3.2,
         height: 3,
         depth: 5.5,
-        hp: 200,
-        maxHp: 200,
+        hp: ENEMY_RULES.hp.panzer,
+        maxHp: ENEMY_RULES.hp.panzer,
         kind: "panzer",
         yaw: Math.PI,
         turretYaw: Math.PI,
@@ -179,7 +176,7 @@ export function createWeaponState(seed = 1): WeaponState {
         lastSeenX: 0,
         lastSeenZ: 0,
         lastSeenAt: -100,
-        readyAt: 12,
+        readyAt: ENEMY_RULES.spawnGrace,
         fireAt: 0,
       },
       {
@@ -189,8 +186,8 @@ export function createWeaponState(seed = 1): WeaponState {
         width: 3.7,
         height: 3.2,
         depth: 6,
-        hp: 360,
-        maxHp: 360,
+        hp: ENEMY_RULES.hp.tiger,
+        maxHp: ENEMY_RULES.hp.tiger,
         kind: "tiger",
         yaw: Math.PI,
         turretYaw: Math.PI,
@@ -198,7 +195,7 @@ export function createWeaponState(seed = 1): WeaponState {
         lastSeenX: 0,
         lastSeenZ: 0,
         lastSeenAt: -100,
-        readyAt: 18,
+        readyAt: ENEMY_RULES.initialTigerGrace,
         fireAt: 0,
       },
     ],
@@ -216,9 +213,9 @@ export function fireWeapon(w: WeaponState, pose: GunPose, now: number) {
     x: pose.x + dx * 4.8,
     y: 2.48 + dy * 4.8,
     z: pose.z + dz * 4.8,
-    vx: dx * 32,
-    vy: dy * 32,
-    vz: dz * 32,
+    vx: dx * BALLISTICS.speed,
+    vy: dy * BALLISTICS.speed,
+    vz: dz * BALLISTICS.speed,
     age: 0,
   });
   w.chamberShell = null;
@@ -323,7 +320,7 @@ export function stepWeapon(
       j.active = true;
       j.needle = 0;
       j.direction = 1;
-      j.zone = 0.12 + random(w) * 0.52;
+      j.zone = JAM_RULES.zoneStart + random(w) * JAM_RULES.zoneSpan;
       j.result = "trying";
     }
     if (w.loadProgress >= 1) w.chamber = "loaded";
@@ -333,13 +330,13 @@ export function stepWeapon(
   w.projectiles = w.projectiles.filter((p) => {
     const from = [p.x, p.y, p.z];
     p.x += p.vx * dt;
-    p.y += p.vy * dt - 0.5 * 9.81 * dt * dt;
+    p.y += p.vy * dt - 0.5 * BALLISTICS.gravity * dt * dt;
     p.z += p.vz * dt;
-    p.vy -= 9.81 * dt;
+    p.vy -= BALLISTICS.gravity * dt;
     p.age += dt;
     const to = [p.x, p.y, p.z];
     let nearest = p.y <= 0 ? from[1] / (from[1] - p.y) : Infinity;
-    let target: PracticeTarget | undefined;
+    let target: EnemyTarget | undefined;
     for (const c of [...cover, ...w.targets.filter((t) => t.hp > 0)]) {
       const hit = boxHit(
         from,
@@ -349,7 +346,7 @@ export function stepWeapon(
       );
       if (hit !== undefined && hit < nearest) {
         nearest = hit;
-        target = "hp" in c ? (c as PracticeTarget) : undefined;
+        target = "hp" in c ? (c as EnemyTarget) : undefined;
       }
     }
     if (nearest <= 1) {
@@ -398,7 +395,7 @@ export function stepWeapon(
       });
       return false;
     }
-    return p.age < 5;
+    return p.age < BALLISTICS.lifetime;
   });
 }
 export function validWeapon(w: WeaponState | undefined): w is WeaponState {

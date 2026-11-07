@@ -1,3 +1,5 @@
+> 歷史分階段接入紀錄；最終單一坦克入口與三席契約以 README、docs/game-runtime.md 及 ADR 0002 為準。舊 C／賽車與過渡 API 已在 #27 移除。
+
 # 坦克 3D 接入
 
 #14 在 tank.html 使用 TankCore＋GameRuntime，沿用 Session('tank') 的房主權威、輸入與快照傳輸。舊賽車仍使用原 Engine，不在本片移除。
