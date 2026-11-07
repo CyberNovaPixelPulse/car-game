@@ -4,11 +4,13 @@
 
 #41 的整合接點為三人正常瀏覽器／鍵盤 → 真實 PeerJS／WebRTC → 房主權威 → 可見 HUD、地圖與結果。三波流程在實際增援寬限停車修復、以可見圓針完成校準，砲手依實際畫在小地圖上的敵車方點瞄準。另以機槍唯一觀測者切入維修，讓活躍校準與五秒舊情報一起缺員凍結、切畫質及重連；刻意產生校準失敗與舊情報，再經 HP0、同房換職與新局檢查重設。現實60秒期限及房主離開也由帶有新增狀態的正常流程驗證。
 
-每個驗收批次都保留完整來源 SHA、應用程式／資產 fingerprint、精確指令、清單、原始失敗與重試。固定來源的完整回歸與三個獨立 Browser 程序補驗分開記錄；一般套件使用同一 Browser 的三個隔離 context。執行結果及選定圖像的本機交付報告為 `/tmp/car-game-spec30/reports/41.md`，原始證據位於 `/tmp/car-game-spec30/evidence/41/`。個別功能票的局部通過不能相加稱為本版完整全綠。
+每個驗收批次都保留完整來源 SHA、應用程式／資產 fingerprint、精確指令、清單、原始失敗與重試。固定來源的完整回歸與三個獨立 Browser 程序補驗分開記錄；一般套件使用同一 Browser 的三個隔離 context。當次批次數字、來源 SHA、未通過項目及限制以 [PR #42 的驗證段落](https://github.com/CyberNovaPixelPulse/car-game/pull/42) 與本機交付報告 `/tmp/car-game-spec30/reports/41.md` 為準，原始證據位於 `/tmp/car-game-spec30/evidence/41/`。完整全綠結論只適用於明確記錄的單次固定來源批次，個別功能票與補驗通過不能相加替代。
 
 最終首屏矩陣以 `tank-hud` 為主：1280×720、1440×1050 的駕駛、砲手及裝填／機槍／維修，同時涵蓋頁面及各自按鈕啟用的瀏覽器全螢幕；另保留危險、活躍校準／舊情報、暫停、三方勝敗／回房及390px入口／大廳。`hud-capture-manifest.jsonl` 記錄實際 inner尺寸、fullscreen、buffer與公開 WebGL renderer。選定 viewport 必須實際開啟，合成撕裂保留為排除項並以新檔重拍，長圖不代替首屏。資產層級由載入紀錄與真實圖像一起判斷，HTTP200本身不證明 GLB已呈現。
 
-唯讀 `browser-observations-*.json` 留存經去識別的 console warning/error、pageerror、failed request、HTTP錯誤、renderer crash及公開 WebGL contextlost事件；不攔截或過濾產品事件。故意的503降級、權限政策拒絕、導航中止及 renderer故障需按案例明列，不能據此宣稱所有錯誤為零。舊固定截圖目的地改為目前證據目錄，歷史圖像保留來源。
+唯讀 `browser-observations-*.json` 留存經去識別的 console warning/error、pageerror、failed request、HTTP錯誤、renderer crash及公開 WebGL contextlost事件；不攔截或過濾產品事件。故意的503降級、權限政策拒絕、導航中止及 renderer故障需按案例明列，不能據此宣稱所有錯誤為零。截圖、命名影片副本與錄影目錄以當次 `TANK_EVIDENCE_DIR` 分開保存。
+
+歷史證據來源更正：#41 首個 `bc122ca617ef338b8e69e87e9a3c41e983a46d7f` 完整批次的路徑遷移漏接11個舊固定輸出（9張PNG、2個命名WebM），覆寫了 #31／#32／#37 目錄下的對應路徑。這些路徑目前是該 #41 批次輸出，不能當成原功能票版本；逐檔路徑、原報告、雜湊、bc副本及後續目的地保護記在 `evidence/41/historical-output-correction.json`，相關外部歷史報告保留原敘述並加上更正連結。兩段較早的 raw 裝填手影片已另外辨識及保留；原命名副本的覆寫前雜湊未記錄，9張PNG的舊版本復原仍未驗證，不推定它們不可恢復。原bc完整批次的失敗log、JSON及trace未受此路徑疏漏影響。上述相對證據路徑以 `/tmp/car-game-spec30/` 為根。
 
 音訊沿用實際 WebAudio destination輸出觀察器，記錄真正遊玩訊號與鍵盤／公開狀態時間。波形、頻譜及時間核對與人耳聽辨分開：目前模型工具明確不接受音訊輸入，因此沒有模型／人工聽辨或實體喇叭主張。瀏覽器可信Esc補驗以 `TANK_BROWSER_ESCAPE=1` 執行；Mac鎖定時未驗證實體OS Esc或原生選單鍵盤commit。沒有 FPS、所有瀏覽器、三台實體電腦或本版正式部署保證。
 

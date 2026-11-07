@@ -270,17 +270,19 @@ test("維修模式血量歸零立即失敗，不能復活；同房換職新局�
   );
   try {
     await repairWithFreshLastKnown(c);
-    await c.loader.screenshot({
-      path: `${evidence}/dirty-calibration-stale-before-defeat.png`,
-    });
     await c.loader.keyboard.up("r");
     await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
       "校準失敗・停修兩秒",
     );
-    await expect(staleContacts(c.loader)).toHaveCount(1);
     await expect(c.loader.getByTestId("repair-status")).toContainText(
       "校準失敗等待",
     );
+    await expect(staleContacts(c.loader)).toHaveCount(1);
+    // Capture the deliberately failed work after the real release and its
+    // public wait acknowledgment; screenshot latency must not defer the action.
+    await c.loader.screenshot({
+      path: `${evidence}/dirty-calibration-stale-before-defeat.png`,
+    });
     for (const p of [c.loader, c.gunner, c.driver]) {
       await expect(p.getByTestId("battle-result")).toHaveText("戰鬥失敗", {
         timeout: 85000,

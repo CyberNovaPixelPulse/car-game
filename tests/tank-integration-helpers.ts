@@ -80,7 +80,20 @@ export async function repairWithFreshLastKnown(
   await c.loader.keyboard.press("Tab");
   await expect(c.loader.getByTestId("loader-mode")).toHaveText("維修模式");
   await expect(staleContacts(c.loader)).toHaveCount(1);
+  // Observe the first public onset at frame cadence. A visibility matcher's
+  // retry backoff can miss an actually displayed circle before the next hit.
+  const onset = c.loader.waitForFunction(
+    () => {
+      const circle = document.querySelector<HTMLElement>(
+        '[data-testid="repair-calibration"]',
+      );
+      return !!circle && !circle.hidden;
+    },
+    undefined,
+    { timeout: 4500 },
+  );
   await c.loader.keyboard.down("r");
+  await (await onset).dispose();
   await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
     timeout: 4500,
   });
