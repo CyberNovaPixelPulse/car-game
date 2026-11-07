@@ -14,10 +14,11 @@ export const REPAIR_STATUSES = [
 ] as const;
 export interface RepairState {
   status: (typeof REPAIR_STATUSES)[number];
-  /** Shared gameplay-clock deadline. Future calibration penalties extend it with max(). */
+  /** Latest damage/calibration deadline on the shared gameplay clock. */
   blockedUntil: number;
   /** Effective repair work only; preserved across modes/waves and frozen during reconnect. */
   activeSeconds: number;
+  failureUntil: number;
   calibration: {
     id: number;
     result: "idle" | "active" | "success" | "perfect" | "failed";
@@ -32,6 +33,7 @@ export const createRepairState = (seed = 1): RepairState => {
     status: "inactive",
     blockedUntil: 0,
     activeSeconds: 0,
+    failureUntil: 0,
     calibration: {
       id: 0,
       result: "idle",
@@ -55,6 +57,14 @@ function scheduleCalibration(repair: RepairState) {
     REPAIR_RULES.calibrationMinWork +
     random(repair) * REPAIR_RULES.calibrationWorkRange;
 }
+function failCalibration(state: TankState) {
+  const { repair, time } = state;
+  if (repair.calibration.result !== "active") return;
+  repair.calibration.result = "failed";
+  repair.failureUntil = time + REPAIR_RULES.failureWait;
+  repair.blockedUntil = Math.max(repair.blockedUntil, repair.failureUntil);
+  scheduleCalibration(repair);
+}
 /** Only the authority invokes this from the loader's discrete work-key action. */
 export function stopRepairCalibration(state: TankState) {
   const { repair, weapon, tank } = state;
@@ -62,14 +72,17 @@ export function stopRepairCalibration(state: TankState) {
   if (
     weapon.mode !== "repair" ||
     c.result !== "active" ||
-    repair.status !== "repairing"
+    (repair.status !== "repairing" && repair.status !== "full")
   )
     return;
   const needle = c.elapsed / REPAIR_RULES.calibrationDuration;
   const perfectStart =
     c.target + (REPAIR_RULES.calibrationWidth - REPAIR_RULES.perfectWidth) / 2;
-  if (needle < c.target || needle > c.target + REPAIR_RULES.calibrationWidth)
+  if (needle < c.target || needle > c.target + REPAIR_RULES.calibrationWidth) {
+    failCalibration(state);
+    repair.status = "waiting";
     return;
+  }
   c.result =
     needle >= perfectStart && needle <= perfectStart + REPAIR_RULES.perfectWidth
       ? "perfect"
@@ -110,7 +123,23 @@ export function stepRepair(state: TankState, held: boolean, dt: number) {
                   : !held
                     ? "ready"
                     : "repairing";
-  if (repair.status !== "repairing") return;
+  const c = repair.calibration;
+  // Reaching full HP caps healing but does not discard an already active
+  // calibration. All other normal interruptions settle that one attempt once.
+  if (
+    c.result === "active" &&
+    repair.status !== "repairing" &&
+    !(repair.status === "full" && held)
+  ) {
+    failCalibration(state);
+    if (repair.status === "ready" || repair.status === "full")
+      repair.status = "waiting";
+  }
+  if (
+    repair.status !== "repairing" &&
+    !(repair.status === "full" && c.result === "active" && held)
+  )
+    return;
   // The first eligible substep may straddle a wait deadline. Only credit the
   // part after that deadline, never a renderer frame or a wall-time pause.
   const work = Math.min(
@@ -123,10 +152,13 @@ export function stepRepair(state: TankState, held: boolean, dt: number) {
     tank.hp + REPAIR_RULES.hpPerSecond * work,
   );
   repair.activeSeconds += work;
-  const c = repair.calibration;
-  if (c.result === "active")
+  if (c.result === "active") {
     c.elapsed = Math.min(REPAIR_RULES.calibrationDuration, c.elapsed + dt);
-  else if (repair.activeSeconds >= c.nextAt) {
+    if (c.elapsed >= REPAIR_RULES.calibrationDuration) {
+      failCalibration(state);
+      repair.status = "waiting";
+    }
+  } else if (repair.activeSeconds >= c.nextAt) {
     c.id++;
     c.elapsed = 0;
     c.target = random(repair) * (1 - REPAIR_RULES.calibrationWidth);
@@ -140,9 +172,12 @@ export function validRepair(
   return (
     !!repair &&
     REPAIR_STATUSES.includes(repair.status) &&
-    [repair.blockedUntil, repair.activeSeconds].every(Number.isFinite) &&
+    [repair.blockedUntil, repair.activeSeconds, repair.failureUntil].every(
+      Number.isFinite,
+    ) &&
     repair.blockedUntil >= 0 &&
     repair.activeSeconds >= 0 &&
+    repair.failureUntil >= 0 &&
     !!repair.calibration &&
     [
       repair.calibration.id,

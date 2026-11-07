@@ -109,6 +109,10 @@ export class TankCore implements GameCore<TankState> {
           ? keys & (15 | LOAD | CROUCH | MG_FIRE)
           : 0,
     );
+    // Ordered input precedes the discrete work action. A release/crouch must
+    // settle an active calibration before a following Space can award HP.
+    if (this.roleOf(participant) === "loader")
+      stepRepair(this.state, Boolean(keys & LOAD), 0);
   }
   action(participant: number, action: number) {
     if (this.state.battle.failed || this.state.battle.won) return;
@@ -121,6 +125,7 @@ export class TankCore implements GameCore<TankState> {
             : w.mode === "machine-gun"
               ? "repair"
               : "loading";
+      stepRepair(this.state, false, 0);
       return;
     }
     if (

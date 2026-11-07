@@ -533,7 +533,7 @@ core.present = (state) => {
       stunned: "彈殼命中・暈眩中無法維修",
       crouching: "蹲下避險・暫停維修",
       moving: "停車並停止轉向後才能維修",
-      waiting: `受擊等待・${Math.max(0, state.repair.blockedUntil - state.time).toFixed(1)} 秒後可維修`,
+      waiting: `${state.repair.failureUntil > state.battle.lastHitAt + REPAIR_RULES.damageWait ? "校準失敗等待" : "受擊等待"}・${Math.max(0, state.repair.blockedUntil - state.time).toFixed(1)} 秒後可維修`,
       full: "車體完好・100 / 100 HP",
       ready: "已停穩・按住 R 維修",
       repairing: "維修中・每秒回復 2 HP",
