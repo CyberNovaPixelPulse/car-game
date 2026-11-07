@@ -22,6 +22,7 @@ import {
   JAM_RULES,
 } from "./tank-weapons";
 import { stationMarkup } from "./tank-station";
+import { attachFullscreenControl } from "./tank-fullscreen";
 import "./tank.css";
 
 const app = document.querySelector<HTMLDivElement>("#tank-app")!;
@@ -46,6 +47,7 @@ let scene: TankScene | undefined;
 let interiorScene: TankInteriorScene | undefined;
 let mgCanvas: HTMLCanvasElement | undefined;
 let stationRole: string | undefined;
+let disposeFullscreen: (() => void) | undefined;
 interface PreparedViews {
   role: CrewRole;
   code: string;
@@ -196,6 +198,8 @@ function hullPlate(states: Record<CrewRole, SeatState>) {
   return `<figure class="hull-plate"><svg viewBox="0 0 300 340" role="img" aria-label="乘員位置示意：1 駕駛在車體左前，2 砲手在砲塔右側，3 裝填手在砲塔左側"><g class="hull-lines"><rect x="34" y="20" width="16" height="290"/><rect x="190" y="20" width="16" height="290"/><path d="M50 40 Q50 22 70 22 H170 Q190 22 190 40 V300 H50Z"/><circle cx="120" cy="176" r="62"/><rect x="113" y="0" width="14" height="116"/><path d="M60 110 H180" class="dash"/><rect x="70" y="56" width="44" height="36"/><rect x="126" y="56" width="44" height="36" class="dash"/></g><g class="leaders">${leaders}</g><g class="track-links">${Array.from({ length: 14 }, (_, i) => `<path d="M34 ${36 + i * 20}h16M190 ${36 + i * 20}h16"/>`).join("")}</g>${seats}</svg><figcaption>圖 1　M4 中型戰車乘員位置，前方朝上（示意，未依比例）</figcaption></figure>`;
 }
 function menu() {
+  disposeFullscreen?.();
+  disposeFullscreen = undefined;
   document.documentElement.dataset.surface = "manual";
   retryButton.hidden = true;
   runtime.mode = "idle";
@@ -241,6 +245,8 @@ function menu() {
   };
 }
 function lobby(room: Room) {
+  disposeFullscreen?.();
+  disposeFullscreen = undefined;
   document.documentElement.dataset.surface = "manual";
   const me = room.members.find((m) => m.slot === session.slot);
   const complete =
@@ -307,6 +313,10 @@ function station(room: Room) {
   soundedStun = 0;
   soundedDamage = -100;
   content.innerHTML = stationMarkup(role, soundEnabled);
+  disposeFullscreen?.();
+  disposeFullscreen = attachFullscreenControl(
+    content.querySelector<HTMLElement>(".battle-station")!,
+  );
   if (role === "loader") {
     const interiorViewport =
       content.querySelector<HTMLElement>(".interior-viewport")!;
@@ -334,10 +344,11 @@ function station(room: Room) {
   const soundButton =
     content.querySelector<HTMLButtonElement>("#station-sound");
   if (soundButton)
-    soundButton.onclick = () => {
+    soundButton.onclick = (event) => {
       soundEnabled = !soundEnabled;
       soundButton.textContent = `音效：${soundEnabled ? "開" : "關"}`;
       soundButton.setAttribute("aria-pressed", String(soundEnabled));
+      if (event.detail > 0) soundButton.blur();
     };
   content.querySelector<HTMLButtonElement>("#battle-return")!.onclick = () =>
     session.returnToLobby();
@@ -661,6 +672,15 @@ const aimKeys: Record<string, number> = {
 };
 window.addEventListener("keydown", (event) => {
   if (runtime.mode !== "online" || runtime.paused) return;
+  // Let native controls own their keys. Space/Enter activate a display button;
+  // Tab navigates it and arrows change a select, without firing or doing work.
+  if (
+    event.target instanceof Element &&
+    event.target.closest(
+      "button, input, select, textarea, a[href], [contenteditable]",
+    )
+  )
+    return;
   if (stationRole === "loader" && event.code === "Tab") {
     event.preventDefault();
     if (!event.repeat) runtime.action(MODE);
@@ -814,6 +834,7 @@ runtime.onStart = () => {
 };
 runtime.onRestoreError = error;
 window.addEventListener("pagehide", () => {
+  disposeFullscreen?.();
   clearViews();
   session.leave(false);
 });
