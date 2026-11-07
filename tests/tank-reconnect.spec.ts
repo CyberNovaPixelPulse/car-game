@@ -1,6 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { test, expect } from "@playwright/test";
 import { tankCrew, nativeTaps } from "./tank-helpers";
+import {
+  repairWithFreshLastKnown,
+  staleContacts,
+} from "./tank-integration-helpers";
 
 test("駕駛離頁全場暫停，裝填與戰況凍結，原職位重連後安全續玩", async ({
   browser,
@@ -21,7 +25,7 @@ test("駕駛離頁全場暫停，裝填與戰況凍結，原職位重連後安�
     await expect(c.loader.getByTestId("battle-pause")).toBeVisible();
     await expect(c.gunner.getByTestId("battle-pause")).toBeVisible();
     await c.loader.screenshot({
-      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/ticket24-loader-pause-fixed-1280.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression"}/legacy-ticket24-loader-pause-fixed-1280.png`,
       fullPage: true,
     });
     const leave = await c.loader
@@ -62,20 +66,41 @@ test("駕駛離頁全場暫停，裝填與戰況凍結，原職位重連後安�
 test("缺員以現實60秒到期回同房，舊戰鬥不能續接，新局須三職全員準備", async ({
   browser,
 }) => {
-  test.setTimeout(115000);
-  const c = await tankCrew(browser);
+  test.setTimeout(180000);
+  const c = await tankCrew(browser, "loader", 0, 1972);
   try {
+    await repairWithFreshLastKnown(c);
     await c.driver.goto("about:blank");
     await expect(c.loader.getByTestId("battle-pause")).toContainText(
       "等待駕駛",
     );
     const pausedAt = Date.now();
+    await c.loader.waitForTimeout(300);
+    const circle = await c.loader
+      .getByTestId("repair-calibration-position")
+      .textContent();
+    const contact = await staleContacts(c.loader).evaluate((marker) => [
+      marker.getAttribute("x"),
+      marker.getAttribute("y"),
+      marker.getAttribute("opacity"),
+    ]);
+    await c.loader.keyboard.up("r");
     // This deliberately waits real wall time; production reconnect rules are never shortened.
     await c.loader.waitForTimeout(57000);
     await expect(
       c.loader.getByRole("heading", { name: "裝填手工作站" }),
     ).toBeVisible();
     await expect(c.gunner.getByTestId("battle-pause")).toBeVisible();
+    await expect(
+      c.loader.getByTestId("repair-calibration-position"),
+    ).toHaveText(circle!);
+    expect(
+      await staleContacts(c.loader).evaluate((marker) => [
+        marker.getAttribute("x"),
+        marker.getAttribute("y"),
+        marker.getAttribute("opacity"),
+      ]),
+    ).toEqual(contact);
     await expect(
       c.loader.getByRole("heading", { name: "乘員集合" }),
     ).toBeVisible({ timeout: 8000 });
@@ -87,6 +112,7 @@ test("缺員以現實60秒到期回同房，舊戰鬥不能續接，新局須三
       await expect(page.getByTestId("crew-list").locator("li")).toHaveCount(2);
       await expect(page.getByTestId("crew-list")).toContainText("尚未選擇職位");
       await expect(page.getByRole("status")).toContainText("60 秒");
+      await expect(page.locator(".navigation-enemy")).toHaveCount(0);
     }
     await expect(
       c.loader.getByRole("button", { name: "開始戰鬥", exact: true }),
@@ -130,6 +156,8 @@ test("缺員以現實60秒到期回同房，舊戰鬥不能續接，新局須三
         "第 1 / 3 波",
       );
       await expect(page.getByTestId("battle-pause")).toBeHidden();
+      await expect(page.getByTestId("repair-calibration-result")).toBeHidden();
+      await expect(staleContacts(page)).toHaveCount(0);
     }
   } finally {
     await c.close();
@@ -151,11 +179,11 @@ test("非房主裝填手帶同一發卡彈重連，原職位與目標區保留",
         "等待裝填手",
       );
     await c.driver.screenshot({
-      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/ticket24-paused-driver.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression"}/legacy-ticket24-paused-driver.png`,
       fullPage: true,
     });
     await c.gunner.screenshot({
-      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/ticket24-paused-gunner.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression"}/legacy-ticket24-paused-gunner.png`,
       fullPage: true,
     });
     const hp = await c.gunner.getByTestId("tank-health").textContent();
@@ -296,11 +324,11 @@ test("缺員超過八秒仍保留煙幕與五秒暈眩，重連後只走剩餘�
     const stun = await c.loader.getByTestId("stun-remaining").textContent();
     const health = await c.gunner.getByTestId("tank-health").textContent();
     await c.loader.screenshot({
-      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/ticket24-paused-stun.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression"}/legacy-ticket24-paused-stun.png`,
       fullPage: true,
     });
     await c.gunner.screenshot({
-      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/ticket24-paused-smoke.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression"}/legacy-ticket24-paused-smoke.png`,
       fullPage: true,
     });
     await c.loader.waitForTimeout(9000);
@@ -371,8 +399,9 @@ test("缺員時機槍熱度與強制冷卻凍結，恢復不補算或自動開�
 });
 
 test("房主實際離開直接結束房間，其他職位不接任房主", async ({ browser }) => {
-  const c = await tankCrew(browser);
+  const c = await tankCrew(browser, "loader", 0, 1972);
   try {
+    await repairWithFreshLastKnown(c);
     await c.loader
       .getByRole("button", { name: "離開房間", exact: true })
       .click();
@@ -387,6 +416,8 @@ test("房主實際離開直接結束房間，其他職位不接任房主", async
         page.getByRole("button", { name: "建立房間", exact: true }),
       ).toBeVisible();
       await expect(page.getByTestId("room-code")).toHaveCount(0);
+      await expect(page.locator(".navigation-enemy")).toHaveCount(0);
+      await expect(page.locator("canvas")).toHaveCount(0);
     }
   } finally {
     await c.close();

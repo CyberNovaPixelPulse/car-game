@@ -1,5 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
 import { tankCrew } from "./tank-helpers";
+import {
+  repairWithFreshLastKnown,
+  staleContacts,
+} from "./tank-integration-helpers";
 
 const evidence =
   process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/39";
@@ -256,14 +260,35 @@ test("維修仍有退殼預警、C蹲下與固定五秒暈眩", async ({ browser
 test("維修模式血量歸零立即失敗，不能復活；同房換職新局重設修理", async ({
   browser,
 }) => {
-  const c = await tankCrew(browser, "gunner");
+  test.setTimeout(180000);
+  const c = await tankCrew(
+    browser,
+    "gunner",
+    0,
+    1972,
+    `${evidence}/dirty-repair-replay-videos`,
+  );
   try {
-    await repairMode(c.loader);
+    await repairWithFreshLastKnown(c);
+    await c.loader.screenshot({
+      path: `${evidence}/dirty-calibration-stale-before-defeat.png`,
+    });
+    await c.loader.keyboard.up("r");
+    await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
+      "校準失敗・停修兩秒",
+    );
+    await expect(staleContacts(c.loader)).toHaveCount(1);
+    await expect(c.loader.getByTestId("repair-status")).toContainText(
+      "校準失敗等待",
+    );
     for (const p of [c.loader, c.gunner, c.driver]) {
       await expect(p.getByTestId("battle-result")).toHaveText("戰鬥失敗", {
         timeout: 85000,
       });
       await expect(p.getByTestId("tank-health")).toHaveText("0/100");
+      await expect(p.getByTestId("repair-calibration-result")).toContainText(
+        "上次校準失敗",
+      );
     }
     await c.loader.keyboard.down("r");
     await c.loader.keyboard.press("Space");
@@ -279,23 +304,45 @@ test("維修模式血量歸零立即失敗，不能復活；同房換職新局�
       .click();
     for (const [p, role] of [
       [c.loader, "砲手"],
-      [c.driver, "駕駛"],
-      [c.gunner, "裝填手"],
+      [c.driver, "裝填手"],
+      [c.gunner, "駕駛"],
     ] as const) {
       await expect(p.getByTestId("room-code")).toHaveText(c.code);
+      await expect(p.locator(".navigation-enemy")).toHaveCount(0);
       await p.getByRole("button", { name: `擔任${role}`, exact: true }).click();
       await p.getByRole("button", { name: "準備", exact: true }).click();
     }
     await c.gunner
       .getByRole("button", { name: "開始戰鬥", exact: true })
       .click();
-    await expect(c.gunner.getByTestId("loader-mode")).toHaveText("裝填模式");
-    await repairMode(c.gunner);
-    await expect(c.gunner.getByTestId("repair-status")).toHaveText(
+    await expect(c.driver.getByTestId("loader-mode")).toHaveText("裝填模式");
+    await repairMode(c.driver);
+    await expect(c.driver.getByTestId("repair-status")).toHaveText(
       "車體完好・100 / 100 HP",
     );
-    for (const p of [c.loader, c.gunner, c.driver])
+    for (const p of [c.loader, c.gunner, c.driver]) {
       await expect(p.getByTestId("tank-health")).toHaveText("100/100");
+      await expect(p.getByTestId("repair-calibration-result")).toBeHidden();
+      await expect(staleContacts(p)).toHaveCount(0);
+      await expect(
+        p.locator('.navigation-enemy[data-observation="current"]'),
+      ).toHaveCount(1);
+    }
+    await expect(c.driver.getByTestId("repair-calibration")).toBeHidden();
+    // The host now really drives, while the new gunner and repair loader retain
+    // their own controls after preparation. No previous held R resumes.
+    await c.gunner.keyboard.down("d");
+    await expect(c.gunner.getByTestId("hull-heading")).not.toHaveText("0°");
+    await c.gunner.keyboard.up("d");
+    await c.loader.keyboard.down("ArrowRight");
+    await expect(c.loader.getByTestId("turret-yaw-rate")).not.toHaveText(
+      "0.0°/s",
+    );
+    await c.loader.keyboard.up("ArrowRight");
+    await expect(c.loader.getByTestId("turret-yaw-rate")).toHaveText("0.0°/s");
+    await c.driver.screenshot({
+      path: `${evidence}/dirty-repair-new-round-host-driver.png`,
+    });
   } finally {
     await c.close();
   }

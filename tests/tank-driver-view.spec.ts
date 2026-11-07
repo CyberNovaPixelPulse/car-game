@@ -80,7 +80,7 @@ test("房主駕駛的真實外景資產阻擋準備票，取消與換職不留�
       host.getByRole("img", { name: "駕駛裝甲觀察窗" }),
     ).toBeInViewport({ ratio: 1 });
     await host.screenshot({
-      path: "/tmp/car-game-spec30/evidence/31/host-driver-1280x720.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/31"}/legacy-host-driver-1280x720.png`,
     });
     await host.keyboard.down("w");
     for (const page of [host, gunner])

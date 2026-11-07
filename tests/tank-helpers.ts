@@ -5,6 +5,7 @@ import {
   type Page,
   type CDPSession,
 } from "@playwright/test";
+import { observeBrowser } from "./tank-browser-observations";
 
 const keyboards = new WeakMap<Page, CDPSession>();
 
@@ -128,6 +129,7 @@ export async function tankCrew(
 ) {
   const pages: Page[] = [];
   const separateBrowsers: Browser[] = [];
+  const flushObservations: (() => Promise<void>)[] = [];
   const independent = process.env.TANK_THREE_BROWSERS === "1";
   const evidence = process.env.TANK_EVIDENCE_DIR;
   if (evidence) await mkdir(evidence, { recursive: true });
@@ -194,6 +196,10 @@ export async function tankCrew(
     }
     if (beforeNavigation) await context.addInitScript(beforeNavigation);
     const page = await context.newPage();
+    if (evidence)
+      flushObservations.push(
+        await observeBrowser(page, evidence, pages.length),
+      );
     if (evidence)
       page.on("response", (response) => {
         const url = new URL(response.url());
@@ -294,6 +300,7 @@ export async function tankCrew(
           }
         }
         await page.context().close();
+        await flushObservations[index]?.();
         if (evidence && page.video() && recordVideoDir?.includes("win-videos"))
           await page
             .video()!

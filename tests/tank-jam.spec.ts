@@ -67,7 +67,7 @@ test("卡彈保留進度；放開 R 不清除；停針成功後續裝同一發",
     );
     await crew.loader.keyboard.up("r");
     await crew.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual18/jam-cleared.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-to-spec/visual27-final/regression/visual18"}/legacy-jam-cleared.png`,
     });
     await crew.gunner.keyboard.press("Space");
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText("空膛");
@@ -132,13 +132,13 @@ test("客端裝填手失敗停針凍結一秒，重試沿用目標和進度，�
       zone!.x,
     );
     await crew.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual18/jam-failed.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-to-spec/visual27-final/regression/visual18"}/legacy-jam-failed.png`,
     });
     await expect(crew.loader.getByTestId("jam-result")).toHaveText(
       "按空白鍵停針",
     );
     await crew.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual18/jam-retry.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-to-spec/visual27-final/regression/visual18"}/legacy-jam-retry.png`,
     });
     await stopAt(crew.loader, true);
     await expect(crew.loader.getByTestId("jam-result")).toHaveText(

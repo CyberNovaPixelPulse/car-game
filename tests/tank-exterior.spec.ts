@@ -19,18 +19,18 @@ test("砲手在筆電視窗能同時看戰場準星、方向、血量及主炮�
     ])
       await expect(c.gunner.getByTestId(id)).toBeInViewport({ ratio: 1 });
     await c.gunner.screenshot({
-      path: "/tmp/car-game-spec30/evidence/31/regression/visual25/gunner-laptop.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/31/regression/visual25"}/legacy-gunner-laptop.png`,
     });
     await c.gunner.setViewportSize({ width: 1440, height: 1050 });
     await c.gunner.screenshot({
-      path: "/tmp/car-game-spec30/evidence/31/regression/visual25/gunner-desktop.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/31/regression/visual25"}/legacy-gunner-desktop.png`,
     });
     await c.driver.setViewportSize({ width: 1280, height: 720 });
     await expect(
       c.driver.getByRole("img", { name: "駕駛裝甲觀察窗" }),
     ).toBeInViewport({ ratio: 1 });
     await c.driver.screenshot({
-      path: "/tmp/car-game-spec30/evidence/31/driver-1280x720.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/31"}/legacy-driver-1280x720.png`,
     });
     await c.driver.setViewportSize({ width: 1440, height: 1050 });
     await c.driver.evaluate(
@@ -40,7 +40,7 @@ test("砲手在筆電視窗能同時看戰場準星、方向、血量及主炮�
         ),
     );
     await c.driver.screenshot({
-      path: "/tmp/car-game-spec30/evidence/31/driver-1440x1050.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/31"}/legacy-driver-1440x1050.png`,
     });
   } finally {
     await c.close();
@@ -59,7 +59,7 @@ test("機槍外部視角在筆電仍保留方向準星與工作狀態", async ({
       ratio: 1,
     });
     await c.loader.screenshot({
-      path: "/tmp/car-game-spec30/evidence/31/regression/visual25/machine-gun-laptop.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/31/regression/visual25"}/legacy-machine-gun-laptop.png`,
     });
   } finally {
     await c.close();

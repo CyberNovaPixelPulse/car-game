@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { tankCrew } from "./tank-helpers";
+import { appendFile } from "node:fs/promises";
 
 const evidence =
   process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/33";
@@ -43,7 +44,58 @@ async function capture(page: Page, name: string) {
         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       ),
   );
+  await page.waitForTimeout(200);
   await page.screenshot({ path: `${evidence}/${name}.png` });
+  const observation = await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>(
+      ".battle-station canvas",
+    );
+    const gl = canvas?.getContext("webgl2");
+    const debug = gl?.getExtension("WEBGL_debug_renderer_info");
+    return {
+      epochMs: Date.now(),
+      performanceMs: performance.now(),
+      width: innerWidth,
+      height: innerHeight,
+      screen: [screen.width, screen.height],
+      fullscreen: !!document.fullscreenElement,
+      buffer: canvas ? [canvas.width, canvas.height] : null,
+      renderer:
+        gl && debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null,
+      quality:
+        document.querySelector<HTMLSelectElement>("#station-quality")?.value,
+      health: document.querySelector('[data-testid="tank-health"]')
+        ?.textContent,
+      chamber: document.querySelector('[data-testid="chamber-state"]')
+        ?.textContent,
+      danger: document.querySelector('[data-testid="ejection-warning"]')
+        ?.textContent,
+      stun: document.querySelector('[data-testid="stun-remaining"]')
+        ?.textContent,
+    };
+  });
+  await appendFile(
+    `${evidence}/hud-capture-manifest.jsonl`,
+    JSON.stringify({
+      name,
+      path: `${evidence}/${name}.png`,
+      sourceSha: process.env.TANK_SOURCE_SHA || "working-tree",
+      ...observation,
+    }) + "\n",
+  );
+}
+
+async function captureFullscreen(page: Page, name: string, view: string) {
+  await page.getByRole("button", { name: "進入全螢幕", exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => !!document.fullscreenElement))
+    .toBe(true);
+  await fullBattle(page, view);
+  await capture(page, `${name}-fullscreen`);
+  await page.getByRole("button", { name: "退出全螢幕", exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => !!document.fullscreenElement))
+    .toBe(false);
 }
 
 test("三職位與裝填手三種工作鋪滿頁面，角落資訊和缺員離房控制同屏", async ({
@@ -63,6 +115,7 @@ test("三職位與裝填手三種工作鋪滿頁面，角落資訊和缺員離�
         await page.setViewportSize({ width, height });
         await fullBattle(page, view);
         await capture(page, `${role}-${width}`);
+        await captureFullscreen(page, `${role}-${width}`, view);
       }
       for (const [mode, name, view] of [
         ["機槍模式", "mg", "機槍戰場視野"],
@@ -75,6 +128,7 @@ test("三職位與裝填手三種工作鋪滿頁面，角落資訊和缺員離�
           ratio: 1,
         });
         await capture(c.loader, `${name}-${width}`);
+        await captureFullscreen(c.loader, `${name}-${width}`, view);
       }
       await c.loader.keyboard.press("Tab");
       await expect(c.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
@@ -242,6 +296,13 @@ test("危險、三種工作暫停與戰鬥結算保持可讀，回同房及窄�
       await expect(page.getByTestId("room-code")).toBeInViewport({ ratio: 1 });
     }
     await capture(c.gunner, "same-room-return-1440");
+    await c.gunner.setViewportSize({ width: 390, height: 844 });
+    expect(
+      await c.gunner.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await capture(c.gunner, "same-room-lobby-390");
     await c.loader
       .getByRole("button", { name: "離開房間", exact: true })
       .click();

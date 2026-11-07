@@ -14,7 +14,7 @@ test("敵車接近並預告開火，敵彈扣除三人共用血量直至一致�
     });
     await expect(c.gunner.getByTestId("enemy-warning")).toBeInViewport();
     await c.gunner.screenshot({
-      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21/enemy-warning.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21"}/legacy-enemy-warning.png`,
       fullPage: false,
     });
     await expect(c.gunner.getByTestId("tank-health")).not.toHaveText(
@@ -32,11 +32,11 @@ test("敵車接近並預告開火，敵彈扣除三人共用血量直至一致�
       await expect(page.getByTestId("tank-health")).toHaveText("0/100");
     }
     await c.driver.screenshot({
-      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21/defeat-driver.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21"}/legacy-defeat-driver.png`,
       fullPage: true,
     });
     await c.gunner.screenshot({
-      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21/defeat-gunner.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21"}/legacy-defeat-gunner.png`,
       fullPage: true,
     });
   } finally {
@@ -200,7 +200,7 @@ test("擊毀近處四號後，乘員利用石牆遮蔽虎式且己方炮火不�
       "虎式 I 型 360/360",
     );
     await c.gunner.screenshot({
-      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21/cover.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21"}/legacy-cover.png`,
       fullPage: true,
     });
     // Cover delays the enemy; its normal flank must eventually expose this position.
@@ -211,7 +211,7 @@ test("擊毀近處四號後，乘員利用石牆遮蔽虎式且己方炮火不�
       timeout: 20000,
     });
     await c.gunner.screenshot({
-      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21/cover-flanked.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21"}/legacy-cover-flanked.png`,
       fullPage: true,
     });
   } finally {
@@ -251,7 +251,7 @@ test("虎式繞過前牆接近，重裝耐打且可用兩發穿甲擊毀", async
       .toBeGreaterThan(300);
     await expect(c.gunner.getByTestId("turret-yaw-rate")).toHaveText("0.0°/s");
     await c.gunner.screenshot({
-      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21/tiger-approach.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21"}/legacy-tiger-approach.png`,
       fullPage: true,
     });
     await shot("2");
@@ -266,7 +266,7 @@ test("虎式繞過前牆接近，重裝耐打且可用兩發穿甲擊毀", async
     );
     await expect(c.gunner.getByTestId("battle-result")).toBeHidden();
     await c.gunner.screenshot({
-      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21/tiger-wreck.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21"}/legacy-tiger-wreck.png`,
       fullPage: true,
     });
   } finally {
@@ -353,7 +353,7 @@ test("敵彈先扣血後，裝填手機槍會實傷敵車並保留己方血量�
     );
 
     await c.loader.screenshot({
-      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21/mg-enemy-damage.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21"}/legacy-mg-enemy-damage.png`,
       fullPage: true,
     });
   } finally {

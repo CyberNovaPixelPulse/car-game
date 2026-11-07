@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import {
   tankCrew,
   aimAtHeading,
@@ -8,6 +8,58 @@ import {
 
 const evidence =
   process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/38/waves";
+const health = async (page: Page) =>
+  Number((await page.getByTestId("tank-health").textContent())!.split("/")[0]);
+
+/** The loader uses the actual wave reinforcement grace to repair while the
+ * gunner watches the new contacts. A real visible needle decides the work key. */
+async function repairDuringReinforcement(
+  c: Awaited<ReturnType<typeof tankCrew>>,
+) {
+  const before = await health(c.loader);
+  await c.loader.keyboard.press("Tab");
+  await c.loader.keyboard.press("Tab");
+  await expect(c.loader.getByTestId("loader-mode")).toHaveText("維修模式");
+  await c.loader.keyboard.down("r");
+  await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
+    timeout: 10000,
+  });
+  await expect
+    .poll(
+      async () => {
+        const values = (await c.loader
+          .getByTestId("repair-calibration-position")
+          .textContent())!
+          .match(/[\d.]+/g)!
+          .map(Number);
+        const [needle, , , start, end] = values;
+        return needle >= (start + end) / 2 - 8 && needle <= (start + end) / 2;
+      },
+      { intervals: [10], timeout: 1800 },
+    )
+    .toBe(true);
+  await c.loader.keyboard.press("Space");
+  await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
+    "完美校準・額外 +3 HP",
+  );
+  await c.loader.keyboard.up("r");
+  const restored = await health(c.loader);
+  expect(restored).toBeGreaterThan(before + 8);
+  for (const page of [c.driver, c.gunner]) {
+    await expect(page.getByTestId("tank-health")).toHaveText(`${restored}/100`);
+    await expect(page.getByTestId("repair-calibration-result")).toHaveText(
+      "完美校準・額外 +3 HP",
+    );
+  }
+  await c.loader.screenshot({
+    path: `${evidence}/repaired-wave-${await c.loader
+      .getByTestId("wave-status")
+      .textContent()
+      .then((t) => t!.match(/第 (\d)/)![1])}.png`,
+  });
+  await c.loader.keyboard.press("Tab");
+  await expect(c.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
+}
 
 test("三位乘員看見同一個第一波與目前觀測敵車數", async ({ browser }) => {
   const c = await tankCrew(browser);
@@ -103,6 +155,7 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
         await expect(
           page.locator(`.navigation-enemy[data-contact="${id}"]`),
         ).toHaveCount(0);
+    await repairDuringReinforcement(c);
     await aimAtHeading(c.gunner, 0);
     await expect(c.gunner.getByTestId("turret-yaw-rate")).toHaveText("0.0°/s");
     for (const wave of [2, 3]) {
@@ -128,6 +181,16 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
           await expect(page.getByTestId("wave-status")).toHaveText(
             "第 3 / 3 波 · 目前觀測敵車 3",
           );
+        // Same-battle work survives the actual wave transition; only a new
+        // battle resets repair/calibration. Health is carried, never refilled.
+        for (const page of [c.driver, c.loader, c.gunner]) {
+          await expect(
+            page.getByTestId("repair-calibration-result"),
+          ).toHaveText("完美校準・額外 +3 HP");
+          expect(await health(page)).toBeGreaterThan(0);
+          expect(await health(page)).toBeLessThan(100);
+        }
+        await repairDuringReinforcement(c);
         await aimAtHeading(c.gunner, 0);
       } else {
         await observeTiger(c);
@@ -148,19 +211,24 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
       [c.loader, "loader"],
       [c.gunner, "gunner"],
     ] as const) {
-      await page.setViewportSize({ width: 1280, height: 720 });
-      await expect(
-        page.getByRole("heading", { name: "戰鬥勝利", exact: true }),
-      ).toBeInViewport();
-      await expect(page.getByTestId("tank-health")).toBeInViewport();
-      await page.evaluate(() => window.scrollTo(0, 0));
-      await page.screenshot({
-        path: `${evidence}/victory-${role}-1280.png`,
-      });
-      await page.screenshot({
-        path: `${evidence}/victory-${role}-1280-full.png`,
-        fullPage: true,
-      });
+      for (const [width, height] of [
+        [1280, 720],
+        [1440, 1050],
+      ] as const) {
+        await page.setViewportSize({ width, height });
+        await expect(
+          page.getByRole("heading", { name: "戰鬥勝利", exact: true }),
+        ).toBeInViewport();
+        await expect(page.getByTestId("tank-health")).toBeInViewport();
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.screenshot({
+          path: `${evidence}/victory-${role}-${width}.png`,
+        });
+        await page.screenshot({
+          path: `${evidence}/victory-${role}-${width}-full.png`,
+          fullPage: true,
+        });
+      }
     }
   } finally {
     await c.close();
