@@ -22,6 +22,8 @@ WEB_PORT=5054 PEER_PORT=5055 TANK_NATIVE_BROWSER=1 TANK_THREE_BROWSERS=1 TANK_EV
 
 所有 `tank-*.spec.ts` 保留：入口、房間、駕駛碰撞、慣性瞄準、裝填／射擊／退殼、三彈種、卡彈、蹲下／五秒暈眩、機槍／過熱、敵車、煙幕、三模式停車維修／2 HP 每秒／受擊禁修／原位重連凍結、三波勝負／回房換職重玩、斷線暫停／原位重連／現實 60 秒期限及 relay 18 秒重試、外景與車內。
 
+`tank-intel-memory.spec.ts` 以實際轉向與煙霧彈產生失去觀測，驗證固定舊位置、三方共用文字與淡出，以及超過五秒的真實缺員暫停後原職位重連續接。`tank-scouting` 與 `tank-smoke` 分開斷言當前／舊情報，不把保留的舊標記誤當成持續追蹤；真實煙後 AP 命中不刷新已知 HP，重新觀測才更新。波次及同房換職新局沿用正常裝填、射擊與結果流程驗證清理。
+
 舊賽車測試移除映射如下：rooms/five-racers → tank-rooms；driving/braking/obstacle → tank-driving；projectile → tank-weapons/ammunition/smoke；finish/retry → tank-waves；reconnect → tank-reconnect；racing → tank-entry/rooms/waves。drift/items/lap-guard 的甩尾、道具、圈數已被 #11 取消，沒有虛構坦克替代玩法。舊 helpers 與 C/Wasm adapter 同步移除。
 
 最終完整批次須全數執行，不以舊票各批通過相加代替新來源整合通過。保留原始失敗與重試紀錄，不能放寬產品限值製造綠燈。視覺驗收包含 1280×720 各職位戰鬥／結算／返回、1440×1050、390 入口；駕駛依 #30／#31 使用固定車頭、水平約 60°且垂直狹窄的裝甲觀察窗，須檢查實際開口、厚度與場景移動，不只檢查 canvas；不使用隱藏敵座標。裝填模式只顯示車內。截圖須開啟確認；音訊、FPS 與部署狀態各按實際證據描述。

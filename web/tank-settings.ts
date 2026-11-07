@@ -62,6 +62,8 @@ export const MG_RULES = {
 export const SMOKE_SECONDS = 8;
 export const SMOKE_RADIUS = 5;
 export const LAST_SEEN_SECONDS = 2.5;
+/** Crew memory is separate from the enemy AI's last-seen player position. */
+export const TEAM_INTEL_SECONDS = 5;
 export const ENEMY_RULES = {
   hp: { panzer: 200, tiger: 360 },
   speed: { panzer: 1.25, tiger: 0.9 },

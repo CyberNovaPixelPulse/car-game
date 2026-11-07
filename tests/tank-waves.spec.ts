@@ -6,6 +6,9 @@ import {
   aimAtObservedEnemy,
 } from "./tank-helpers";
 
+const evidence =
+  process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/38/waves";
+
 test("三位乘員看見同一個第一波與目前觀測敵車數", async ({ browser }) => {
   const c = await tankCrew(browser);
   try {
@@ -17,7 +20,7 @@ test("三位乘員看見同一個第一波與目前觀測敵車數", async ({ br
       await expect(page.getByTestId("wave-status")).toBeInViewport();
     }
     await c.loader.screenshot({
-      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/wave-hud-loader.png",
+      path: `${evidence}/wave-hud-loader.png`,
     });
   } finally {
     await c.close();
@@ -152,10 +155,10 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
       await expect(page.getByTestId("tank-health")).toBeInViewport();
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({
-        path: `/tmp/car-game-spec30/evidence/37/legacy/visual27-final/victory-${role}-1280.png`,
+        path: `${evidence}/victory-${role}-1280.png`,
       });
       await page.screenshot({
-        path: `/tmp/car-game-spec30/evidence/37/legacy/visual27-final/victory-${role}-1280-full.png`,
+        path: `${evidence}/victory-${role}-1280-full.png`,
         fullPage: true,
       });
     }
@@ -173,7 +176,7 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
     "loader",
     0,
     1000,
-    "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/replay-videos",
+    `${evidence}/replay-videos`,
   );
   try {
     await c.loader.keyboard.press("2");
@@ -206,10 +209,10 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
       await page.setViewportSize({ width: 1280, height: 720 });
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({
-        path: `/tmp/car-game-spec30/evidence/37/legacy/visual27-final/defeat-${role}.png`,
+        path: `${evidence}/defeat-${role}.png`,
       });
       await page.screenshot({
-        path: `/tmp/car-game-spec30/evidence/37/legacy/visual27-final/defeat-${role}-full.png`,
+        path: `${evidence}/defeat-${role}-full.png`,
         fullPage: true,
       });
     }
@@ -234,6 +237,7 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
     const code = c.code;
     for (const page of [c.driver, c.gunner, c.loader]) {
       await expect(page.getByTestId("room-code")).toHaveText(code!);
+      await expect(page.locator(".navigation-enemy")).toHaveCount(0);
       await expect(page.getByTestId("crew-list")).toContainText("尚未選擇職位");
       await expect(page.getByTestId("crew-list")).not.toContainText("已準備");
     }
@@ -245,10 +249,10 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
       await expect(page.getByTestId("room-code")).toBeInViewport();
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({
-        path: `/tmp/car-game-spec30/evidence/37/legacy/visual27-final/return-${role}-1280.png`,
+        path: `${evidence}/return-${role}-1280.png`,
       });
       await page.screenshot({
-        path: `/tmp/car-game-spec30/evidence/37/legacy/visual27-final/return-${role}-1280-full.png`,
+        path: `${evidence}/return-${role}-1280-full.png`,
         fullPage: true,
       });
     }
@@ -283,7 +287,7 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
     ).toBeDisabled();
     await c.driver.getByRole("button", { name: "準備", exact: true }).click();
     await host.screenshot({
-      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/swapped-crew-ready.png",
+      path: `${evidence}/swapped-crew-ready.png`,
     });
     await host.getByRole("button", { name: "開始戰鬥", exact: true }).click();
     for (const page of [c.loader, c.driver, c.gunner]) {
@@ -292,6 +296,12 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
         "第 1 / 3 波 · 目前觀測敵車 1",
       );
       await expect(page.getByTestId("battle-result")).toBeHidden();
+      await expect(
+        page.locator('.navigation-enemy[data-observation="stale"]'),
+      ).toHaveCount(0);
+      await expect(
+        page.locator('.navigation-enemy[data-observation="current"]'),
+      ).toHaveCount(1);
     }
     const newLoader = c.gunner;
     const newGunner = c.driver;
@@ -312,7 +322,7 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
       [c.gunner, "loader"],
     ] as const)
       await page.screenshot({
-        path: `/tmp/car-game-spec30/evidence/37/legacy/visual27-final/new-round-${role}.png`,
+        path: `${evidence}/new-round-${role}.png`,
       });
     // The swapped roles really work in the new round.
     await newLoader.keyboard.down("r");

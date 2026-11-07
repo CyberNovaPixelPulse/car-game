@@ -1327,6 +1327,12 @@ legend {
   stroke: #171e1c;
   stroke-width: 0.5;
 }
+.navigation-enemy[data-observation="stale"],
+.navigation-stale-key {
+  fill: none;
+  stroke: var(--hud-danger);
+  stroke-width: 0.65;
+}
 .battle-navigation .navigation-legend,
 .battle-navigation .navigation-scale {
   margin: 0;

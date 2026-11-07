@@ -3,7 +3,8 @@ import { aimAtHeading, tankCrew } from "./tank-helpers";
 
 const evidence =
   process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/37";
-const markers = (page: Page) => page.locator(".navigation-enemy");
+const markers = (page: Page) =>
+  page.locator('.navigation-enemy[data-observation="current"]');
 
 for (const hostRole of ["gunner", "loader"] as const)
   test(`固定掩體後的敵車不洩漏，主炮與駕駛實際轉離後車內乘員不能發現敵車 (${hostRole}房主)`, async ({
@@ -43,8 +44,8 @@ for (const hostRole of ["gunner", "loader"] as const)
       await expect(c.driver.getByTestId("tank-motion")).toHaveText("靜止");
       for (const p of [c.driver, c.gunner, c.loader])
         await expect(markers(p)).toHaveCount(0);
-      await expect(c.gunner.getByTestId("target-status")).toHaveText(
-        "目前沒有觀測到敵車",
+      await expect(c.gunner.getByTestId("target-status")).toContainText(
+        "最後已知",
       );
       await expect(c.gunner.getByTestId("enemy-warning")).toHaveText("");
       await expect(c.gunner.getByTestId("enemy-activity")).toHaveText("");
@@ -136,8 +137,8 @@ test("主炮觀測依實際長寬比改變，垂直65度不會被當成水平視
     await aimAtHeading(c.gunner, 40);
     await c.gunner.setViewportSize({ width: 900, height: 1050 });
     await expect(markers(c.gunner)).toHaveCount(0);
-    await expect(c.gunner.getByTestId("target-status")).toHaveText(
-      "目前沒有觀測到敵車",
+    await expect(c.gunner.getByTestId("target-status")).toContainText(
+      "最後已知",
     );
     await c.gunner.screenshot({ path: `${evidence}/projection-narrow.png` });
     await c.gunner.setViewportSize({ width: 1440, height: 720 });

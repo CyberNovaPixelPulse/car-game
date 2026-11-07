@@ -55,7 +55,7 @@ export const BATTLEFIELD = {
   ],
 } as const;
 export interface TankState {
-  version: 4;
+  version: 5;
   intel: TeamIntel;
   repair: RepairState;
   time: number;
@@ -73,7 +73,7 @@ export interface TankState {
   };
 }
 const initial = (seed = 1): TankState => ({
-  version: 4,
+  version: 5,
   intel: createTeamIntel(),
   repair: createRepairState(seed),
   time: 0,
@@ -382,8 +382,8 @@ export class TankCore implements GameCore<TankState> {
   restore(snapshot: string) {
     const next: TankState = JSON.parse(snapshot);
     if (
-      next.version !== 4 ||
-      !validTeamIntel(next.intel) ||
+      next.version !== 5 ||
+      !validTeamIntel(next.intel, next.time, next.weapon?.targets) ||
       !validRepair(next.repair) ||
       !next.battle ||
       typeof next.battle.failed !== "boolean" ||
