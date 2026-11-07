@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { tankCrew } from "./tank-helpers";
+import { tankCrew, nativeTaps } from "./tank-helpers";
 
 test("裝填手持續蹲下不能工作，及時蹲下避開退殼後放開可續裝", async ({
   browser,
@@ -53,7 +53,28 @@ test("裝填手持續蹲下不能工作，及時蹲下避開退殼後放開可�
 test("站立被彈殼擊中固定五秒不能工作，重新按鍵無效且另外兩人繼續", async ({
   browser,
 }) => {
-  const crew = await tankCrew(browser, "gunner");
+  const crew = await tankCrew(browser, "gunner", 0, 1000, undefined, () => {
+    const timing = {} as { space?: number; recovered?: number };
+    (window as any).__ejectionPublicTiming = timing;
+    document.addEventListener("keydown", (event) => {
+      if (event.code === "Space" && event.isTrusted && !event.repeat)
+        timing.space ??= performance.timeOrigin + event.timeStamp;
+    });
+    const find = new MutationObserver(() => {
+      const status = document.querySelector('[data-testid="loader-status"]');
+      if (!status) return;
+      find.disconnect();
+      new MutationObserver(() => {
+        if (status.textContent === "已恢復・可以工作")
+          timing.recovered ??= performance.timeOrigin + performance.now();
+      }).observe(status, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+    });
+    find.observe(document, { childList: true, subtree: true });
+  });
   try {
     await crew.loader.keyboard.down("r");
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText(
@@ -62,7 +83,7 @@ test("站立被彈殼擊中固定五秒不能工作，重新按鍵無效且另�
     );
     await crew.loader.keyboard.up("r");
     const fireAt = Date.now();
-    await crew.gunner.keyboard.press("Space");
+    await nativeTaps(crew.gunner, 1, 0, "Space");
     await expect(crew.loader.getByTestId("loader-status")).toContainText(
       "暈眩",
     );
@@ -104,8 +125,18 @@ test("站立被彈殼擊中固定五秒不能工作，重新按鍵無效且另�
     );
     // Space → ~0.8s ejection → fixed 5s stun. Locator polling can first
     // observe the stun hundreds of ms after impact, so time from the key event.
-    expect(Date.now() - fireAt).toBeGreaterThanOrEqual(5600);
-    expect(Date.now() - fireAt).toBeLessThan(6300);
+    const [fire, recovery] = await Promise.all([
+      crew.gunner.evaluate(
+        () => (window as any).__ejectionPublicTiming.space as number,
+      ),
+      crew.loader.evaluate(
+        () => (window as any).__ejectionPublicTiming.recovered as number,
+      ),
+    ]);
+    const observedElapsed = recovery - fire;
+    console.log("native Space to visible recovery", observedElapsed);
+    expect(observedElapsed).toBeGreaterThanOrEqual(5600);
+    expect(observedElapsed).toBeLessThan(6300);
     await expect
       .poll(async () =>
         Number(await crew.loader.getByTestId("load-progress").textContent()),

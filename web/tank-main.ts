@@ -2,7 +2,7 @@ import { smokeBlocks, smokeSight } from "./tank-smoke";
 import { ENEMY_LABELS } from "./tank-enemies";
 import { MG_FIRE } from "./tank-machine-gun";
 import { Session, type Room } from "./network";
-import { CREW_ROLES, ROLE_LABELS, ROLE_TASKS } from "./crew";
+import { CREW_ROLES, ROLE_LABELS, ROLE_TASKS, type CrewRole } from "./crew";
 import { GameRuntime } from "./game-runtime";
 import { TankCore, DRIVE, AIM } from "./tank-core";
 import { TankScene } from "./tank-scene";
@@ -44,6 +44,86 @@ let scene: TankScene | undefined;
 let interiorScene: TankInteriorScene | undefined;
 let mgCanvas: HTMLCanvasElement | undefined;
 let stationRole: string | undefined;
+interface PreparedViews {
+  role: CrewRole;
+  code: string;
+  exterior?: TankScene;
+  exteriorCanvas?: HTMLCanvasElement;
+  interior?: TankInteriorScene;
+  interiorCanvas?: HTMLCanvasElement;
+}
+let prepared: PreparedViews | undefined;
+let preparing = false;
+let preparationVersion = 0;
+function clearViews() {
+  preparationVersion++;
+  preparing = false;
+  for (const view of new Set([scene, prepared?.exterior])) view?.dispose();
+  for (const view of new Set([interiorScene, prepared?.interior]))
+    view?.dispose();
+  for (const canvas of [
+    mgCanvas,
+    prepared?.exteriorCanvas,
+    prepared?.interiorCanvas,
+  ])
+    canvas?.remove();
+  scene = undefined;
+  interiorScene = undefined;
+  mgCanvas = undefined;
+  prepared = undefined;
+}
+function artCanvas(label: string) {
+  const canvas = document.createElement("canvas");
+  canvas.setAttribute("aria-label", label);
+  canvas.setAttribute("role", "img");
+  return canvas;
+}
+async function prepareVote(room: Room, role: CrewRole) {
+  clearViews();
+  const version = ++preparationVersion;
+  preparing = true;
+  const views: PreparedViews = { role, code: room.code };
+  prepared = views;
+  lobby(room);
+  try {
+    // Let the real pending status paint before doing expensive graphics work.
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+    if (version !== preparationVersion) return;
+    if (role === "gunner") {
+      views.exteriorCanvas = artCanvas("主炮戰場視野");
+      views.exterior = new TankScene(views.exteriorCanvas);
+      await views.exterior.prepare(core.view());
+    } else if (role === "loader") {
+      views.interiorCanvas = artCanvas("車內炮膛與彈藥架");
+      views.interior = new TankInteriorScene(views.interiorCanvas);
+      views.exteriorCanvas = artCanvas("機槍戰場視野");
+      views.exterior = new TankScene(views.exteriorCanvas, "machine-gun");
+      // Both actual views are prepared before the loader's existing ready vote.
+      await views.interior.prepare(core.view());
+      await views.exterior.prepare(core.view());
+    }
+    const current = session.room;
+    const currentRole = current?.members.find(
+      (member) => member.slot === session.slot,
+    )?.role;
+    if (
+      version !== preparationVersion ||
+      current?.code !== room.code ||
+      currentRole !== role ||
+      current.phase !== "lobby"
+    )
+      return;
+    preparing = false;
+    session.setReady(true);
+  } catch (e) {
+    if (version !== preparationVersion) return;
+    clearViews();
+    if (session.room?.phase === "lobby") lobby(session.room);
+    error(e);
+  }
+}
 let held = 0;
 let warningAudio: AudioContext | undefined;
 let soundEnabled = true;
@@ -95,11 +175,7 @@ function menu() {
   runtime.mode = "idle";
   runtime.clearInput();
   held = 0;
-  interiorScene?.dispose();
-  interiorScene = undefined;
-  scene?.dispose();
-  scene = undefined;
-  mgCanvas = undefined;
+  clearViews();
   stationRole = undefined;
   content.innerHTML = `<h2>與隊友集合</h2><form id="crew-create"><label for="crew-name">乘員名稱</label><input id="crew-name" maxlength="16" autocomplete="nickname" required><button type="submit">建立房間</button></form><form id="crew-join"><label for="crew-code">房間代碼</label><div class="join-line"><input id="crew-code" maxlength="6" autocomplete="off" autocapitalize="characters" required><button type="submit">加入房間</button></div></form><p class="note">需要三位玩家、三台電腦與實體鍵盤。</p>`;
   const name = () => {
@@ -149,7 +225,7 @@ function lobby(room: Room) {
     },
   ).join(
     "",
-  )}</fieldset><div class="room-actions"><button id="crew-ready" ${!me?.role ? "disabled" : ""}>${me?.ready ? "取消準備" : "準備"}</button>${session.isHost ? `<button id="crew-start" ${complete ? "" : "disabled"}>開始戰鬥</button>` : "<p>全員準備後，由房主開始戰鬥。</p>"}<button class="secondary" id="crew-leave">離開房間</button></div><p class="note">${
+  )}</fieldset><div class="room-actions"><button id="crew-ready" ${!me?.role ? "disabled" : ""}>${me?.ready || preparing ? "取消準備" : "準備"}</button>${session.isHost ? `<button id="crew-start" ${complete ? "" : "disabled"}>開始戰鬥</button>` : "<p>全員準備後，由房主開始戰鬥。</p>"}<button class="secondary" id="crew-leave">離開房間</button></div>${preparing ? '<p role="status">正在準備工作畫面，完成後才會標示已準備；可取消或改選職位。</p>' : ""}<p class="note">${
     complete
       ? "三個職位已就緒。"
       : `等待 ${
@@ -166,8 +242,13 @@ function lobby(room: Room) {
         session.chooseRole(button.dataset.role as (typeof CREW_ROLES)[number]);
       };
     });
-  document.querySelector<HTMLButtonElement>("#crew-ready")!.onclick = () =>
-    session.setReady(!me?.ready);
+  document.querySelector<HTMLButtonElement>("#crew-ready")!.onclick = () => {
+    if (preparing || me?.ready) {
+      clearViews();
+      if (me?.ready) session.setReady(false);
+      else if (session.room) lobby(session.room);
+    } else if (me?.role) void prepareVote(room, me.role);
+  };
   const start = document.querySelector<HTMLButtonElement>("#crew-start");
   if (start) start.onclick = () => session.start();
   document.querySelector<HTMLButtonElement>("#crew-leave")!.onclick = () => {
@@ -179,25 +260,30 @@ function lobby(room: Room) {
 function station(room: Room) {
   const role = room.members.find((m) => m.slot === session.slot)?.role;
   if (!role || stationRole === role) return;
-  interiorScene?.dispose();
-  interiorScene = undefined;
-  scene?.dispose();
-  scene = undefined;
-  mgCanvas = undefined;
+  const ready = prepared?.role === role && prepared.code === room.code;
+  if (!ready) clearViews();
   stationRole = role;
   mechanicalAudio.reset();
   soundedShot = 0;
   soundedStun = 0;
   soundedDamage = -100;
-  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><div class="battle-pause" data-testid="battle-pause" role="status" hidden></div><p>${ROLE_TASKS[role]}</p><p>共用坦克血量 <strong data-testid="tank-health">100/100</strong></p><p data-testid="wave-status"></p><p data-testid="damage-warning" role="status"></p><h2 data-testid="battle-result" hidden>戰鬥失敗</h2><button id="battle-return" hidden>回到房間</button>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong> · 砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p><p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note">連點 A／D 左右、W／S 上下；反方向連點可煞停。按住只推動一次。</p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p><strong data-testid="loader-mode">裝填模式</strong> · Tab 切換工作</p><p class="ejection-warning" data-testid="ejection-warning" role="status"></p><p><span data-testid="loader-status">站立・可以工作</span> <strong class="stun-timer" data-testid="stun-remaining"></strong></p><div class="mg-workspace" hidden><div class="battle-viewport"><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p>機槍朝向 <strong data-testid="mg-heading">0.0°</strong> · 仰角 <strong data-testid="mg-pitch">0.0°</strong></p><p class="note">按住 WASD 瞄準，放開即停止。空白鍵按住連射，備彈無限。Tab 返回裝填。</p><div class="mg-hud"><p>機槍熱度 <strong data-testid="mg-heat">0</strong>% · <span data-testid="mg-status">可以射擊</span> <strong data-testid="mg-cooldown"></strong></p><progress aria-label="機槍熱度" max="100" value="0"></progress></div><p>機槍已射擊 <strong data-testid="mg-shot-count">0</strong> 發</p><p data-testid="mg-target-status"></p></div><div class="loading-workspace"><div class="interior-viewport"><canvas role="img" aria-label="車內炮膛與彈藥架"></canvas></div><section class="jam-game" aria-label="卡彈排除" hidden><h3>卡彈：停在目標區</h3><div class="jam-track"><span class="jam-zone" data-testid="jam-zone">目標</span><span class="jam-needle" data-testid="jam-needle"></span></div><p data-testid="jam-result">按空白鍵停針</p></section><p class="note">按 1 選高爆彈、2 選穿甲彈、3 選煙霧彈。按住 R 裝填，放開可暫停；開始裝填後鎖定該發彈種。等待砲手開火、退殼後再裝下一發。按住 C 蹲下避開彈殼，放開起身；蹲下時無法工作。</p></div></div>'}${role !== "driver" ? '<div class="weapon-status"><p>選擇：<strong data-testid="selected-shell">高爆彈</strong> · 高爆／穿甲／煙霧備彈無限</p><p>膛內：<strong data-testid="chamber-shell">無</strong></p><p data-testid="chamber-state">空膛</p><p>裝填進度 <strong data-testid="load-progress">0</strong>%</p><progress aria-label="裝填進度" max="100" value="0"></progress><p>已發射 <strong data-testid="shot-count">0</strong> 發</p></div>' : ""}${role === "gunner" ? '<p data-testid="enemy-warning" role="status"></p><p data-testid="enemy-activity" role="status"></p><p data-testid="target-status">敵車接近中</p><p data-testid="flight-status"></p><p class="note">主炮就緒後，按空白鍵開火。</p>' : ""}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}${role === "loader" ? `<button type="button" class="secondary" id="station-sound" aria-pressed="${soundEnabled}">音效：${soundEnabled ? "開" : "關"}</button>` : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
+  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><div class="battle-pause" data-testid="battle-pause" role="status" hidden></div><p class="station-task">${ROLE_TASKS[role]}</p><p class="crew-health">共用坦克血量 <strong data-testid="tank-health">100/100</strong></p><p data-testid="wave-status"></p><p data-testid="damage-warning" role="status"></p><h2 data-testid="battle-result" hidden>戰鬥失敗</h2><button id="battle-return" hidden>回到房間</button>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong> · 砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p><p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note">連點 A／D 左右、W／S 上下；反方向連點可煞停。按住只推動一次。</p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p><strong data-testid="loader-mode">裝填模式</strong> · Tab 切換工作</p><p class="ejection-warning" data-testid="ejection-warning" role="status"></p><p><span data-testid="loader-status">站立・可以工作</span> <strong class="stun-timer" data-testid="stun-remaining"></strong></p><div class="mg-workspace" hidden><div class="battle-viewport"><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p>機槍朝向 <strong data-testid="mg-heading">0.0°</strong> · 仰角 <strong data-testid="mg-pitch">0.0°</strong></p><p class="note">按住 WASD 瞄準，放開即停止。空白鍵按住連射，備彈無限。Tab 返回裝填。</p><div class="mg-hud"><p>機槍熱度 <strong data-testid="mg-heat">0</strong>% · <span data-testid="mg-status">可以射擊</span> <strong data-testid="mg-cooldown"></strong></p><progress aria-label="機槍熱度" max="100" value="0"></progress></div><p>機槍已射擊 <strong data-testid="mg-shot-count">0</strong> 發</p><p data-testid="mg-target-status"></p></div><div class="loading-workspace"><div class="interior-viewport"><canvas role="img" aria-label="車內炮膛與彈藥架"></canvas></div><section class="jam-game" aria-label="卡彈排除" hidden><h3>卡彈：停在目標區</h3><div class="jam-track"><span class="jam-zone" data-testid="jam-zone">目標</span><span class="jam-needle" data-testid="jam-needle"></span></div><p data-testid="jam-result">按空白鍵停針</p></section><p class="note">按 1 選高爆彈、2 選穿甲彈、3 選煙霧彈。按住 R 裝填，放開可暫停；開始裝填後鎖定該發彈種。等待砲手開火、退殼後再裝下一發。按住 C 蹲下避開彈殼，放開起身；蹲下時無法工作。</p></div></div>'}${role !== "driver" ? '<div class="weapon-status"><p>選擇：<strong data-testid="selected-shell">高爆彈</strong> · 高爆／穿甲／煙霧備彈無限</p><p>膛內：<strong data-testid="chamber-shell">無</strong></p><p data-testid="chamber-state">空膛</p><p>裝填進度 <strong data-testid="load-progress">0</strong>%</p><progress aria-label="裝填進度" max="100" value="0"></progress><p>已發射 <strong data-testid="shot-count">0</strong> 發</p></div>' : ""}${role === "gunner" ? '<p data-testid="enemy-warning" role="status"></p><p data-testid="enemy-activity" role="status"></p><p data-testid="target-status">敵車接近中</p><p data-testid="flight-status"></p><p class="note">主炮就緒後，按空白鍵開火。</p>' : ""}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}${role === "loader" ? `<button type="button" class="secondary" id="station-sound" aria-pressed="${soundEnabled}">音效：${soundEnabled ? "開" : "關"}</button>` : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
   if (role === "loader") {
     const jamPanel = content.querySelector(".jam-game");
     if (jamPanel)
       content.querySelector(".loading-workspace")!.prepend(jamPanel);
     try {
-      interiorScene = new TankInteriorScene(
-        content.querySelector(".interior-viewport canvas")!,
-      );
+      if (ready && prepared?.interior && prepared.interiorCanvas) {
+        content
+          .querySelector(".interior-viewport canvas")!
+          .replaceWith(prepared.interiorCanvas);
+        interiorScene = prepared.interior;
+        scene = prepared.exterior;
+        mgCanvas = prepared.exteriorCanvas;
+      } else
+        interiorScene = new TankInteriorScene(
+          content.querySelector(".interior-viewport canvas")!,
+        );
     } catch {
       message.textContent =
         "無法啟動 3D 車內工作區，請使用支援 WebGL2 的瀏覽器重新加入。";
@@ -215,16 +301,19 @@ function station(room: Room) {
     session.returnToLobby();
   const enemyWarning = content.querySelector('[data-testid="enemy-warning"]');
   if (enemyWarning)
-    content.querySelector(".battle-viewport")!.append(enemyWarning);
+    content.querySelector(".battle-viewport")!.before(enemyWarning);
   const enemyActivity = content.querySelector('[data-testid="enemy-activity"]');
   if (enemyActivity)
-    content.querySelector(".battle-viewport")!.append(enemyActivity);
+    content.querySelector(".battle-viewport")!.before(enemyActivity);
   const mgHud = content.querySelector(".mg-hud");
   if (mgHud)
     content.querySelector(".mg-workspace .battle-viewport")!.append(mgHud);
   if (role === "gunner") {
     try {
-      scene = new TankScene(content.querySelector("canvas")!);
+      if (ready && prepared?.exterior && prepared.exteriorCanvas) {
+        content.querySelector("canvas")!.replaceWith(prepared.exteriorCanvas);
+        scene = prepared.exterior;
+      } else scene = new TankScene(content.querySelector("canvas")!);
     } catch {
       message.textContent =
         "無法啟動 3D 戰場，請使用支援 WebGL2 的瀏覽器重新加入。";
@@ -607,12 +696,16 @@ runtime.onRoom = (room) => {
     runtime.mode = "idle";
     runtime.clearInput();
     held = 0;
-    interiorScene?.dispose();
-    interiorScene = undefined;
+    const role = room.members.find(
+      (member) => member.slot === session.slot,
+    )?.role;
+    // Ordinary neighbours' ready updates must keep this renderer warm.
+    if (
+      stationRole ||
+      (prepared && (prepared.role !== role || prepared.code !== room.code))
+    )
+      clearViews();
     mechanicalAudio.reset();
-    scene?.dispose();
-    scene = undefined;
-    mgCanvas = undefined;
     stationRole = undefined;
     lobby(room);
   } else {
@@ -628,7 +721,10 @@ runtime.onStart = () => {
   if (session.room) station(session.room);
 };
 runtime.onRestoreError = error;
-window.addEventListener("pagehide", () => session.leave(false));
+window.addEventListener("pagehide", () => {
+  clearViews();
+  session.leave(false);
+});
 menu();
 
 void session.resumeSaved();

@@ -554,6 +554,137 @@ legend {
   display: none;
 }
 
+/* Combat takes the viewport; room entry keeps its original quiet form layout. */
+.crew-shell:has(.battle-station[data-role="gunner"]) {
+  max-width: 1600px;
+  padding: 12px 18px 24px;
+}
+.crew-shell:has(.battle-station[data-role="gunner"]) > header {
+  display: none;
+}
+.battle-station[data-role="gunner"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 20px;
+  padding: 14px 16px;
+  border-radius: 0;
+}
+.battle-station[data-role="gunner"] > h2:first-child {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 18px;
+  margin: 0;
+}
+.battle-station[data-role="gunner"] > p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.battle-station[data-role="gunner"] > .station-task {
+  display: none;
+}
+.battle-station[data-role="gunner"] > .crew-health {
+  grid-column: 2;
+  grid-row: 1;
+  text-align: right;
+}
+.battle-station[data-role="gunner"] > [data-testid="damage-warning"],
+.battle-station[data-role="gunner"] > [data-testid="battle-result"] {
+  grid-column: 1 / -1;
+}
+.battle-station[data-role="gunner"] > [data-testid="damage-warning"]:empty {
+  display: none;
+}
+.battle-station[data-role="gunner"] > .battle-viewport {
+  grid-column: 1 / -1;
+  height: clamp(300px, calc(100dvh - 300px), 720px);
+  min-width: 0;
+}
+.battle-station[data-role="gunner"] > .heading-readout {
+  grid-column: 1;
+  font-size: 16px;
+}
+.battle-station[data-role="gunner"] > .weapon-status {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  padding: 8px 0;
+  border-block: 1px solid #566154;
+  font-size: 14px;
+}
+.battle-station[data-role="gunner"] > .weapon-status p {
+  margin: 0;
+  line-height: 1.5;
+}
+.battle-station[data-role="gunner"] > .weapon-status progress {
+  width: 130px;
+  height: 10px;
+}
+.battle-station[data-role="gunner"] > [data-testid="target-status"],
+.battle-station[data-role="gunner"] > .note {
+  grid-column: 1 / -1;
+}
+.battle-station[data-role="gunner"] > .secondary {
+  justify-self: end;
+  padding: 8px 14px;
+}
+.battle-station[data-role="gunner"] .sight {
+  border-radius: 0;
+  width: 28px;
+  height: 28px;
+  border: 0;
+}
+.battle-station[data-role="gunner"] .sight::before,
+.battle-station[data-role="gunner"] .sight::after {
+  content: "";
+  position: absolute;
+  background: #fff8db;
+  box-shadow: 0 1px 2px #252c2d;
+}
+.battle-station[data-role="gunner"] .sight::before {
+  width: 28px;
+  height: 1px;
+  left: 0;
+  top: 14px;
+}
+.battle-station[data-role="gunner"] .sight::after {
+  width: 1px;
+  height: 28px;
+  left: 14px;
+  top: 0;
+}
+@media (max-width: 700px) {
+  .crew-shell:has(.battle-station[data-role="gunner"]) {
+    padding: 8px;
+  }
+  .battle-station[data-role="gunner"] {
+    padding: 12px;
+    grid-template-columns: 1fr;
+  }
+  .battle-station[data-role="gunner"] > .crew-health {
+    grid-column: 1;
+    grid-row: 2;
+    text-align: left;
+  }
+  .battle-station[data-role="gunner"] > .battle-viewport {
+    height: 320px;
+  }
+}
+
+/* Alerts sit beside the rendered scene, avoiding opaque panels across its pixels. */
+.battle-station[data-role="gunner"] > [data-testid="enemy-warning"] {
+  grid-column: 1 / -1;
+  padding: 6px 10px;
+  background: #252c2d;
+  color: #ffe3a3;
+  margin: 0;
+}
+.battle-station[data-role="gunner"] > [data-testid="enemy-warning"]:empty {
+  display: none;
+}
+
 .battle-station[data-role="loader"] > [data-testid="damage-warning"] {
   position: absolute;
   top: 34px;
@@ -647,4 +778,12 @@ legend {
   .mg-workspace
   .battle-viewport {
   height: max(240px, calc(100dvh - 404px));
+}
+
+.battle-station[data-role="gunner"] > .battle-pause {
+  grid-column: 1 / -1;
+}
+.battle-station[data-role="gunner"]:has(> .battle-pause:not([hidden]))
+  > .battle-viewport {
+  height: max(200px, calc(100dvh - 460px));
 }

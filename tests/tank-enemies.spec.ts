@@ -278,15 +278,62 @@ test("敵彈先扣血後，裝填手機槍會實傷敵車並保留己方血量�
       "100/100",
       { timeout: 20000 },
     );
-    const health = await c.gunner.getByTestId("tank-health").textContent();
+    const panzerHit = await c.gunner
+      .getByTestId("damage-warning")
+      .textContent();
+    // Observe actual incoming impacts, not the reload label at muzzle launch.
+    // This first Panzer hit is followed by a distinct Tiger hit and the next
+    // Panzer hit; only then begin the ordinary first MG burst.
+    const health = await c.gunner.evaluate(
+      (panzerHit) =>
+        new Promise<string>((resolve, reject) => {
+          const notice = document.querySelector(
+            '[data-testid="damage-warning"]',
+          )!;
+          const hp = document.querySelector('[data-testid="tank-health"]')!;
+          let last = notice.textContent ?? "";
+          let tigerHit = Boolean(last && last !== panzerHit);
+          const timer = setTimeout(() => {
+            observer.disconnect();
+            reject(new Error("未觀察到兩類敵車的真命中循環"));
+          }, 30000);
+          const observer = new MutationObserver(() => {
+            const text = notice.textContent ?? "";
+            if (!text || text === last) return;
+            last = text;
+            if (text !== panzerHit) tigerHit = true;
+            else if (tigerHit) {
+              clearTimeout(timer);
+              observer.disconnect();
+              resolve(hp.textContent!);
+            }
+          });
+          observer.observe(notice, {
+            childList: true,
+            characterData: true,
+            subtree: true,
+          });
+        }),
+      panzerHit,
+    );
     await c.loader.keyboard.press("Tab");
     await c.loader.keyboard.down("Space");
-    await expect
-      .poll(async () =>
-        Number(await c.loader.getByTestId("mg-shot-count").textContent()),
-      )
-      .toBeGreaterThanOrEqual(12);
+    // Observe the same visible count in-browser; Node poll backoff needlessly
+    // extended the burst into the next incoming enemy shell.
+    await c.loader.waitForFunction(
+      () =>
+        Number(
+          document.querySelector('[data-testid="mg-shot-count"]')?.textContent,
+        ) >= 12,
+      undefined,
+      { timeout: 10000 },
+    );
     await c.loader.keyboard.up("Space");
+    await Promise.all(
+      [c.gunner, c.loader, c.driver].map((page) =>
+        expect(page.getByTestId("tank-health")).toHaveText(health!),
+      ),
+    );
     await expect(c.loader.getByTestId("mg-target-status")).toContainText(
       "虎式 I 型 360/360",
     );
@@ -298,8 +345,7 @@ test("敵彈先扣血後，裝填手機槍會實傷敵車並保留己方血量�
         return Number(text!.match(/四號 H 型 (\d+)\/200/)?.[1]);
       })
       .toBeLessThan(195);
-    for (const p of [c.gunner, c.loader, c.driver])
-      await expect(p.getByTestId("tank-health")).toHaveText(health!);
+
     await c.loader.screenshot({
       path: "/tmp/car-game-to-spec/visual21/mg-enemy-damage.png",
       fullPage: true,

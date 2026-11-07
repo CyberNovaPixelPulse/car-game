@@ -1,0 +1,230 @@
+{
+  "checked_date": "2026-11-06",
+  "provider": "Poly Haven",
+  "license": "CC0-1.0",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "provider_license_url": "https://polyhaven.com/license",
+  "api_terms_url": "https://github.com/Poly-Haven/Public-API/blob/master/ToS.md",
+  "api_agent_guide": "https://polyhaven.com/llms.txt",
+  "note": "Downloaded actual 1K asset maps returned by official API, not preview renders. No live API dependency is needed in game.",
+  "assets": [
+    {
+      "id": "old_stone_wall_02",
+      "name": "Old Stone Wall 02",
+      "asset_page": "https://polyhaven.com/a/old_stone_wall_02",
+      "authors": {
+        "Charlotte Baglioni": "All"
+      },
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "provider_license_url": "https://polyhaven.com/license",
+      "info_api": "https://api.polyhaven.com/info/old_stone_wall_02",
+      "files_api": "https://api.polyhaven.com/files/old_stone_wall_02",
+      "usage": "石牆、農舍石砌立面與固定掩體；法線只影響光照，不替代碰撞。",
+      "metadata_dimensions_raw": [
+        2085.0000381469727,
+        2085.0000381469727
+      ],
+      "maps": [
+        {
+          "map": "Diffuse",
+          "role": "color/baseColor",
+          "resolution": "1k",
+          "format": "jpg",
+          "filename": "old_stone_wall_02/old_stone_wall_02_diff_1k.jpg",
+          "local_path": "/tmp/car-game-to-spec/visual-assets/old_stone_wall_02/old_stone_wall_02_diff_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/old_stone_wall_02/old_stone_wall_02_diff_1k.jpg",
+          "bytes": 822548,
+          "md5": "fdcda49a46624dc1e0dba52a8f006c7f",
+          "sha256": "2b841b146fc5aa48b7a63143c5c1b6679c7645320cce31c97bd38d541f5144ac",
+          "color_space": "sRGB",
+          "pixel_width": 1024,
+          "pixel_height": 1024,
+          "shipped_path": "public/art/terrain/old_stone_wall_02_diff_1k.jpg",
+          "shipped_sha256": "81795188bbdc7a2a7f5dd59414889e7921960ce976581d7ae9bb3c29722ee63b"
+        },
+        {
+          "map": "nor_gl",
+          "role": "normal/OpenGL (+Y)",
+          "resolution": "1k",
+          "format": "png",
+          "filename": "old_stone_wall_02/old_stone_wall_02_nor_gl_1k.png",
+          "local_path": "/tmp/car-game-to-spec/visual-assets/old_stone_wall_02/old_stone_wall_02_nor_gl_1k.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/old_stone_wall_02/old_stone_wall_02_nor_gl_1k.png",
+          "bytes": 5831291,
+          "md5": "66378353f8df9d48a053d34a0d22e883",
+          "sha256": "e2f982fd977405516df057282667de6148068f77b73e09547a22f6f7e9e8d9c1",
+          "color_space": "linear/non-color",
+          "pixel_width": 1024,
+          "pixel_height": 1024,
+          "shipped_path": "public/art/terrain/old_stone_wall_02_nor_gl_1k.png",
+          "shipped_sha256": "e42ece7d5ef9dca04b99a202cb874cf63bb268d712ee6dbfe38072e2b4ac50e3"
+        },
+        {
+          "map": "Rough",
+          "role": "roughness (grayscale)",
+          "resolution": "1k",
+          "format": "jpg",
+          "filename": "old_stone_wall_02/old_stone_wall_02_rough_1k.jpg",
+          "local_path": "/tmp/car-game-to-spec/visual-assets/old_stone_wall_02/old_stone_wall_02_rough_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/old_stone_wall_02/old_stone_wall_02_rough_1k.jpg",
+          "bytes": 181157,
+          "md5": "9914a5f2b5b93d7f4f3bbb3f5b727a14",
+          "sha256": "d3c0474c4db68f4668dee70ca667cfbea3ffd7031693d50e1524c29d3ca45813",
+          "color_space": "linear/non-color",
+          "pixel_width": 1024,
+          "pixel_height": 1024,
+          "shipped_path": "public/art/terrain/old_stone_wall_02_rough_1k.jpg",
+          "shipped_sha256": "1a2a49aa90be61fd0ad9fb23a425142dc69ce6d8e52b89c1a9f72b1a7ea730d7"
+        }
+      ]
+    },
+    {
+      "id": "farm_soil",
+      "name": "Farm Soil",
+      "asset_page": "https://polyhaven.com/a/farm_soil",
+      "authors": {
+        "Amal Kumar": "All"
+      },
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "provider_license_url": "https://polyhaven.com/license",
+      "info_api": "https://api.polyhaven.com/info/farm_soil",
+      "files_api": "https://api.polyhaven.com/files/farm_soil",
+      "usage": "村落周邊農田、翻耕泥土與路旁地面；不是整張戰場單一無尺度平鋪。",
+      "metadata_dimensions_raw": [
+        1999.9992847442627,
+        2000.000238418579
+      ],
+      "maps": [
+        {
+          "map": "Diffuse",
+          "role": "color/baseColor",
+          "resolution": "1k",
+          "format": "jpg",
+          "filename": "farm_soil/farm_soil_diff_1k.jpg",
+          "local_path": "/tmp/car-game-to-spec/visual-assets/farm_soil/farm_soil_diff_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/farm_soil/farm_soil_diff_1k.jpg",
+          "bytes": 735837,
+          "md5": "29fad1e29469e644759032c3ade249fa",
+          "sha256": "bfa2850109d1018ecb25342d9f17a5a81e826f7c67edfcaa7c878b60e62cc010",
+          "color_space": "sRGB",
+          "pixel_width": 1024,
+          "pixel_height": 1024,
+          "shipped_path": "public/art/terrain/farm_soil_diff_1k.jpg",
+          "shipped_sha256": "6e6464efd9cab0c23c9ed719fe2d452483ae58a272e23980afce94c4a34cb149"
+        },
+        {
+          "map": "nor_gl",
+          "role": "normal/OpenGL (+Y)",
+          "resolution": "1k",
+          "format": "png",
+          "filename": "farm_soil/farm_soil_nor_gl_1k.png",
+          "local_path": "/tmp/car-game-to-spec/visual-assets/farm_soil/farm_soil_nor_gl_1k.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/farm_soil/farm_soil_nor_gl_1k.png",
+          "bytes": 7129440,
+          "md5": "b96b971e8b496cbc7c56b9db4c1efd4f",
+          "sha256": "8cf1b9569b403a531a635759b91457fd9cf2c2cf2576ca8edb61d5dfab50e4d9",
+          "color_space": "linear/non-color",
+          "pixel_width": 1024,
+          "pixel_height": 1024,
+          "shipped_path": "public/art/terrain/farm_soil_nor_gl_1k.png",
+          "shipped_sha256": "0181d3d8578e0b707533ba28d77af95c534a49e9eaa80fe0c6b46d58051100de"
+        },
+        {
+          "map": "Rough",
+          "role": "roughness (grayscale)",
+          "resolution": "1k",
+          "format": "jpg",
+          "filename": "farm_soil/farm_soil_rough_1k.jpg",
+          "local_path": "/tmp/car-game-to-spec/visual-assets/farm_soil/farm_soil_rough_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/farm_soil/farm_soil_rough_1k.jpg",
+          "bytes": 279247,
+          "md5": "e671f4453ea99fb209d53ded77e7f82b",
+          "sha256": "e20991112d705bfb0fce2fe2e8f770b5ec62dfd31c5636aa096b9e0dd2765c17",
+          "color_space": "linear/non-color",
+          "pixel_width": 1024,
+          "pixel_height": 1024,
+          "shipped_path": "public/art/terrain/farm_soil_rough_1k.jpg",
+          "shipped_sha256": "845581cda248ef37beeb03fcb219ef96a8680aa59f0543fad29ad61591fa98d6"
+        }
+      ]
+    },
+    {
+      "id": "green_metal_rust",
+      "name": "Green Metal Rust",
+      "asset_page": "https://polyhaven.com/a/green_metal_rust",
+      "authors": {
+        "Rob Tuytel": "All"
+      },
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "provider_license_url": "https://polyhaven.com/license",
+      "info_api": "https://api.polyhaven.com/info/green_metal_rust",
+      "files_api": "https://api.polyhaven.com/files/green_metal_rust",
+      "usage": "局部磨損漆面與車內金屬候選；顏色不是英軍歷史軍漆色號，避免全車鏽蝕過重。",
+      "metadata_dimensions_raw": [
+        1000,
+        1000
+      ],
+      "maps": [
+        {
+          "map": "Diffuse",
+          "role": "color/baseColor",
+          "resolution": "1k",
+          "format": "jpg",
+          "filename": "green_metal_rust/green_metal_rust_diff_1k.jpg",
+          "local_path": "/tmp/car-game-to-spec/visual-assets/green_metal_rust/green_metal_rust_diff_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/green_metal_rust/green_metal_rust_diff_1k.jpg",
+          "bytes": 212088,
+          "md5": "f69d8c507961f0629019652162090917",
+          "sha256": "4509ab0cb1cf6bf9b9f970450a41f83ebd9bff178006deae568ff34b404856fc",
+          "color_space": "sRGB",
+          "pixel_width": 1024,
+          "pixel_height": 1024,
+          "shipped_path": "public/assets/interior/green_metal_rust_diff_1k.jpg",
+          "shipped_sha256": "b60ff8c2104122a4f7f3276befd5f38a69442dcae60071ba48888388e2f57252"
+        },
+        {
+          "map": "nor_gl",
+          "role": "normal/OpenGL (+Y)",
+          "resolution": "1k",
+          "format": "png",
+          "filename": "green_metal_rust/green_metal_rust_nor_gl_1k.png",
+          "local_path": "/tmp/car-game-to-spec/visual-assets/green_metal_rust/green_metal_rust_nor_gl_1k.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/green_metal_rust/green_metal_rust_nor_gl_1k.png",
+          "bytes": 3138439,
+          "md5": "53b6f7c4b33c41d65fac42f71f26ac80",
+          "sha256": "7d6cdd15a058eda5992643696a9d422191239364de4ab33f945bba0e6e1e2cc4",
+          "color_space": "linear/non-color",
+          "pixel_width": 1024,
+          "pixel_height": 1024,
+          "shipped_path": "public/assets/interior/green_metal_rust_nor_gl_1k.png",
+          "shipped_sha256": "80fb0401dd68e83f1331fbc1a1c2ce9cbb2fee210ff813aa1fe2308a64aa7b29"
+        },
+        {
+          "map": "Rough",
+          "role": "roughness (grayscale)",
+          "resolution": "1k",
+          "format": "jpg",
+          "filename": "green_metal_rust/green_metal_rust_rough_1k.jpg",
+          "local_path": "/tmp/car-game-to-spec/visual-assets/green_metal_rust/green_metal_rust_rough_1k.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/green_metal_rust/green_metal_rust_rough_1k.jpg",
+          "bytes": 124360,
+          "md5": "22cb8ebbd84cd90667a2734114fc4732",
+          "sha256": "f214f22608dd75aa3e7b4da8bffac97c344cbacbc50f49ba0beb0236701a622c",
+          "color_space": "linear/non-color",
+          "pixel_width": 1024,
+          "pixel_height": 1024,
+          "shipped_path": "public/assets/interior/green_metal_rust_rough_1k.jpg",
+          "shipped_sha256": "43596b7aa68b1014b91925a7a6974764a86cc363e6018ffe42f3ee7646363e25"
+        }
+      ],
+      "shared_asset_note": "Shared with #26 interior; original pixels and source hashes retained, shipped metadata/hash follow public/assets/interior/sources.json. No duplicate art/metal files."
+    }
+  ],
+  "downloaded_asset_bytes": 18454407,
+  "hdri_candidate_manifest": "hdri-candidate.json",
+  "human_readable_manifest": "asset-manifest.md",
+  "visual_inspection": "All three actual diffuse textures opened locally and inspected. No preview renders downloaded."
+}

@@ -1,0 +1,29 @@
+{
+  "id": "kloofendal_48d_partly_cloudy_puresky",
+  "asset_page": "https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky",
+  "name": "Kloofendal 48d Partly Cloudy (Pure Sky)",
+  "authors": {
+    "Greg Zaal": "Original",
+    "Jarod Guest": "Sky edits"
+  },
+  "license": "CC0-1.0",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "downloaded": true,
+  "reason": "Natural sky and low-intensity lighting, not Normandy photographic evidence.",
+  "files_1k": {
+    "hdri": {
+      "hdr": {
+        "size": 1435119,
+        "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/kloofendal_48d_partly_cloudy_puresky_1k.hdr",
+        "md5": "c69498687e876bf68d2a8b8a62234eb9"
+      },
+      "exr": {
+        "size": 5498182,
+        "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/exr/1k/kloofendal_48d_partly_cloudy_puresky_1k.exr",
+        "md5": "ca0c1317a4b22bb25e826cb3640ee833"
+      }
+    }
+  },
+  "shipped_path": "public/art/sky/kloofendal_48d_partly_cloudy_puresky_1k.hdr",
+  "sha256": "fd94c84997b8a3c353b62c2125a9b44e19509956986a126e472684432a02d798"
+}

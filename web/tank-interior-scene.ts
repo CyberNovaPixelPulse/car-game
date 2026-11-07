@@ -1,9 +1,12 @@
 import * as THREE from "three";
+import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import type { TankState } from "./tank-core";
 
 /** Enclosed loader workspace. Deliberately owns no battlefield geometry or rules. */
 export class TankInteriorScene {
   private renderer: THREE.WebGLRenderer;
+  private assets = new ArtPreparation();
+  private disposed = false;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(58, 1, 0.05, 16);
   private observer: ResizeObserver;
@@ -47,7 +50,7 @@ export class TankInteriorScene {
       dark = mat(0x151b19, 0.3),
       brass = mat(0xb8a06a, 0.72, 0.3),
       rubber = mat(0x242925, 0, 0.92);
-    const textureLoader = new THREE.TextureLoader();
+    const textureLoader = new THREE.TextureLoader(this.assets.manager);
     const diffuse = textureLoader.load(
       "/assets/interior/green_metal_rust_diff_1k.jpg",
       () => this.invalidate(),
@@ -261,6 +264,9 @@ export class TankInteriorScene {
     );
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(canvas);
+    this.renderer.setSize(1024, 576, false);
+    this.camera.aspect = 1024 / 576;
+    this.camera.updateProjectionMatrix();
     this.resize();
   }
   private beveledBox(w: number, h: number, d: number) {
@@ -298,6 +304,16 @@ export class TankInteriorScene {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+  }
+  async prepare(state: TankState) {
+    await this.assets.wait();
+    if (this.disposed) throw new Error("視野準備已取消。");
+    this.render(state);
+    await this.renderer.compileAsync(this.scene, this.camera);
+    if (this.disposed) throw new Error("視野準備已取消。");
+    this.invalidate();
+    this.render(state);
+    await finishPreparation(this.renderer, () => this.disposed);
   }
   render(state: TankState) {
     const w = state.weapon;
@@ -347,6 +363,7 @@ export class TankInteriorScene {
     this.renderer.render(this.scene, this.camera);
   }
   dispose() {
+    this.disposed = true;
     this.observer.disconnect();
     this.scene.traverse((obj) => {
       if (obj instanceof THREE.Mesh) {
