@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { tankCrew } from "./tank-helpers";
-const out = "/tmp/car-game-to-spec/visual27-final";
+const out =
+  process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/final-visual";
 async function capture(page: any, name: string) {
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: `${out}/${name}.png` });
@@ -42,7 +43,9 @@ test("最終入口、三職戰鬥及機槍桌面矩陣", async ({ browser, page 
         ).toBeVisible();
       }
     }
-    await expect(c.driver.locator("canvas")).toHaveCount(0);
+    await expect(
+      c.driver.getByRole("img", { name: "駕駛裝甲觀察窗" }),
+    ).toBeVisible();
     await expect(
       c.loader.getByRole("img", { name: "車內炮膛與彈藥架" }),
     ).toBeVisible();

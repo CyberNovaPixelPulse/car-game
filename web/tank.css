@@ -800,7 +800,7 @@ legend {
   height: max(200px, calc(100dvh - 460px));
 }
 
-/* The blind driver's task has the same compact combat entry as the other seats. */
+/* Driver combat entry shares the other seats' compact heading. */
 .crew-shell:has(.battle-station[data-role="driver"]) {
   padding: 12px 18px 24px;
 }
@@ -1375,7 +1375,9 @@ legend {
   outline: 3px solid var(--ink-red);
   outline-offset: 4px;
 }
-[data-surface="battle"] .loader-workspace[data-posture="stunned"] .interior-viewport {
+[data-surface="battle"]
+  .loader-workspace[data-posture="stunned"]
+  .interior-viewport {
   outline: 4px solid var(--ink-red);
   outline-offset: 0;
 }
@@ -1435,7 +1437,8 @@ legend {
   border: 4px double var(--ink);
   padding: 0.6rem 1rem;
 }
-[data-surface="battle"] .battle-station[data-role="loader"]
+[data-surface="battle"]
+  .battle-station[data-role="loader"]
   > [data-testid="battle-result"]:not([hidden]) {
   background: var(--paper);
   border: 2px solid var(--ink);
@@ -1445,7 +1448,9 @@ legend {
   font-weight: 900;
   letter-spacing: 0.06em;
 }
-[data-surface="battle"] .battle-station[data-role="loader"] #station-sound[aria-pressed="true"] {
+[data-surface="battle"]
+  .battle-station[data-role="loader"]
+  #station-sound[aria-pressed="true"] {
   background: var(--ink);
   color: var(--paper);
 }
@@ -1456,7 +1461,9 @@ legend {
 }
 
 /* Red ink is for danger now: past damage, a won battle and normal MG heat stay in ink. */
-[data-surface="battle"] .battle-station:not(.under-fire) [data-testid="damage-warning"] {
+[data-surface="battle"]
+  .battle-station:not(.under-fire)
+  [data-testid="damage-warning"] {
   color: var(--ink-soft);
 }
 [data-surface="battle"] [data-testid="battle-result"][data-outcome="won"] {
@@ -1472,7 +1479,9 @@ legend {
   border-color: var(--ink-red);
   color: var(--ink-red);
 }
-[data-surface="battle"] .mg-hud[data-overheated] progress::-webkit-progress-value {
+[data-surface="battle"]
+  .mg-hud[data-overheated]
+  progress::-webkit-progress-value {
   background: var(--ink-red);
 }
 [data-surface="battle"] .mg-hud[data-overheated] progress::-moz-progress-bar {
@@ -1483,87 +1492,73 @@ legend {
   font-size: 20px;
   line-height: 1.3;
 }
-/* Driver: no scene, so the plate is the speed readout and its ruled status lines. */
+/* Driver's armour is real camera geometry; the viewport never substitutes a page frame. */
 [data-surface="battle"] .crew-shell:has(.battle-station[data-role="driver"]) {
-  max-width: 760px;
-  padding-top: 36px;
+  max-width: 1600px;
+  padding: 12px 18px 24px;
 }
 [data-surface="battle"] .battle-station[data-role="driver"] {
-  padding: 28px 32px 32px;
-}
-[data-surface="battle"] .battle-station[data-role="driver"] > h2 {
-  font-size: 28px;
-  padding-bottom: 12px;
-  border-bottom: 2px solid var(--ink);
-}
-[data-surface="battle"] .battle-station[data-role="driver"] .driver-instruments {
-  max-width: none;
-  margin: 8px 0 16px;
-  padding: 16px 0 8px;
-  border-block: 1px solid var(--ink);
+  padding: 14px 16px;
   display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 32px;
-  align-items: baseline;
-}
-[data-surface="battle"] .driver-instruments .instrument-label {
-  grid-column: 1 / -1;
-  color: var(--ink-soft);
-  margin: 0;
-}
-[data-surface="battle"] .driver-instruments .speed-readout {
-  grid-row: span 2;
-  margin: 0;
-}
-[data-surface="battle"] .driver-instruments .speed-readout strong {
-  font-size: 96px;
-  font-weight: 900;
-  line-height: 1.1;
-}
-[data-surface="battle"] .battle-station[data-role="driver"] .driver-instruments p:not(.instrument-label):not(.speed-readout) {
-  font-family: var(--plate-serif);
-  font-weight: 700;
-  font-size: 22px;
-  margin: 0;
-}
-[data-surface="battle"] .battle-station[data-role="driver"] {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 170px;
-  column-gap: 32px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 20px;
 }
 [data-surface="battle"] .battle-station[data-role="driver"] > * {
   grid-column: 1 / -1;
+  margin-block: 0;
 }
-[data-surface="battle"] .battle-station[data-role="driver"] > .driver-instruments {
+[data-surface="battle"] .battle-station[data-role="driver"] > h2:first-child {
   grid-column: 1;
+  font-size: 20px;
+  line-height: 1.3;
 }
-[data-surface="battle"] .battle-station[data-role="driver"] > .hull-plate {
+[data-surface="battle"] .battle-station[data-role="driver"] > .crew-health {
   grid-column: 2;
-  margin: 8px 0 16px;
-  align-self: start;
+  grid-row: 1;
 }
-[data-surface="battle"] .battle-station[data-role="driver"] > .hull-plate figcaption {
-  font-size: 12px;
-}
-[data-surface="battle"] .battle-station[data-role="driver"] > #station-leave {
-  justify-self: start;
-}
-[data-surface="battle"] .battle-station[data-role="driver"] .leaders {
+[data-surface="battle"] .battle-station[data-role="driver"] > .station-task {
   display: none;
 }
+[data-surface="battle"] .battle-station[data-role="driver"] > .driver-viewport {
+  height: clamp(300px, calc(100dvh - 280px), 720px);
+}
+[data-surface="battle"]
+  .battle-station[data-role="driver"]
+  .driver-instruments {
+  display: flex;
+  max-width: none;
+  align-items: baseline;
+  gap: 12px 24px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  border-block: 1px solid var(--rule);
+}
+[data-surface="battle"] .driver-instruments .instrument-label {
+  color: var(--ink-soft);
+}
+[data-surface="battle"] .driver-instruments .speed-readout strong {
+  font-size: 32px;
+  line-height: 1;
+  font-weight: 900;
+}
+[data-surface="battle"] .battle-station[data-role="driver"] #station-leave {
+  justify-self: start;
+}
+[data-surface="battle"]
+  .battle-station[data-role="driver"]:has(> .battle-pause:not([hidden]))
+  > .driver-viewport {
+  height: max(240px, calc(100dvh - 310px));
+}
 @media (max-width: 600px) {
-  [data-surface="battle"] .battle-station[data-role="driver"] .driver-instruments {
-    grid-template-columns: 1fr;
+  [data-surface="battle"] .crew-shell:has(.battle-station[data-role="driver"]) {
+    padding: 8px;
   }
   [data-surface="battle"] .battle-station[data-role="driver"] {
     grid-template-columns: 1fr;
   }
-  [data-surface="battle"] .battle-station[data-role="driver"] > .hull-plate {
+  [data-surface="battle"] .battle-station[data-role="driver"] > .crew-health {
     grid-column: 1;
-    width: 160px;
-  }
-  [data-surface="battle"] .driver-instruments .speed-readout strong {
-    font-size: 72px;
+    grid-row: auto;
   }
 }
 .visually-hidden {
