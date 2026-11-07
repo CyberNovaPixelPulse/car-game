@@ -154,6 +154,20 @@ test("真實煙幕的舊情報暫停超過五秒仍原位凍結，原職位重�
     });
     // Observe the host at resume itself. Rejoining exterior asset preparation
     // can take several valid running seconds before the returned page is drawn.
+    const firstReturningContact = c.driver
+      .waitForFunction(() => {
+        const marker = document.querySelector(
+          '.navigation-enemy[data-observation="stale"]',
+        );
+        return (
+          marker && [
+            marker.getAttribute("x"),
+            marker.getAttribute("y"),
+            marker.getAttribute("opacity"),
+          ]
+        );
+      })
+      .then((value) => value.jsonValue());
     const rejoining = c.driver.goto("/");
     await expect(c.gunner.getByTestId("battle-pause")).toBeHidden();
     const resumedOpacity = Number(
@@ -161,33 +175,43 @@ test("真實煙幕的舊情報暫停超過五秒仍原位凍結，原職位重�
     );
     expect(resumedOpacity).toBeLessThanOrEqual(Number(frozen[2]));
     expect(resumedOpacity).toBeGreaterThan(Number(frozen[2]) - 0.15);
-    await rejoining;
-    await expect(
-      c.driver.getByRole("heading", { name: "駕駛工作站" }),
-    ).toBeVisible();
-    for (const page of [c.driver, c.gunner, c.loader]) {
-      await expect(page.getByTestId("battle-pause")).toBeHidden();
-      await expect(stale(page)).toHaveCount(1);
-    }
-    await c.gunner.waitForTimeout(500);
-    expect(
-      await stale(c.driver).evaluate((marker) => [
-        marker.getAttribute("x"),
-        marker.getAttribute("y"),
-      ]),
-    ).toEqual(frozen.slice(0, 2));
-    expect(Number(await stale(c.gunner).getAttribute("opacity"))).toBeLessThan(
-      resumedOpacity,
-    );
-    await expect(c.gunner.locator(".navigation-enemy")).toHaveCount(0, {
-      timeout: 5000,
-    });
-    await expect(c.gunner.getByTestId("target-status")).toHaveText(
-      "目前沒有觀測到敵車",
-    );
-    await expect(c.gunner.getByTestId("smoke-status")).toHaveText("視線清晰", {
-      timeout: 5000,
-    });
+    await Promise.all([
+      (async () => {
+        const returned = await firstReturningContact;
+        if (!returned) throw new Error("重新連線乘員未呈現最後已知標記");
+        expect(returned.slice(0, 2)).toEqual(frozen.slice(0, 2));
+        expect(Number(returned[2])).toBeGreaterThan(0);
+        expect(Number(returned[2])).toBeLessThanOrEqual(Number(frozen[2]));
+        await rejoining;
+        await expect(
+          c.driver.getByRole("heading", { name: "駕駛工作站" }),
+        ).toBeVisible();
+      })(),
+      (async () => {
+        // Sample the still-online observer during the remaining memory window,
+        // independently of the returning exterior's shader/asset initialization.
+        await c.gunner.waitForTimeout(500);
+        expect(
+          await stale(c.gunner).evaluate((marker) => [
+            marker.getAttribute("x"),
+            marker.getAttribute("y"),
+          ]),
+        ).toEqual(frozen.slice(0, 2));
+        expect(
+          Number(await stale(c.gunner).getAttribute("opacity")),
+        ).toBeLessThan(resumedOpacity);
+        await expect(c.gunner.locator(".navigation-enemy")).toHaveCount(0, {
+          timeout: 5000,
+        });
+        await expect(c.gunner.getByTestId("target-status")).toHaveText(
+          "目前沒有觀測到敵車",
+        );
+        await expect(c.gunner.getByTestId("smoke-status")).toHaveText(
+          "視線清晰",
+          { timeout: 5000 },
+        );
+      })(),
+    ]);
     for (const page of [c.driver, c.gunner, c.loader])
       await expect(
         page.locator(
