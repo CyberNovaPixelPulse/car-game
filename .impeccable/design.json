@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-07T01:52:20.797415+00:00",
+  "generatedAt": "2026-11-07T02:20:58.025025+00:00",
   "title": "Design System: 三人坦克合作戰鬥",
   "extensions": {
     "colorMeta": {
@@ -37,6 +37,22 @@
       "speed": {
         "displayName": "速度讀數",
         "purpose": "盲開駕駛的主要數字。"
+      },
+      "compact-control": {
+        "displayName": "裝填工作站小型控制",
+        "purpose": "只用於 #station-leave 與 #station-sound；不新增共用字重。"
+      },
+      "work-readout": {
+        "displayName": "工作讀數與卡彈標題",
+        "purpose": "砲手 heading-readout 與裝填工作站 jam-game h3 的來源字級；各自保留原有／繼承字重。"
+      },
+      "viewport-warning": {
+        "displayName": "場景內警示來源規則",
+        "purpose": "限定 .battle-viewport [data-testid=\"enemy-warning\"]；目前砲手將提示移至場景前，實際使用直屬 p 的 14px，不代表新增通用正文尺寸。"
+      },
+      "ejection-baseline": {
+        "displayName": "退殼警示基礎規則",
+        "purpose": "限定 .ejection-warning 的來源基礎尺寸；當前裝填工作區更明確 selector 覆寫為 18px／700。"
       }
     },
     "shadows": [
@@ -71,8 +87,8 @@
       "name": "次要按鈕",
       "kind": "button",
       "refersTo": "button-secondary",
-      "description": "離開及重新連線等次要操作。",
-      "html": "<button class=\"ds-button\">準備</button>",
+      "description": "離開房間等次要操作；沿用主按鈕 hover、disabled 與鍵盤焦點。",
+      "html": "<button class=\"ds-button\">離開房間</button>",
       "css": ".ds-button{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:#58624b;color:#fffef3;border:1px solid #a8b19a;font-size:inherit;padding:12px 20px;border-radius:5px;cursor:pointer;white-space:nowrap}.ds-button:hover:not(:disabled){background:#697557}.ds-button:disabled{opacity:.48;cursor:not-allowed}.ds-button:focus-visible{outline:3px solid #d6ac64;outline-offset:4px}.ds-button{background:transparent}"
     },
     {
@@ -112,18 +128,42 @@
       "kind": "custom",
       "refersTo": "jam-track",
       "description": "成功區、邊界與指針；示例不假裝執行卡彈規則。",
-      "html": "<div class=\"ds-jam\" aria-label=\"卡彈工作軌示意\"><div class=\"ds-zone\" style=\"left:40%;width:22%\">成功區</div><div class=\"ds-needle\" style=\"left:50%\"></div></div>",
+      "html": "<div class=\"ds-jam\" aria-label=\"卡彈工作軌示意\"><div class=\"ds-zone\" style=\"left:40%;width:22%\">目標</div><div class=\"ds-needle\" style=\"left:50%\"></div></div>",
       "css": ".ds-jam{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;position:relative;height:38px;background:#252c2d;border:1px solid #b7b2a2}.ds-zone{position:absolute;top:0;bottom:0;background:#91ae8a;color:#19221c;border:2px solid #e8e6dc;text-align:center;line-height:34px;font-weight:700}.ds-needle{position:absolute;top:-7px;bottom:-7px;width:4px;transform:translateX(-2px);background:#fff8dc;border:1px solid #252c2d}"
+    },
+    {
+      "name": "砲手十字準星",
+      "kind": "custom",
+      "refersTo": "gunner-reticle",
+      "description": "位於主炮場景中心；細線與微陰影支援明亮外景，沒有互動狀態。",
+      "html": "<span class=\"ds-reticle\" aria-hidden=\"true\"></span>",
+      "css": ".ds-reticle{position:relative;display:block;width:28px;height:28px;pointer-events:none}.ds-reticle::before,.ds-reticle::after{content:\"\";position:absolute;background:#fff8db;box-shadow:0 1px 2px #252c2d}.ds-reticle::before{width:28px;height:1px;left:0;top:14px}.ds-reticle::after{width:1px;height:28px;left:14px;top:0}"
+    },
+    {
+      "name": "機槍熱量工作條",
+      "kind": "custom",
+      "refersTo": "mg-hud",
+      "description": "機槍外景左下的熱度、鎖定與倒數資訊；文字與數字同時呈現狀態。",
+      "html": "<div class=\"ds-mg-hud\"><p>機槍熱度 <strong>40</strong>% · 可以射擊</p><progress aria-label=\"機槍熱度\" max=\"100\" value=\"40\"></progress></div>",
+      "css": ".ds-mg-hud{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;width:fit-content;max-width:100%;padding:8px 12px;background:#252c2d;color:#e8e6dc;font-size:14px;font-variant-numeric:tabular-nums}.ds-mg-hud p{margin:0 0 5px;line-height:1.7;max-width:70ch}.ds-mg-hud progress{display:block;width:min(220px,100%);height:12px;accent-color:#d6ac64}"
+    },
+    {
+      "name": "盲開駕駛儀表",
+      "kind": "custom",
+      "description": "駕駛只見數字與工作狀態，沒有外景。戰鬥收起入房介紹，儀表內距採緊湊配置。",
+      "html": "<div class=\"ds-driver-instruments\"><p class=\"ds-instrument-label\">速度</p><p class=\"ds-speed\"><strong>0.0</strong> m/s</p><p>靜止</p><p>車體正常</p></div>",
+      "css": ".ds-driver-instruments{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;color:#e8e6dc;max-width:420px;padding:12px 0 20px}.ds-driver-instruments p{margin:8px 0;line-height:1.7;max-width:70ch}.ds-instrument-label{color:#c1c4b6}.ds-speed{font-variant-numeric:tabular-nums}.ds-speed strong{font-size:64px;font-weight:500}"
     }
   ],
   "narrative": {
     "northStar": "三人共乘一台重型戰車",
-    "overview": "三位乘員共用一台重型戰車，以各自受限的視野與清楚的工作狀態協作。世界採 1944 年卡昂周邊的石造農村、土路及自然日光；車輛、田行與葉叢保留使用者明確接受的簡化程序外觀。機械零件仍須實際附著支撐表面，車型輪廓與比例關係仍是辨識依據。\n\n房間介面延續炭灰、灰綠與繁體中文無襯線字體。戰鬥時場景取得主要空間，緊湊文字、數字與進度條支援操作；不把戰場規則包裝成虛構的古董儀表皮膚。Experience 世界與 Operate 邊緣 HUD 是外景 brief 的表達方式，不是所有未來畫面的固定模式。",
+    "overview": "三位乘員共用一台重型戰車，以各自受限的視野與清楚的工作狀態協作。世界採 1944 年卡昂周邊的石造農村、土路及自然日光；車輛、田行與葉叢保留使用者明確接受的簡化程序外觀。機械零件仍須實際附著支撐表面，車型輪廓與比例關係仍是辨識依據。\n\n根路徑由 index.html 載入 tank-main.ts，直接呈現坦克房間。房間介面延續炭灰、灰綠與繁體中文無襯線字體。戰鬥時場景取得主要空間，緊湊文字、數字與進度條支援操作；不把戰場規則包裝成虛構的古董儀表皮膚。Experience 世界與 Operate 邊緣 HUD 是外景 brief 的表達方式，不是所有未來畫面的固定模式。",
     "keyCharacteristics": [
       "接受的簡化程序外觀，保留 Sherman／四號 H／虎式 I 辨識。",
       "自然日光外景與封閉工作燈車內，分開處理照明。",
       "場景優先、工作資訊緊湊，駕駛維持沒有外景的資訊限制。",
-      "明確中文、數字、焦點與可見危險提示，支援桌機實體鍵盤。"
+      "明確中文、數字、焦點與可見危險提示，支援桌機實體鍵盤。",
+      "駕駛戰鬥收起入房介紹，盲開儀表以緊湊留白保留警示與離開動作。"
     ],
     "rules": [
       {
@@ -135,6 +175,11 @@
         "name": "The Supported Parts Rule",
         "body": "扣件、燈具及其他機械附屬件必須坐在其實際支撐表面；簡化外觀不取消物理附著。",
         "section": "elevation"
+      },
+      {
+        "name": "Transition scroll placement",
+        "body": "進入主選單、工作站、新大廳、結算與暫停時，轉換當下捲至頁首一次；一般狀態更新不重複捲動。",
+        "section": "layout"
       }
     ],
     "dos": [

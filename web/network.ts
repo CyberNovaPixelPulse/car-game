@@ -1,19 +1,19 @@
+import { RECONNECT_GRACE_MS, TRANSPORT } from "./tank-settings";
 import { isCrewRole, type CrewRole } from "./crew";
 import Peer, { type DataConnection, type PeerOptions } from "peerjs";
 
-export const COLORS = ["#fc7039", "#765cd4", "#1ea1b3", "#efbb31", "#e1669f"];
 export interface Member {
   slot: number;
   name: string;
   connected: boolean;
-  role?: CrewRole | null;
-  ready?: boolean;
+  role: CrewRole | null;
+  ready: boolean;
 }
 export interface Room {
   code: string;
   members: Member[];
-  phase: "lobby" | "racing" | "battle" | "results";
-  game: "race" | "tank";
+  phase: "lobby" | "battle" | "results";
+  game: "tank";
   epoch: string;
   reconnectDeadline?: number;
   notice?: string;
@@ -54,13 +54,13 @@ function options(): PeerOptions {
     ...(local ? { config: { iceServers: [] } } : {}),
   };
 }
-function validRoom(value: unknown, game: "race" | "tank"): value is Room {
+function validRoom(value: unknown): value is Room {
   if (
     !record(value) ||
     typeof value.code !== "string" ||
     !/^[A-Z2-9]{6}$/.test(value.code) ||
-    !["lobby", "racing", "battle", "results"].includes(String(value.phase)) ||
-    value.game !== game ||
+    !["lobby", "battle", "results"].includes(String(value.phase)) ||
+    value.game !== "tank" ||
     typeof value.epoch !== "string" ||
     (value.reconnectDeadline !== undefined &&
       (typeof value.reconnectDeadline !== "number" ||
@@ -68,7 +68,7 @@ function validRoom(value: unknown, game: "race" | "tank"): value is Room {
     (value.notice !== undefined &&
       (typeof value.notice !== "string" || value.notice.length > 200)) ||
     !Array.isArray(value.members) ||
-    value.members.length > (game === "tank" ? 3 : 5)
+    value.members.length > 3
   )
     return false;
   const slots = new Set<number>();
@@ -77,13 +77,12 @@ function validRoom(value: unknown, game: "race" | "tank"): value is Room {
       !record(member) ||
       !Number.isInteger(member.slot) ||
       Number(member.slot) < 0 ||
-      Number(member.slot) >= (game === "tank" ? 3 : 5) ||
+      Number(member.slot) >= 3 ||
       typeof member.name !== "string" ||
       member.name.length > 16 ||
       typeof member.connected !== "boolean" ||
-      (game === "tank" &&
-        (typeof member.ready !== "boolean" ||
-          (member.role !== null && !isCrewRole(member.role)))) ||
+      typeof member.ready !== "boolean" ||
+      (member.role !== null && !isCrewRole(member.role)) ||
       slots.has(Number(member.slot))
     )
       return false;
@@ -92,15 +91,15 @@ function validRoom(value: unknown, game: "race" | "tank"): value is Room {
   });
 }
 export class Session {
-  constructor(readonly game: "race" | "tank" = "race") {}
+  readonly game = "tank";
   private get storageKey() {
-    return `${this.game === "tank" ? "tank-crew" : "pocket-circuit"}-seat-v1`;
+    return "tank-crew-seat-v1";
   }
   private get peerPrefix() {
-    return this.game === "tank" ? "tank-crew-v1" : "pocket-circuit-v1";
+    return "tank-crew-v1";
   }
   private get playing() {
-    return this.room?.phase === "racing" || this.room?.phase === "battle";
+    return this.room?.phase === "battle";
   }
   slot = 0;
   room?: Room;
@@ -118,7 +117,7 @@ export class Session {
   private credentials?: Credentials;
   onRoom: (room: Room) => void = () => {};
   onError: (message: string) => void = () => {};
-  onStart: (mask: number, seed: number) => void = () => {};
+  onStart: (participants: number[], seed: number) => void = () => {};
   onState: (data: string) => void = () => {};
   onInput: (slot: number, keys: number) => void = () => {};
   onAction: (slot: number, action: number) => void = () => {};
@@ -140,7 +139,7 @@ export class Session {
       const timer = setTimeout(() => {
         peer.destroy();
         reject(new Error("連線逾時，請確認網路後再試。"));
-      }, 18000);
+      }, TRANSPORT.open);
       peer.once("open", () => {
         clearTimeout(timer);
         resolve();
@@ -265,12 +264,15 @@ export class Session {
         }
         reject(new Error(message));
       };
-      const timer = setTimeout(() => fail("連線逾時，請稍後重新加入。"), 18000);
+      const timer = setTimeout(
+        () => fail("連線逾時，請稍後重新加入。"),
+        TRANSPORT.open,
+      );
       peer.on("error", (error) => {
         if (error.type === "peer-unavailable")
           fail(
             resume
-              ? "房主已離線，本場比賽已結束。"
+              ? "房主已離線，本場戰鬥已結束。"
               : "找不到這個房間，請確認代碼。",
             !!resume,
           );
@@ -291,9 +293,9 @@ export class Session {
           data.type === "welcome" &&
           Number.isInteger(data.slot) &&
           Number(data.slot) > 0 &&
-          Number(data.slot) < (this.game === "tank" ? 3 : 5) &&
+          Number(data.slot) < 3 &&
           typeof data.token === "string" &&
-          validRoom(data.room, this.game)
+          validRoom(data.room)
         ) {
           clearTimeout(timer);
           welcomed = true;
@@ -310,16 +312,12 @@ export class Session {
           this.sequence = 0;
           this.receivedSequence = -1;
           if (data.resumed === true && typeof data.payload === "string") {
-            this.onStart(this.mask(), 1);
+            this.onStart(this.participants(), 1);
             this.onState(data.payload);
           }
           this.watch();
           resolve();
-        } else if (
-          data.type === "room" &&
-          validRoom(data.room, this.game) &&
-          welcomed
-        ) {
+        } else if (data.type === "room" && validRoom(data.room) && welcomed) {
           this.room = data.room;
           this.onRoom(this.room);
         } else if (data.type === "notice" && typeof data.message === "string")
@@ -328,25 +326,29 @@ export class Session {
           fail(data.message, !!resume);
         else if (data.type === "ended") {
           this.leave();
-          this.onEnded("房主已離線，本場比賽已結束。");
+          this.onEnded("房主已離線，本場戰鬥已結束。");
         } else if (data.type === "ping") link.send({ type: "pong" });
         else if (
           data.type === "start" &&
           welcomed &&
           typeof data.epoch === "string" &&
-          Number.isInteger(data.mask) &&
-          typeof data.seed === "number" &&
+          Array.isArray(data.participants) &&
+          data.participants.length === 3 &&
+          data.participants.every((slot, index) => slot === index) &&
+          Number.isSafeInteger(data.seed) &&
+          Number(data.seed) >= 0 &&
+          Number(data.seed) <= 0xffffffff &&
           this.room
         ) {
           this.room.epoch = data.epoch;
-          this.room.phase = this.game === "tank" ? "battle" : "racing";
+          this.room.phase = "battle";
           this.sequence = 0;
           this.receivedSequence = -1;
           if (this.credentials) {
             this.credentials.epoch = data.epoch;
             this.save();
           }
-          this.onStart(Number(data.mask), data.seed);
+          this.onStart(data.participants as number[], Number(data.seed));
         } else if (
           data.type === "state" &&
           welcomed &&
@@ -367,10 +369,10 @@ export class Session {
           reject(new Error("連線中斷，請重新加入。"));
           return;
         }
-        this.onError("連線中斷，正在重新連回比賽…");
+        this.onError("連線中斷，正在重新連回戰鬥…");
         this.retry = setTimeout(() => {
           void this.resumeSaved();
-        }, 650);
+        }, TRANSPORT.retry);
       });
       link.on("error", () => {
         if (generation === this.generation) link.close();
@@ -385,7 +387,7 @@ export class Session {
     let assigned = -1;
     const timer = setTimeout(() => {
       if (assigned < 0) link.close();
-    }, 10000);
+    }, TRANSPORT.handshake);
     link.on("data", (data) => {
       if (generation !== this.generation || !record(data)) return;
       if (assigned >= 0) {
@@ -406,7 +408,6 @@ export class Session {
           this.onInput(assigned, Number(data.keys));
         } else if (
           data.type === "action" &&
-          this.game === "tank" &&
           this.playing &&
           data.epoch === this.room?.epoch &&
           Number.isSafeInteger(data.sequence) &&
@@ -443,7 +444,7 @@ export class Session {
           data.epoch !== this.room?.epoch ||
           !this.latestState
         ) {
-          deny("原本的賽局已結束或已更換，請重新加入。");
+          deny("原本的戰鬥已結束或已更換，請重新加入。");
           return;
         }
         const old = member.link;
@@ -453,7 +454,6 @@ export class Session {
         member.sequence = -1;
         member.seen = Date.now();
         if (
-          this.game === "tank" &&
           this.room &&
           [...this.members.values()].every((crew) => crew.connected)
         )
@@ -473,28 +473,18 @@ export class Session {
       }
       if (data.type !== "join") return;
       if (this.room?.phase !== "lobby") {
-        deny(
-          this.game === "tank"
-            ? "戰鬥已開始，請等下一場再加入。"
-            : "比賽已開始，請等下一場再加入。",
-        );
+        deny("戰鬥已開始，請等下一場再加入。");
         return;
       }
       const name =
         typeof data.name === "string" ? data.name.trim().slice(0, 16) : "";
       if (!name) {
-        deny(this.game === "tank" ? "請輸入乘員名稱。" : "請輸入車手名。");
+        deny("請輸入乘員名稱。");
         return;
       }
-      const slot = (this.game === "tank" ? [1, 2] : [1, 2, 3, 4]).find(
-        (i) => !this.members.has(i),
-      );
+      const slot = [1, 2].find((i) => !this.members.has(i));
       if (slot === undefined) {
-        deny(
-          this.game === "tank"
-            ? "房間已滿，最多三名乘員。"
-            : "房間已滿，最多五位車手。",
-        );
+        deny("房間已滿，最多三名乘員。");
         return;
       }
       clearTimeout(timer);
@@ -529,11 +519,10 @@ export class Session {
         member.connected = false;
         member.link = undefined;
         if (
-          this.game === "tank" &&
           this.room?.phase === "battle" &&
           this.room.reconnectDeadline === undefined
         )
-          this.room.reconnectDeadline = Date.now() + 60000;
+          this.room.reconnectDeadline = Date.now() + RECONNECT_GRACE_MS;
         this.onInput(assigned, 0);
       }
       this.publishRoom();
@@ -558,13 +547,8 @@ export class Session {
     for (const member of this.members.values())
       if (member.link?.open) member.link.send(data);
   }
-  private mask() {
-    return (
-      this.room?.members.reduce(
-        (mask, member) => mask | (1 << member.slot),
-        0,
-      ) || 0
-    );
+  private participants() {
+    return this.room?.members.map((member) => member.slot) || [];
   }
   private watch() {
     clearInterval(this.heartbeat);
@@ -576,18 +560,17 @@ export class Session {
           if (
             member.slot &&
             member.connected &&
-            Date.now() - member.seen > 6500
+            Date.now() - member.seen > TRANSPORT.stale
           )
             member.link?.close();
         this.broadcast({ type: "ping" });
-      } else if (this.uplink?.open && Date.now() - this.seen > 6500)
+      } else if (this.uplink?.open && Date.now() - this.seen > TRANSPORT.stale)
         this.uplink.close();
-    }, 1000);
+    }, TRANSPORT.heartbeat);
   }
   /** One real-time deadline per uninterrupted missing-crew pause, never per retry. */
   private expireBattlePause() {
     if (
-      this.game !== "tank" ||
       this.room?.phase !== "battle" ||
       this.room.reconnectDeadline === undefined ||
       Date.now() < this.room.reconnectDeadline
@@ -595,8 +578,7 @@ export class Session {
       return;
     this.room.phase = "lobby";
     this.room.reconnectDeadline = undefined;
-    this.room.notice =
-      "等待重連已超過 60 秒，本局已結束。請三位乘員重新選擇職位並準備。";
+    this.room.notice = `等待重連已超過 ${RECONNECT_GRACE_MS / 1000} 秒，本局已結束。請三位乘員重新選擇職位並準備。`;
     this.latestState = "";
     for (const [slot, member] of this.members) {
       if (!member.connected) this.members.delete(slot);
@@ -618,7 +600,7 @@ export class Session {
       this.uplink?.send({ type: "crew", ready });
   }
   private updateCrew(slot: number, role: unknown, ready: unknown) {
-    if (this.game !== "tank" || this.room?.phase !== "lobby") return;
+    if (this.room?.phase !== "lobby") return;
     const member = this.members.get(slot);
     if (!member?.connected) return;
     const notice = (message: string) => {
@@ -652,18 +634,16 @@ export class Session {
     if (
       !this.isHost ||
       !this.room ||
-      this.playing ||
-      [...this.members.values()].filter((m) => m.connected).length < 2 ||
-      (this.game === "tank" &&
-        (this.members.size !== 3 ||
-          [...this.members.values()].some(
-            (m) => !m.connected || !m.role || !m.ready,
-          )))
+      this.room.phase !== "lobby" ||
+      this.members.size !== 3 ||
+      [...this.members.values()].some(
+        (m) => !m.connected || !m.role || !m.ready,
+      )
     )
       return;
     for (const [slot, member] of this.members)
       if (!member.connected) this.members.delete(slot);
-    this.room.phase = this.game === "tank" ? "battle" : "racing";
+    this.room.phase = "battle";
     this.room.epoch = crypto.randomUUID();
     this.room.reconnectDeadline = undefined;
     this.room.notice = undefined;
@@ -672,10 +652,15 @@ export class Session {
     this.latestState = "";
     for (const member of this.members.values()) member.sequence = -1;
     this.publishRoom();
-    const mask = this.mask(),
+    const participants = this.participants(),
       seed = crypto.getRandomValues(new Uint32Array(1))[0];
-    this.broadcast({ type: "start", epoch: this.room.epoch, mask, seed });
-    this.onStart(mask, seed);
+    this.broadcast({
+      type: "start",
+      epoch: this.room.epoch,
+      participants,
+      seed,
+    });
+    this.onStart(participants, seed);
   }
   input(keys: number) {
     if (this.uplink?.open && this.room && this.playing)
@@ -687,7 +672,7 @@ export class Session {
       });
   }
   action(action: number) {
-    if (this.game === "tank" && this.uplink?.open && this.room && this.playing)
+    if (this.uplink?.open && this.room && this.playing)
       this.uplink.send({
         type: "action",
         epoch: this.room.epoch,
@@ -715,7 +700,7 @@ export class Session {
   }
   /** A result returns the whole crew to the same room, with fresh role choices. */
   returnToLobby() {
-    if (this.game !== "tank" || this.room?.phase !== "results") return;
+    if (this.room?.phase !== "results") return;
     if (!this.isHost) {
       this.uplink?.send({ type: "return-to-lobby", epoch: this.room.epoch });
       return;

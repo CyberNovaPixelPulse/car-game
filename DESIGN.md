@@ -27,6 +27,12 @@ colors:
   pause-surface: "#3d341c"
   pause-border: "#c8a65d"
   pause-text: "#fff0c5"
+  hit-outline: "#c86b48"
+  gunner-reticle: "#fff8db"
+  mg-reticle: "#ede8c5"
+  jam-border: "#b7b2a2"
+  jam-ink: "#19221c"
+  jam-needle: "#fff8dc"
   interior-background: "#171e1c"
   interior-paint: "#697367"
   interior-dark-paint: "#39473c"
@@ -58,6 +64,14 @@ typography:
     lineHeight: 1.7
   label:
     fontSize: "14px"
+  compact-control:
+    fontSize: "13px"
+  work-readout:
+    fontSize: "16px"
+  viewport-warning:
+    fontSize: "1rem"
+  ejection-baseline:
+    fontSize: "1.25rem"
   speed:
     fontSize: "64px"
     fontWeight: 500
@@ -108,6 +122,13 @@ components:
     backgroundColor: "{colors.pause-surface}"
     textColor: "{colors.pause-text}"
     padding: "1rem"
+  mg-hud:
+    backgroundColor: "{colors.charcoal}"
+    textColor: "{colors.text}"
+    padding: "8px 12px"
+  gunner-reticle:
+    width: "28px"
+    height: "28px"
   jam-track:
     backgroundColor: "{colors.charcoal}"
     height: "38px"
@@ -121,7 +142,7 @@ components:
 
 三位乘員共用一台重型戰車，以各自受限的視野與清楚的工作狀態協作。世界採 1944 年卡昂周邊的石造農村、土路及自然日光；車輛、田行與葉叢保留使用者明確接受的簡化程序外觀。機械零件仍須實際附著支撐表面，車型輪廓與比例關係仍是辨識依據。
 
-房間介面延續炭灰、灰綠與繁體中文無襯線字體。戰鬥時場景取得主要空間，緊湊文字、數字與進度條支援操作；不把戰場規則包裝成虛構的古董儀表皮膚。Experience 世界與 Operate 邊緣 HUD 是外景 brief 的表達方式，不是所有未來畫面的固定模式。
+根路徑由 index.html 載入 tank-main.ts，直接呈現坦克房間。房間介面延續炭灰、灰綠與繁體中文無襯線字體。戰鬥時場景取得主要空間，緊湊文字、數字與進度條支援操作；不把戰場規則包裝成虛構的古董儀表皮膚。Experience 世界與 Operate 邊緣 HUD 是外景 brief 的表達方式，不是所有未來畫面的固定模式。
 
 **Key Characteristics:**
 
@@ -129,8 +150,9 @@ components:
 - 自然日光外景與封閉工作燈車內，分開處理照明。
 - 場景優先、工作資訊緊湊，駕駛維持沒有外景的資訊限制。
 - 明確中文、數字、焦點與可見危險提示，支援桌機實體鍵盤。
+- 駕駛戰鬥收起入房介紹，盲開儀表以緊湊留白保留警示與離開動作。
 
-此為實作後的設計擷取，前置 token 以現行 [tank.css](web/tank.css)、[外景](web/tank-scene.ts)、[車模](web/tank-vehicle-model.ts)、[地景](web/tank-environment.ts) 與 [車內](web/tank-interior-scene.ts) 為準。方向依 [PRODUCT.md](PRODUCT.md) 與 [外景 brief](.impeccable/briefs/tank-exterior.md)。使用者於 2026-11-07 接受「接受目前簡化外觀，修正浮空零件後完成整合」；此文件記錄已修正附著的當前實作，沒有宣稱先前寫實標準通過。
+此為 #27 根入口整合後的原始碼設計擷取，前置 token 以現行 [tank.css](web/tank.css)、[外景](web/tank-scene.ts)、[車模](web/tank-vehicle-model.ts)、[地景](web/tank-environment.ts) 與 [車內](web/tank-interior-scene.ts) 為準。方向依 [PRODUCT.md](PRODUCT.md) 與 [外景 brief](.impeccable/briefs/tank-exterior.md)。使用者於 2026-11-07 接受「接受目前簡化外觀，修正浮空零件後完成整合」；此文件記錄已修正附著的當前實作，沒有宣稱先前寫實標準通過。
 
 ## Colors
 
@@ -163,17 +185,21 @@ components:
 - **Title**：工作站標題沿用 h2 的 600 字重；legend 及部分卡彈標題也用相同字級，但不新增共用字重規則。
 - **Body**：一般說明行高 1.7、最大 70ch；工作條縮為 1.5，機槍操作文字為 1.45。
 - **Label**：輔助說明、狀態與工作條的緊湊字級。退殼警示在裝填工作區使用 18px／700；暈眩倒數保留表格數字。
+- **Compact control**：13px，只用於裝填工作站的音效及離開按鈕。
+- **Work readout**：16px，用於砲手朝向讀數與裝填工作站的卡彈 h3；兩者字重由各自來源／繼承決定，不建立共用字重。
+- **Viewport warning**：1rem，是 `.battle-viewport [data-testid="enemy-warning"]` 的既有文字規則；目前砲手將此提示移至場景前方，實際採工作站直屬 p 的 14px，因此保留此尺寸作限定 selector 的來源紀錄，不推廣為通用正文。
+- **Ejection baseline**：1.25rem，是 `.ejection-warning` 的既有基礎尺寸；目前裝填工作區由更明確 selector 覆寫為 18px／700，勿將基礎尺寸誤述為當前可見退殼警示尺寸。
 - **Speed**：盲開駕駛的主要速度讀數；房間代碼另有 0.1em 字距。
 
 ## Layout
 
 房間主容器最大 920px，置中，內距 44px 32px 56px；表單建立區是 1fr／auto，加入區是 flex，兩者間距 12px。600px 以下主容器改為 24px 18px，職位與乘員改為直列，加入列允許換行。390px 大廳仍明示需要三位玩家、三台電腦與實體鍵盤。
 
-砲手工作容器最大 1600px、外距內縮 12px 18px 24px，工作站雙欄 minmax(0, 1fr)／auto、間距 8px 20px、內距 14px 16px。戰鬥收起大標與入房介紹。場景跨欄，高度 clamp(300px, calc(100dvh - 300px), 720px)；方向、HP、砲膛／彈藥與裝填資訊緊鄰場景。700px 以下改單欄與 320px 場景。1280×720 的主要工作資訊可同屏；一般離開控制可能在初始畫面下方，勿把它記錄成所有控制都在首屏。
+砲手工作容器最大 1600px、外距內縮 12px 18px 24px，工作站雙欄 minmax(0, 1fr)／auto、間距 8px 20px、內距 14px 16px。戰鬥收起大標與入房介紹。場景跨欄，高度 clamp(300px, calc(100dvh - 300px), 720px)；方向、HP、砲膛／彈藥與裝填資訊緊鄰場景。700px 以下改單欄與 320px 場景。1280×720 的主要工作資訊以同屏為目標；實際可見範圍仍隨敵情、暫停與結算文字改變，一般離開控制可能在初始畫面下方，勿把它記錄成所有控制都在首屏。
 
-裝填工作區採全寬主容器，外內距 12px 18px／12px，方角工作站。主畫面是封閉炮尾、滑塊、後座導桿、手輪、砲彈架及曲面內壁；下緣工作條顯示所選／膛內彈、階段、進度與發射數。場景高度 max(300px, calc(100dvh - 310px))；卡彈軌出現時為上方工作區騰出高度。600px 以下改為 340px 場景及流動狀態列。機槍獨立外景高 max(300px, calc(100dvh - 340px))，熱量與鎖定提示留在視野內。駕駛只有最大 420px 的儀表區。
+裝填工作區採全寬主容器，外內距 12px 18px／12px，方角工作站。主畫面是封閉炮尾、滑塊、後座導桿、手輪、砲彈架及曲面內壁；下緣工作條顯示所選／膛內彈、階段、進度與發射數。場景高度 max(300px, calc(100dvh - 310px))；卡彈軌出現時為上方工作區騰出高度。600px 以下改為 340px 場景及流動狀態列。機槍獨立外景高 max(300px, calc(100dvh - 340px))，熱量與鎖定提示留在視野內。600px 以下裝填主容器內距為 8px。駕駛戰鬥同樣收起入房介紹，主容器內距為 12px 18px 24px，保留最大 420px 的盲開儀表區，沒有外景。駕駛工作站 h2 下距 12px，直屬 p 與儀表內 p 外距為 8px 0，儀表內距為 12px 0 20px；空白受傷提示不佔位。
 
-暫停不遮掉凍結語意；各工作站為完整等待文字騰出空間。結算保留明確結果與 HP，返回控制固定右下 24px，裝填工作區另有場景中結果層。這是現有響應行為，不是手機觸控設計。
+暫停不遮掉凍結語意；各工作站為完整等待文字騰出空間。結算保留明確結果與 HP，返回控制固定右下 24px，裝填工作區另有場景中結果層。進入主選單、工作站、新的大廳、結算或暫停狀態時，各在轉換當下將頁面捲至頂端，避免沿用先前按鈕所在的捲動位置；一般狀態更新不重複拉回頂端。這是現有響應行為，不是手機觸控設計。
 
 ## Elevation & Depth
 
@@ -187,7 +213,7 @@ HTML 介面主要用實色層、細邊線和警示輪廓區分深度，不引入
 
 ## Shapes
 
-一般按鈕與輸入為輕圓角，房間工作站較柔；砲手與裝填戰鬥工作站為方角。細實線、矩形進度條與數字優先。砲手準星由兩條 28px 細線交叉；機槍保留 18px 圓形準星。卡彈軌高 38px，成功區有文字及 2px 邊框，指針寬 4px。
+一般按鈕與輸入為輕圓角，房間工作站較柔；砲手與裝填戰鬥工作站為方角。細實線、矩形進度條與數字優先。砲手準星由兩條 28px 細線交叉；機槍保留 18px 圓形準星。卡彈軌高 38px，成功區有文字及 2px 邊框，指針寬 4px。受到攻擊時工作站外框使用 3px hit-outline、offset 4px，並有明確受傷文字。
 
 車體用原創斜面、圓鑄炮塔、分離輪組與履帶辨識。Sherman 保留六路輪／三組 VVSS、短 75mm 炮；四號 H 用八路輪、分段側裙及 L/48 長炮；虎式 I 用寬車身、交錯大輪與不同炮塔／88mm 炮。扣件以各車實際偏移的 cupola cap 為中心，Sherman 燈具坐在斜裝甲與短支架上。這些辨識與支撐關係比額外表面裝飾優先。
 
@@ -203,7 +229,7 @@ HTML 介面主要用實色層、細邊線和警示輪廓區分深度，不引入
 
 ### Workstations and warnings
 
-砲手使用場景、獨立十字準星、方向與武器工作條。機槍用自己的 yaw／pitch 視角、熱量條與鎖定提示；不跟主炮轉。裝填手保留場景、工作條、卡彈軌、退殼警示與暈眩倒數，暈眩時場景內框 2px；警示以文字／數字補足顏色。pause 面板明示等誰重連、剩餘秒數及所有操作與戰況已凍結，保留離開／結算返回動作。
+砲手使用場景、獨立十字準星、方向與武器工作條。敵方瞄準預告與行動文字放在場景前的工作站列，不用不透明整片面板遮住場景；煙幕狀態留在場景右下。共用波次列提供目前波數及存活敵車數。機槍用自己的 yaw／pitch 視角、熱量條與鎖定提示；不跟主炮轉。裝填手保留場景、工作條、卡彈軌、退殼警示與暈眩倒數，暈眩時場景內框 2px；警示以文字／數字補足顏色。pause 面板明示等誰重連、剩餘秒數及所有操作與戰況已凍結，保留離開／結算返回動作。
 
 ### Motion, visibility and ownership
 

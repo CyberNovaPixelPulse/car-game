@@ -18,6 +18,13 @@ export default defineConfig({
       use: {
         browserName: "chromium",
         launchOptions: {
+          ...(process.env.TANK_NATIVE_BROWSER === "1"
+            ? {
+                channel: "chromium",
+                chromiumSandbox: true,
+                ignoreDefaultArgs: ["--enable-unsafe-swiftshader"],
+              }
+            : {}),
           args: [
             "--disable-background-timer-throttling",
             "--disable-renderer-backgrounding",

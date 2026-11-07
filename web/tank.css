@@ -787,3 +787,24 @@ legend {
   > .battle-viewport {
   height: max(200px, calc(100dvh - 460px));
 }
+
+/* The blind driver's task has the same compact combat entry as the other seats. */
+.crew-shell:has(.battle-station[data-role="driver"]) {
+  padding: 12px 18px 24px;
+}
+.crew-shell:has(.battle-station[data-role="driver"]) > header {
+  display: none;
+}
+.battle-station[data-role="driver"] > h2 {
+  margin-bottom: 12px;
+}
+.battle-station[data-role="driver"] > p,
+.battle-station[data-role="driver"] .driver-instruments p {
+  margin: 8px 0;
+}
+.battle-station[data-role="driver"] .driver-instruments {
+  padding: 12px 0 20px;
+}
+.battle-station[data-role="driver"] > [data-testid="damage-warning"]:empty {
+  display: none;
+}

@@ -1,34 +1,27 @@
-# 驗證方式
+# 坦克驗證
 
-唯一的測試接點是瀏覽器端到端賽局：網頁 → 真實 PeerServer／WebRTC → 房主的 C 模擬 → 所有玩家畫面。測試觀察 HUD、小地圖、房間名單與結果，用實際鍵盤駕駛；不直接呼叫 C 函式、不注入座標或圈數，也不模擬房間與遊戲模組。
+已確認的接點是真實 PeerServer／WebRTC、瀏覽器原生鍵盤、可見 HUD／畫面／結算。不可注入世界狀態、呼叫內部瞄準／擊殺函式、縮短生產時間或把隱藏 DOM 當視覺證據。固定種子僅替換單一 Uint32 戰鬥熵來源；房間代碼、token 與 epoch 繼續使用真隨機。
 
-```sh
-npm run check
-npm run build
-npx playwright install chromium
-npm test
-```
-
-`EMCC` 必須指向 Emscripten 4.0.15 的編譯器，或先載入 SDK 環境。Playwright 會自動啟動本機網頁（4273）與 PeerServer（4274）。埠號採用專案專用值，避免誤連其他開發中的網站。
-
-測試只在瀏覽器的隨機來源邊界固定賽局種子，讓三種道具能重現；房間代碼與席位憑證維持真正隨機。重連失敗案例會暫時阻斷信令服務 HTTP 連線，再恢復服務並用實際重連按鈕回到原席位。
-
-覆蓋內容：
-
-- #2：網頁載入、兩組控制鍵、煞車與路外減速。
-- #3：房間建立、無效代碼、五人加入與第六人拒絕。
-- #4：兩人及五人倒數、跨瀏覽器位置同步、小地圖。
-- #5：實際駕駛三圈、防反覆跨線灌圈、完整名次與同房再賽。
-- #6：有效甩尾加速、空按無獎勵，以及道具加速期間仍能煞車。
-- #7：道具拾取與使用、持有時不覆蓋、多人爭同一箱子與重生。
-- #8：前方攻擊命中、減速到期、未命中離場。
-- #9：後方障礙不立即傷害施放者、追車觸發、同步移除。
-- #10：五人房間斷線與原席位重連、失敗後重試、未完賽結算、房主離線與已結束賽局拒絕重連。
-
-五人整合案例會真的完成三圈，過程使用甩尾與隨機道具，確認五位看到同一份結果，再重新開賽並確認圈數及道具重設。
-
-若驗證正式部署，設定 `BASE_URL` 並執行指定測試；這會使用部署設定的真實信令服務。包含本機服務中斷情境的測試應留在本機執行。
+先 `npm ci`；首次執行瀏覽器測試前用 `npx playwright install chromium` 安裝 Playwright Chromium。再 `npm run check`、`npm run build`。`npm test` 自行啟動前端與 relay。單 worker 執行，3D 驗證不要同時搶 GPU。自訂埠範例：
 
 ```sh
-BASE_URL=https://your-deployment.vercel.app npx playwright test tests/rooms.spec.ts tests/racing.spec.ts
+WEB_PORT=5054 PEER_PORT=5055 TANK_NATIVE_BROWSER=1 npm test
 ```
+
+`TANK_NATIVE_BROWSER=1` 是明確選用完整 Chromium 的相容性選項：`channel: chromium`、`chromiumSandbox: true`、移除 `--enable-unsafe-swiftshader` 預設參數，保留背景分頁計時設定。沒有授予裝置權限、關閉網路安全或關閉 sandbox。在此 Mac 的真實遊戲 canvas 已觀察 Apple M5 Metal；這不構成 FPS 或其他機器效能保證。
+
+一般功能測試以同一 Browser 的三個隔離 context 扮演玩家；不可描述為三台電腦或三個程序。最終波次驗證可明確使用三次獨立 `Browser.launch()`，每個瀏覽器各自 context、真正 WebRTC 及鍵盤：
+
+```sh
+WEB_PORT=5054 PEER_PORT=5055 TANK_NATIVE_BROWSER=1 TANK_THREE_BROWSERS=1 TANK_EVIDENCE_DIR=/tmp/car-game-to-spec/visual27-final npx playwright test tests/tank-waves.spec.ts
+```
+
+`TANK_EVIDENCE_DIR` 開啟實際勝利錄影。外部音訊輸出觀察器僅在明確設定 `TANK_AUDIO_COLLECTOR` 時於新頁載入，記錄真實 WebAudio 輸出與時間，不呼叫遊戲音效、不自動 resume；原始音訊留在工作樹外。捕獲訊號不證明實際喇叭播放或人耳辨識；最終報告須分開記錄人工聆聽限制。
+
+## 覆蓋與移除對照
+
+所有 `tank-*.spec.ts` 保留：入口、房間、駕駛碰撞、慣性瞄準、裝填／射擊／退殼、三彈種、卡彈、蹲下／五秒暈眩、機槍／過熱、敵車、煙幕、三波勝負／回房換職重玩、斷線暫停／原位重連／現實 60 秒期限及 relay 18 秒重試、外景與車內。
+
+舊賽車測試移除映射如下：rooms/five-racers → tank-rooms；driving/braking/obstacle → tank-driving；projectile → tank-weapons/ammunition/smoke；finish/retry → tank-waves；reconnect → tank-reconnect；racing → tank-entry/rooms/waves。drift/items/lap-guard 的甩尾、道具、圈數已被 #11 取消，沒有虛構坦克替代玩法。舊 helpers 與 C/Wasm adapter 同步移除。
+
+最終完整批次須全數執行，不以舊票各批通過相加代替新來源整合通過。保留原始失敗與重試紀錄，不能放寬產品限值製造綠燈。視覺驗收包含 1280×720 各職位戰鬥／結算／返回、1440×1050、390 入口；駕駛不可有外景、地圖或敵座標，裝填模式只顯示車內。截圖須開啟確認；音訊、FPS 與部署狀態各按實際證據描述。

@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-Vite、TypeScript、PeerJS／WebRTC 房主權威。舊賽車使用 C／SDL2／Emscripten；#11 已取消 C 限制，新 3D 核心選型由後續實作記錄。
+Vite、TypeScript、Three.js／WebGL2；PeerJS／WebRTC 連線與房主權威模擬。Vite 提供前端開發與建置，Node.js／Express 提供 PeerServer 信令。根路徑直接進入三人坦克房間。
 
 ## Users
 

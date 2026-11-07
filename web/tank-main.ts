@@ -1,3 +1,4 @@
+import { TANK_RULES, RECONNECT_GRACE_MS } from "./tank-settings";
 import { smokeBlocks, smokeSight } from "./tank-smoke";
 import { ENEMY_LABELS } from "./tank-enemies";
 import { MG_FIRE } from "./tank-machine-gun";
@@ -27,7 +28,7 @@ app.innerHTML = `<main class="crew-shell"><header><h1>三人坦克合作戰鬥</
 const content = document.querySelector<HTMLElement>("#crew-content")!;
 const message = document.querySelector<HTMLElement>("#crew-message")!;
 const retryButton = document.querySelector<HTMLButtonElement>("#crew-retry")!;
-export const session = new Session("tank");
+const session = new Session();
 retryButton.onclick = async () => {
   retryButton.hidden = true;
   await session.resumeSaved();
@@ -178,6 +179,7 @@ function menu() {
   clearViews();
   stationRole = undefined;
   content.innerHTML = `<h2>與隊友集合</h2><form id="crew-create"><label for="crew-name">乘員名稱</label><input id="crew-name" maxlength="16" autocomplete="nickname" required><button type="submit">建立房間</button></form><form id="crew-join"><label for="crew-code">房間代碼</label><div class="join-line"><input id="crew-code" maxlength="6" autocomplete="off" autocapitalize="characters" required><button type="submit">加入房間</button></div></form><p class="note">需要三位玩家、三台電腦與實體鍵盤。</p>`;
+  window.scrollTo(0, 0);
   const name = () => {
     const value = document
       .querySelector<HTMLInputElement>("#crew-name")!
@@ -267,7 +269,7 @@ function station(room: Room) {
   soundedShot = 0;
   soundedStun = 0;
   soundedDamage = -100;
-  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><div class="battle-pause" data-testid="battle-pause" role="status" hidden></div><p class="station-task">${ROLE_TASKS[role]}</p><p class="crew-health">共用坦克血量 <strong data-testid="tank-health">100/100</strong></p><p data-testid="wave-status"></p><p data-testid="damage-warning" role="status"></p><h2 data-testid="battle-result" hidden>戰鬥失敗</h2><button id="battle-return" hidden>回到房間</button>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong> · 砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p><p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note">連點 A／D 左右、W／S 上下；反方向連點可煞停。按住只推動一次。</p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p><strong data-testid="loader-mode">裝填模式</strong> · Tab 切換工作</p><p class="ejection-warning" data-testid="ejection-warning" role="status"></p><p><span data-testid="loader-status">站立・可以工作</span> <strong class="stun-timer" data-testid="stun-remaining"></strong></p><div class="mg-workspace" hidden><div class="battle-viewport"><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p>機槍朝向 <strong data-testid="mg-heading">0.0°</strong> · 仰角 <strong data-testid="mg-pitch">0.0°</strong></p><p class="note">按住 WASD 瞄準，放開即停止。空白鍵按住連射，備彈無限。Tab 返回裝填。</p><div class="mg-hud"><p>機槍熱度 <strong data-testid="mg-heat">0</strong>% · <span data-testid="mg-status">可以射擊</span> <strong data-testid="mg-cooldown"></strong></p><progress aria-label="機槍熱度" max="100" value="0"></progress></div><p>機槍已射擊 <strong data-testid="mg-shot-count">0</strong> 發</p><p data-testid="mg-target-status"></p></div><div class="loading-workspace"><div class="interior-viewport"><canvas role="img" aria-label="車內炮膛與彈藥架"></canvas></div><section class="jam-game" aria-label="卡彈排除" hidden><h3>卡彈：停在目標區</h3><div class="jam-track"><span class="jam-zone" data-testid="jam-zone">目標</span><span class="jam-needle" data-testid="jam-needle"></span></div><p data-testid="jam-result">按空白鍵停針</p></section><p class="note">按 1 選高爆彈、2 選穿甲彈、3 選煙霧彈。按住 R 裝填，放開可暫停；開始裝填後鎖定該發彈種。等待砲手開火、退殼後再裝下一發。按住 C 蹲下避開彈殼，放開起身；蹲下時無法工作。</p></div></div>'}${role !== "driver" ? '<div class="weapon-status"><p>選擇：<strong data-testid="selected-shell">高爆彈</strong> · 高爆／穿甲／煙霧備彈無限</p><p>膛內：<strong data-testid="chamber-shell">無</strong></p><p data-testid="chamber-state">空膛</p><p>裝填進度 <strong data-testid="load-progress">0</strong>%</p><progress aria-label="裝填進度" max="100" value="0"></progress><p>已發射 <strong data-testid="shot-count">0</strong> 發</p></div>' : ""}${role === "gunner" ? '<p data-testid="enemy-warning" role="status"></p><p data-testid="enemy-activity" role="status"></p><p data-testid="target-status">敵車接近中</p><p data-testid="flight-status"></p><p class="note">主炮就緒後，按空白鍵開火。</p>' : ""}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}${role === "loader" ? `<button type="button" class="secondary" id="station-sound" aria-pressed="${soundEnabled}">音效：${soundEnabled ? "開" : "關"}</button>` : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
+  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><div class="battle-pause" data-testid="battle-pause" role="status" hidden></div><p class="station-task">${ROLE_TASKS[role]}</p><p class="crew-health">共用坦克血量 <strong data-testid="tank-health">${TANK_RULES.maxHp}/${TANK_RULES.maxHp}</strong></p><p data-testid="wave-status"></p><p data-testid="damage-warning" role="status"></p><h2 data-testid="battle-result" hidden>戰鬥失敗</h2><button id="battle-return" hidden>回到房間</button>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong> · 砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p><p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note">連點 A／D 左右、W／S 上下；反方向連點可煞停。按住只推動一次。</p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p><strong data-testid="loader-mode">裝填模式</strong> · Tab 切換工作</p><p class="ejection-warning" data-testid="ejection-warning" role="status"></p><p><span data-testid="loader-status">站立・可以工作</span> <strong class="stun-timer" data-testid="stun-remaining"></strong></p><div class="mg-workspace" hidden><div class="battle-viewport"><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p>機槍朝向 <strong data-testid="mg-heading">0.0°</strong> · 仰角 <strong data-testid="mg-pitch">0.0°</strong></p><p class="note">按住 WASD 瞄準，放開即停止。空白鍵按住連射，備彈無限。Tab 返回裝填。</p><div class="mg-hud"><p>機槍熱度 <strong data-testid="mg-heat">0</strong>% · <span data-testid="mg-status">可以射擊</span> <strong data-testid="mg-cooldown"></strong></p><progress aria-label="機槍熱度" max="100" value="0"></progress></div><p>機槍已射擊 <strong data-testid="mg-shot-count">0</strong> 發</p><p data-testid="mg-target-status"></p></div><div class="loading-workspace"><div class="interior-viewport"><canvas role="img" aria-label="車內炮膛與彈藥架"></canvas></div><section class="jam-game" aria-label="卡彈排除" hidden><h3>卡彈：停在目標區</h3><div class="jam-track"><span class="jam-zone" data-testid="jam-zone">目標</span><span class="jam-needle" data-testid="jam-needle"></span></div><p data-testid="jam-result">按空白鍵停針</p></section><p class="note">按 1 選高爆彈、2 選穿甲彈、3 選煙霧彈。按住 R 裝填，放開可暫停；開始裝填後鎖定該發彈種。等待砲手開火、退殼後再裝下一發。按住 C 蹲下避開彈殼，放開起身；蹲下時無法工作。</p></div></div>'}${role !== "driver" ? '<div class="weapon-status"><p>選擇：<strong data-testid="selected-shell">高爆彈</strong> · 高爆／穿甲／煙霧備彈無限</p><p>膛內：<strong data-testid="chamber-shell">無</strong></p><p data-testid="chamber-state">空膛</p><p>裝填進度 <strong data-testid="load-progress">0</strong>%</p><progress aria-label="裝填進度" max="100" value="0"></progress><p>已發射 <strong data-testid="shot-count">0</strong> 發</p></div>' : ""}${role === "gunner" ? '<p data-testid="enemy-warning" role="status"></p><p data-testid="enemy-activity" role="status"></p><p data-testid="target-status">敵車接近中</p><p data-testid="flight-status"></p><p class="note">主炮就緒後，按空白鍵開火。</p>' : ""}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}${role === "loader" ? `<button type="button" class="secondary" id="station-sound" aria-pressed="${soundEnabled}">音效：${soundEnabled ? "開" : "關"}</button>` : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
   if (role === "loader") {
     const jamPanel = content.querySelector(".jam-game");
     if (jamPanel)
@@ -323,12 +325,14 @@ function station(room: Room) {
     session.leave();
     menu();
   };
+  // A lobby button may have scrolled a short viewport. Enter the station at its HUD.
+  window.scrollTo(0, 0);
 }
 core.present = (state) => {
   if (!stationRole) return;
   const wave = content.querySelector('[data-testid="wave-status"]');
   if (wave)
-    wave.textContent = `第 ${state.battle.wave} / 3 波 · 存活敵車 ${state.weapon.targets.filter((e) => e.hp > 0).length}`;
+    wave.textContent = `第 ${state.battle.wave} / ${TANK_RULES.waves} 波 · 存活敵車 ${state.weapon.targets.filter((e) => e.hp > 0).length}`;
   const speed = content.querySelector('[data-testid="tank-speed"]');
   if (speed) speed.textContent = Math.abs(state.tank.speed).toFixed(1);
   const motion = content.querySelector('[data-testid="tank-motion"]');
@@ -368,8 +372,11 @@ core.present = (state) => {
     '[data-testid="battle-result"]',
   );
   if (result) {
+    const enteringResult =
+      result.hidden && (state.battle.failed || state.battle.won);
     result.hidden = !state.battle.failed && !state.battle.won;
     result.textContent = state.battle.failed ? "戰鬥失敗" : "戰鬥勝利";
+    if (enteringResult) window.scrollTo(0, 0);
   }
   const returnButton =
     content.querySelector<HTMLButtonElement>("#battle-return");
@@ -496,7 +503,7 @@ core.present = (state) => {
     ejecting: "正在退殼",
   };
   const updates: Record<string, string> = {
-    "tank-health": `${state.tank.hp}/100`,
+    "tank-health": `${state.tank.hp}/${TANK_RULES.maxHp}`,
     "selected-shell": SHELL_LABELS[weapon.selectedShell],
     "chamber-shell": weapon.chamberShell
       ? `${SHELL_LABELS[weapon.chamberShell]}（已鎖定）`
@@ -675,13 +682,16 @@ function updatePause() {
     '[data-testid="battle-pause"]',
   );
   if (!panel) return;
+  const enteringPause = panel.hidden && runtime.paused;
   panel.hidden = !runtime.paused;
+  if (enteringPause) window.scrollTo(0, 0);
   if (runtime.paused) {
     const missing = session.room!.members.filter((member) => !member.connected);
     const remaining = Math.max(
       0,
       Math.ceil(
-        ((session.room!.reconnectDeadline ?? Date.now() + 60000) - Date.now()) /
+        ((session.room!.reconnectDeadline ?? Date.now() + RECONNECT_GRACE_MS) -
+          Date.now()) /
           1000,
       ),
     );
@@ -693,6 +703,7 @@ runtime.onRoom = (room) => {
   retryButton.hidden = true;
   message.textContent = room.notice ?? "";
   if (room.phase === "lobby") {
+    const enteringLobby = !content.querySelector(".room-heading");
     runtime.mode = "idle";
     runtime.clearInput();
     held = 0;
@@ -708,6 +719,7 @@ runtime.onRoom = (room) => {
     mechanicalAudio.reset();
     stationRole = undefined;
     lobby(room);
+    if (enteringLobby) window.scrollTo(0, 0);
   } else {
     station(room);
     if (runtime.paused) {

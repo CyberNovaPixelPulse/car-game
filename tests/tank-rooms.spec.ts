@@ -3,7 +3,7 @@ import { test, expect, type Browser, type Page } from "@playwright/test";
 async function crew(browser: Browser, name: string) {
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto("/tank.html");
+  await page.goto("/");
   await page.getByLabel("乘員名稱").fill(name);
   return page;
 }
