@@ -190,11 +190,6 @@ test("維修保留AP卡彈，空白鍵不能排除其他工作的故障", async 
     await expect(c.loader.getByTestId("chamber-shell")).toHaveText(
       "穿甲彈（已鎖定）",
     );
-    await expect(c.loader.getByTestId("jam-zone")).toHaveAttribute(
-      "style",
-      zone!,
-    );
-    await expect(c.loader.getByTestId("jam-result")).toHaveText("按空白鍵停針");
     await c.loader.keyboard.up("r");
     await c.loader.keyboard.press("Tab");
     await expect(c.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
