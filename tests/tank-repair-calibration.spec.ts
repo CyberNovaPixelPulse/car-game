@@ -395,7 +395,7 @@ test("實際敵彈中斷校準，三秒受擊與兩秒失敗取較晚且兩種�
   }
 });
 
-test("非房主裝填手本人離頁後重連原職位，保留校準目標並等待重新按R", async ({
+test("裝填手離頁的正常輸入先到時判失敗，剩餘停修凍結並原職位重連", async ({
   browser,
 }) => {
   const c = await tankCrew(browser, "gunner", 0, 1972);
@@ -413,6 +413,70 @@ test("非房主裝填手本人離頁後重連原職位，保留校準目標並�
       .textContent())!.split("目標")[1];
     await c.loader.goto("about:blank");
     await expect(c.gunner.getByTestId("battle-pause")).toBeVisible();
+    // Navigation emits its genuine safety release before the authority room
+    // suspension. That already-settled normal interruption must not roll back.
+    await expect(c.gunner.getByTestId("repair-calibration-result")).toHaveText(
+      "校準失敗・停修兩秒",
+    );
+    await c.gunner.waitForTimeout(300);
+    const health = await c.gunner.getByTestId("tank-health").textContent();
+    await c.gunner.waitForTimeout(4200);
+    await expect(c.gunner.getByTestId("repair-calibration-result")).toHaveText(
+      "校準失敗・停修兩秒",
+    );
+    await expect(c.gunner.getByTestId("tank-health")).toHaveText(health!);
+    await c.loader.goto("/");
+    await expect(c.loader.getByTestId("loader-mode")).toHaveText("維修模式");
+    await expect(c.loader.getByTestId("repair-status")).toContainText(
+      "校準失敗等待",
+    );
+    const remaining = Number(
+      (await c.loader.getByTestId("repair-status").textContent())!.match(
+        /[\d.]+/,
+      )![0],
+    );
+    expect(remaining).toBeGreaterThan(1);
+    expect(
+      (await c.loader
+        .getByTestId("repair-calibration-position")
+        .textContent())!.split("目標")[1],
+    ).toBe(target);
+    await c.loader.keyboard.up("r");
+    await c.loader.keyboard.down("r");
+    await c.loader.waitForTimeout(400);
+    await expect(c.loader.getByTestId("repair-calibration")).toBeHidden();
+    expect(await hp(c.loader)).toBeLessThanOrEqual(
+      Number(health!.split("/")[0]),
+    );
+    await c.loader.keyboard.up("r");
+  } finally {
+    await c.close();
+  }
+});
+
+test("瀏覽器崩潰補驗：裝填手無先行釋放的斷線凍結活躍校準並以原生儲存重連", async ({
+  browser,
+}) => {
+  const c = await tankCrew(browser, "gunner", 0, 1972);
+  try {
+    await repairMode(c.loader);
+    await expect
+      .poll(() => hp(c.loader), { timeout: 45000 })
+      .toBeLessThanOrEqual(82);
+    await c.loader.keyboard.down("r");
+    await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
+      timeout: 12000,
+    });
+    const target = (await c.loader
+      .getByTestId("repair-calibration-position")
+      .textContent())!.split("目標")[1];
+    // External renderer crash, not a game API call. Browser sessionStorage is
+    // retained by the same tab and the game performs its normal saved resume.
+    const devtools = await c.loader.context().newCDPSession(c.loader);
+    const crashed = c.loader.waitForEvent("crash");
+    void devtools.send("Page.crash").catch(() => {});
+    await crashed;
+    await expect(c.gunner.getByTestId("battle-pause")).toBeVisible();
     await expect(
       c.gunner.getByTestId("repair-calibration-result"),
     ).toContainText("校準中");
@@ -426,7 +490,7 @@ test("非房主裝填手本人離頁後重連原職位，保留校準目標並�
       frozen!,
     );
     await expect(c.gunner.getByTestId("tank-health")).toHaveText(health!);
-    await c.loader.goto("/");
+    await c.loader.reload();
     await expect(c.loader.getByTestId("loader-mode")).toHaveText("維修模式");
     await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
       frozen!,
@@ -436,7 +500,6 @@ test("非房主裝填手本人離頁後重連原職位，保留校準目標並�
         .getByTestId("repair-calibration-position")
         .textContent())!.split("目標")[1],
     ).toBe(target);
-    await expect(c.loader.getByTestId("tank-health")).toHaveText(health!);
     await c.loader.keyboard.up("r");
     await c.loader.keyboard.down("r");
     await expect
@@ -445,6 +508,141 @@ test("非房主裝填手本人離頁後重連原職位，保留校準目標並�
         { intervals: [30], timeout: 1000 },
       )
       .not.toBe(frozen);
+    await c.loader.keyboard.up("r");
+  } finally {
+    await c.close();
+  }
+});
+
+test("圓針兩秒漏按失敗且持續基本回血，維修校準仍受退殼暈眩中斷", async ({
+  browser,
+}) => {
+  test.setTimeout(150000);
+  const c = await tankCrew(browser, "loader", 0, 1972);
+  const load = async () => {
+    await c.loader.keyboard.down("r");
+    const deadline = Date.now() + 20000;
+    while (
+      (await c.loader.getByTestId("chamber-state").textContent()) !== "主炮就緒"
+    ) {
+      if (Date.now() > deadline) throw new Error("正常裝填未完成");
+      if (
+        (await c.loader.getByTestId("chamber-state").textContent()) === "卡彈"
+      ) {
+        const needle = await c.loader.getByTestId("jam-needle").boundingBox();
+        const zone = await c.loader.getByTestId("jam-zone").boundingBox();
+        if (
+          needle &&
+          zone &&
+          needle.x > zone.x + zone.width * 0.25 &&
+          needle.x < zone.x + zone.width * 0.65
+        )
+          await c.loader.keyboard.press("Space");
+      }
+      await c.loader.waitForTimeout(20);
+    }
+    await c.loader.keyboard.up("r");
+  };
+  try {
+    // Ordinary AP hits remove one attacker. The remaining Tiger's real nine-
+    // second firing cycle leaves a genuine safe repair interval for a full lap.
+    await c.loader.keyboard.press("2");
+    for (const remaining of [20, 0]) {
+      await load();
+      await c.loader.keyboard.down("c");
+      await c.gunner.keyboard.press("Space");
+      await expect(c.gunner.getByTestId("target-status")).toContainText(
+        `四號 H 型 ${remaining}/200`,
+      );
+      await expect(c.loader.getByTestId("chamber-state")).toHaveText("空膛");
+      await c.loader.keyboard.up("c");
+    }
+    await load(); // Keep a real loaded shell for the later ejection interruption.
+    await repairMode(c.loader);
+    await expect
+      .poll(() => hp(c.loader), { timeout: 65000 })
+      .toBeLessThanOrEqual(80);
+    const missed = c.loader.evaluate(
+      () =>
+        new Promise<{
+          ms: number;
+          healed: number;
+          first: number;
+          last: number;
+        }>((resolve) => {
+          const circle = document.querySelector<HTMLElement>(
+            '[data-testid="repair-calibration"]',
+          )!;
+          const status = document.querySelector(
+            '[data-testid="repair-calibration-result"]',
+          )!;
+          const health = () =>
+            Number(
+              document
+                .querySelector('[data-testid="tank-health"]')!
+                .textContent!.split("/")[0],
+            );
+          const needle = () =>
+            Number(
+              document
+                .querySelector('[data-testid="repair-calibration-position"]')!
+                .textContent!.match(/[\d.]+/)![0],
+            );
+          let began = 0,
+            before = 0,
+            first = 0;
+          const observer = new MutationObserver(() => {
+            if (!circle.hidden && !began) {
+              began = performance.now();
+              before = health();
+              first = needle();
+            }
+            if (began && status.textContent === "校準失敗・停修兩秒") {
+              observer.disconnect();
+              resolve({
+                ms: performance.now() - began,
+                healed: health() - before,
+                first,
+                last: needle(),
+              });
+            }
+          });
+          observer.observe(document.querySelector(".battle-station")!, {
+            attributes: true,
+            childList: true,
+            characterData: true,
+            subtree: true,
+          });
+        }),
+    );
+    await c.loader.keyboard.down("r");
+    const observed = await missed;
+    expect(observed.ms).toBeGreaterThanOrEqual(1800);
+    expect(observed.ms).toBeLessThanOrEqual(2200);
+    expect(observed.first).toBeLessThan(36);
+    expect(observed.last).toBe(360);
+    expect(observed.healed).toBeGreaterThanOrEqual(3.7);
+    expect(observed.healed).toBeLessThanOrEqual(4.3);
+    await expect(c.loader.getByTestId("repair-status")).toContainText(
+      "校準失敗等待",
+    );
+    await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
+      timeout: 18000,
+    });
+    await c.gunner.keyboard.press("Space");
+    await expect(c.loader.getByTestId("ejection-warning")).toContainText(
+      "按住 C",
+    );
+    await c.loader.waitForTimeout(400);
+    await expect(c.loader.getByTestId("repair-calibration")).toBeVisible();
+    await expect(c.loader.getByTestId("loader-status")).toContainText("暈眩");
+    await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
+      "校準失敗・停修兩秒",
+    );
+    await expect(c.loader.getByTestId("repair-status")).toContainText("暈眩");
+    await c.loader.screenshot({
+      path: `${evidence}/calibration-stunned-1440.png`,
+    });
     await c.loader.keyboard.up("r");
   } finally {
     await c.close();
