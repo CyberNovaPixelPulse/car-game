@@ -34,6 +34,26 @@ test("主炮已就緒時畫質選單的空白鍵不開火，返回戰場後同�
   const c = await tankCrew(browser, "loader", 0, 1976);
   try {
     await c.loader.keyboard.down("r");
+    const deadline = Date.now() + 25000;
+    while (
+      (await c.loader.getByTestId("chamber-state").textContent()) !== "主炮就緒"
+    ) {
+      if (Date.now() > deadline) throw new Error("正常裝填未完成");
+      if (
+        (await c.loader.getByTestId("chamber-state").textContent()) === "卡彈"
+      ) {
+        const needle = await c.loader.getByTestId("jam-needle").boundingBox();
+        const zone = await c.loader.getByTestId("jam-zone").boundingBox();
+        if (
+          needle &&
+          zone &&
+          needle.x > zone.x + zone.width * 0.25 &&
+          needle.x < zone.x + zone.width * 0.65
+        )
+          await c.loader.keyboard.press("Space");
+      }
+      await c.loader.waitForTimeout(20);
+    }
     await expect(c.gunner.getByTestId("chamber-state")).toHaveText("主炮就緒");
     await c.loader.keyboard.up("r");
     await c.gunner.keyboard.press("Tab");
