@@ -43,6 +43,42 @@ export async function elevateCannon(page: Page) {
   await page.keyboard.up("ArrowUp");
 }
 
+/** A real exterior sweep waits for the Tiger's ordinary cover flank. Only the
+ * visible map/readout selects the observation, never world coordinates/state. */
+export async function observeTiger(c: { gunner: Page }) {
+  await aimAtHeading(c.gunner, 320);
+  await expect(c.gunner.getByTestId("target-status")).toContainText(
+    "虎式 I 型",
+    { timeout: 30000 },
+  );
+}
+
+/** Crew can report a bearing from the actual north-up map. These are the
+ * painted rect/arrow coordinates; no hidden world-state mirror is read. */
+export async function aimAtObservedEnemy(page: Page, label: string) {
+  const map = page.getByRole("img", { name: "北方固定朝上的戰場導航" });
+  await expect(
+    map.locator(`.navigation-enemy[aria-label="觀測敵車 ${label}"]`),
+  ).toHaveCount(1);
+  const bearing = await map.evaluate((svg, label) => {
+    const marker = svg.querySelector<SVGRectElement>(
+      `.navigation-enemy[aria-label="觀測敵車 ${label}"]`,
+    )!;
+    const player = svg
+      .querySelector(".navigation-player")!
+      .getAttribute("transform")!
+      .match(/-?[\d.]+/g)!
+      .map(Number);
+    const x = marker.x.baseVal.value + marker.width.baseVal.value / 2;
+    const z = marker.y.baseVal.value + marker.height.baseVal.value / 2;
+    return (
+      ((Math.atan2(x - player[0], -(z - player[1])) * 180) / Math.PI + 360) %
+      360
+    );
+  }, label);
+  await aimAtHeading(page, bearing);
+}
+
 /** Genuine browser key events, scheduled independently of protocol acknowledgement.
  * This keeps a rapid burst / 90ms rhythm rapid while screenshots stall individual RPCs.
  * Sessions are attached before navigation; no post-start warmup, DOM dispatch or clock hook.

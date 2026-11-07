@@ -108,7 +108,7 @@ test("機槍正常掃射確實傷害虎式，兩類敵車共用命中規則", as
       .poll(
         async () => {
           const t = await c.gunner.getByTestId("target-status").textContent();
-          return Number(t!.match(/虎式 I 型 (\d+)\/360/)![1]);
+          return Number(t!.match(/虎式 I 型 (\d+)\/360/)?.[1] ?? 360);
         },
         { timeout: 30000 },
       )
