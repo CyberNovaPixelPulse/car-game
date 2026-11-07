@@ -2,6 +2,8 @@
 
 三位朋友以桌面瀏覽器與實體鍵盤，共駕同一台 Sherman，對抗三波四號 H 型與虎式 I 型敵車。各自維持語音通話：駕駛只有儀表，砲手看主炮戰場，裝填手在車內工作與車頂機槍間切換。
 
+[開啟正式遊戲](https://car-game-necterelux.vercel.app/)
+
 ## 本機啟動
 
 使用 Node.js 22 以上，執行 `npm ci`，再於兩個終端分別執行 `npm run relay` 與 `npm run dev`。開啟 [本機遊戲](http://localhost:4273/)，建立房間並分享六碼代碼；三人各選一個職位，等待自己的準備完成，再由房主開始。需要 WebGL2，準備會載入素材、編譯 shader 並完成第一張畫面；準備失敗有可重試提示。
@@ -22,7 +24,7 @@
 
 `npm run check` 檢查型別，`npm run build` 產生可部署的 `dist/`，`npm test` 跑真實瀏覽器端到端驗證。沒有 C、SDL2、Python 或 Emscripten 建置依賴。只使用根目錄入口，舊賽車及 Wasm 已移除。建置不會部署。
 
-可用 `WEB_PORT`、`PEER_PORT` 設定測試服務埠；開發前端的 relay 使用 `VITE_PEER_HOST/PORT/PATH/SECURE`（見 [.env.example](.env.example)）。正式靜態建置未設定自架 relay 時使用 PeerJS Cloud，實際連線仍受 NAT／網路環境影響；本次未正式部署或驗證公開網址。
+可用 `WEB_PORT`、`PEER_PORT` 設定測試服務埠；開發前端的 relay 使用 `VITE_PEER_HOST/PORT/PATH/SECURE`（見 [.env.example](.env.example)）。正式靜態建置未設定自架 relay 時使用 PeerJS Cloud，實際連線仍受 NAT／網路環境影響。正式網站已於 2026-11-07 更新為坦克版本，並以三個獨立瀏覽器在公開網址完成入房、準備、開戰、裝填、卡彈排除、射擊、退殼與機槍視角驗證；不需本機連線服務。
 
 本機完整 Chromium 可明確選用 `TANK_NATIVE_BROWSER=1 npm test`；它啟用完整 Chromium、保留 sandbox 並移除預設 unsafe SwiftShader，沒有放寬瀏覽器安全性。預設仍使用 Playwright 標準設定。這是測試環境選項，不是 FPS 保證。詳細驗證、三獨立瀏覽器及證據指令見 [測試說明](docs/testing.md)。
 
