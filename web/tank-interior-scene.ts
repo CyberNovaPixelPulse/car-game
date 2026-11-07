@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import type { TankState } from "./tank-core";
+import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
 
 /** Enclosed loader workspace. Deliberately owns no battlefield geometry or rules. */
 export class TankInteriorScene {
@@ -21,9 +22,11 @@ export class TankInteriorScene {
   private height = 0;
   private reducedMotion = matchMedia("(prefers-reduced-motion: reduce)")
     .matches;
-  constructor(private canvas: HTMLCanvasElement) {
+  constructor(
+    private canvas: HTMLCanvasElement,
+    private quality: SceneQuality = "medium",
+  ) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.shadowMap.enabled = true;
@@ -264,9 +267,6 @@ export class TankInteriorScene {
     );
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(canvas);
-    this.renderer.setSize(1024, 576, false);
-    this.camera.aspect = 1024 / 576;
-    this.camera.updateProjectionMatrix();
     this.resize();
   }
   private beveledBox(w: number, h: number, d: number) {
@@ -291,17 +291,25 @@ export class TankInteriorScene {
   invalidate() {
     this.dirty = true;
   }
-  private resize() {
+  setQuality(quality: SceneQuality) {
+    if (this.quality === quality) return;
+    this.quality = quality;
+    this.resize(true);
+  }
+  private resize(force = false) {
     // Retain the drawing buffer while this mode is hidden. Shrinking it to
     // 1px would allocate it again on every Tab and stall ordinary input.
-    const w = this.canvas.clientWidth,
-      h = this.canvas.clientHeight;
-    if (!w || !h) return;
+    const w = this.canvas.clientWidth || this.width || 1024,
+      h = this.canvas.clientHeight || this.height || 576;
     this.invalidate();
-    if (w === this.width && h === this.height) return;
+    if (!force && w === this.width && h === this.height) return;
     this.width = w;
     this.height = h;
-    this.renderer.setSize(w, h, false);
+    this.renderer.setDrawingBufferSize(
+      w,
+      h,
+      scenePixelRatio(w, h, this.quality),
+    );
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
   }

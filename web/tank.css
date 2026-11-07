@@ -853,6 +853,35 @@ legend {
   flex-wrap: wrap;
   gap: 8px;
 }
+.battle-station .scene-quality {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding-left: 8px;
+  border: 1px solid var(--hud-muted);
+  background: var(--hud-background);
+  color: var(--hud-foreground);
+  font-size: 14px;
+}
+.battle-station .scene-quality select {
+  min-height: 38px;
+  padding: 8px;
+  border: 0;
+  border-left: 1px solid var(--hud-muted);
+  border-radius: 0;
+  color: var(--hud-foreground);
+  background: var(--hud-background);
+  font: inherit;
+  cursor: pointer;
+}
+.battle-station .scene-quality select:hover {
+  background: #39473c;
+}
+.battle-station .scene-quality select:focus-visible {
+  outline: 3px solid var(--hud-danger);
+  outline-offset: 2px;
+}
 
 [data-surface="battle"] .battle-station button,
 [data-surface="battle"] #crew-retry {
@@ -1397,7 +1426,8 @@ legend {
     padding: 14px 18px;
   }
   .repair-workspace:has(.repair-calibration:not([hidden])) > h3,
-  .repair-workspace:has(.repair-calibration:not([hidden])) .repair-requirements {
+  .repair-workspace:has(.repair-calibration:not([hidden]))
+    .repair-requirements {
     display: none;
   }
   .repair-workspace:has(.repair-calibration:not([hidden])) p {
