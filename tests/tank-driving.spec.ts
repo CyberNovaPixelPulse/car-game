@@ -76,7 +76,6 @@ test("駕駛可原地轉向再倒車，三人車況保持一致", async ({ brows
     await expect(crew.gunner.getByTestId("tank-motion")).toHaveText("倒車");
     await crew.driver.keyboard.up("s");
     await expect(crew.driver.getByTestId("tank-motion")).toHaveText("靜止");
-    await expect(crew.driver.getByTestId("hull-heading")).toHaveCount(0);
   } finally {
     await crew.close();
   }

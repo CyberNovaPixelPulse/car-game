@@ -247,7 +247,7 @@ components:
 - 場景優先、工作資訊緊湊；駕駛只從固定車頭的狹長前窗觀察，側後方由隊友協助。
 - 明確中文、數字、焦點與可見危險提示，支援桌機實體鍵盤。
 
-紙／墨 token 以 [tank.css](web/tank.css) 的 `:root[data-surface]` 區塊為準；大廳規則在 `[data-surface="manual"]`，戰鬥規則從「Battle surface: each workstation is a plate」註解開始，後接「Red ink is for danger now」與「Driver: no scene」兩段。戰鬥的格線、場景高度與覆蓋層位置仍由同檔較前段的工作站版面規則決定。方向依 [surface brief](.impeccable/surfaces/web-tank-main-ts.md)；3D 世界依 [PRODUCT.md](PRODUCT.md)、[外景 brief](.impeccable/briefs/tank-exterior.md)、[外景](web/tank-scene.ts)、[車模](web/tank-vehicle-model.ts)、[地景](web/tank-environment.ts) 與 [車內](web/tank-interior-scene.ts)。使用者於 2026-11-07 接受「接受目前簡化外觀，修正浮空零件後完成整合」；此文件記錄已修正附著的當前實作，沒有宣稱先前寫實標準通過。
+紙／墨 token 以 [tank.css](web/tank.css) 的 `:root[data-surface]` 區塊為準；大廳規則在 `[data-surface="manual"]`，戰鬥規則從「Battle surface: each workstation is a plate」註解開始，後接「Red ink is for danger now」與「Driver's armour」兩段。戰鬥的格線、場景高度與覆蓋層位置仍由同檔較前段的工作站版面規則決定。方向依 [surface brief](.impeccable/surfaces/web-tank-main-ts.md)；3D 世界依 [PRODUCT.md](PRODUCT.md)、[外景 brief](.impeccable/briefs/tank-exterior.md)、[外景](web/tank-scene.ts)、[車模](web/tank-vehicle-model.ts)、[地景](web/tank-environment.ts) 與 [車內](web/tank-interior-scene.ts)。使用者於 2026-11-07 接受「接受目前簡化外觀，修正浮空零件後完成整合」；此文件記錄已修正附著的當前實作，沒有宣稱先前寫實標準通過。
 
 ## Colors
 
