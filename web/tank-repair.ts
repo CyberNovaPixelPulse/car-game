@@ -26,6 +26,8 @@ export interface RepairState {
     target: number;
     nextAt: number;
     randomState: number;
+    /** Room pause clears physical keys; the attempt resumes only after fresh R. */
+    suspended: boolean;
   };
 }
 export const createRepairState = (seed = 1): RepairState => {
@@ -41,6 +43,7 @@ export const createRepairState = (seed = 1): RepairState => {
       target: 0,
       nextAt: 0,
       randomState: seed >>> 0,
+      suspended: false,
     },
   };
   scheduleCalibration(repair);
@@ -61,6 +64,7 @@ function failCalibration(state: TankState) {
   const { repair, time } = state;
   if (repair.calibration.result !== "active") return;
   repair.calibration.result = "failed";
+  repair.calibration.suspended = false;
   repair.failureUntil = time + REPAIR_RULES.failureWait;
   repair.blockedUntil = Math.max(repair.blockedUntil, repair.failureUntil);
   scheduleCalibration(repair);
@@ -124,6 +128,14 @@ export function stepRepair(state: TankState, held: boolean, dt: number) {
                     ? "ready"
                     : "repairing";
   const c = repair.calibration;
+  if (c.result === "active" && c.suspended) {
+    // Safe room clears are not regular interruptions. Once live again, merely
+    // waiting for fresh R retains the exact needle and target; moving, getting
+    // hit or changing work still interrupts the attempt normally.
+    if (!held && (repair.status === "ready" || repair.status === "full"))
+      return;
+    c.suspended = false;
+  }
   // Reaching full HP caps healing but does not discard an already active
   // calibration. All other normal interruptions settle that one attempt once.
   if (
@@ -179,6 +191,7 @@ export function validRepair(
     repair.activeSeconds >= 0 &&
     repair.failureUntil >= 0 &&
     !!repair.calibration &&
+    typeof repair.calibration.suspended === "boolean" &&
     [
       repair.calibration.id,
       repair.calibration.elapsed,

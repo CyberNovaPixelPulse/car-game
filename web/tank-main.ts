@@ -470,7 +470,7 @@ core.present = (state) => {
   const calibration = state.repair.calibration;
   const calibrationMessages = {
     idle: "",
-    active: "維修校準中・按空白鍵停針",
+    active: `維修校準中・${calibration.suspended ? "重新按住 R 續接・" : ""}指針 ${((calibration.elapsed / REPAIR_RULES.calibrationDuration) * 360).toFixed(0)}°`,
     success: "校準成功・額外 +1 HP",
     perfect: "完美校準・額外 +3 HP",
     failed: "校準失敗・停修兩秒",

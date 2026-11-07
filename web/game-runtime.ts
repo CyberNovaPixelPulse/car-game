@@ -12,6 +12,8 @@ export interface GameCore<View> {
   input(participant: number, keys: number): void;
   action?(participant: number, action: number): void;
   connected(participant: number, connected: boolean): void;
+  /** Whole-room suspension precedes physical-input clearing. */
+  pause?(paused: boolean): void;
   step(dt: number): void;
   draw(participant: number): void;
   view(): View;
@@ -61,6 +63,7 @@ export class GameRuntime<View> {
       // Finish the pre-disconnect interval before clearing controls/connection.
       this.advanceTankAuthority();
       if (this.paused !== wasPaused) {
+        core.pause?.(this.paused);
         this.clearInput();
         for (const member of room.members) core.input(member.slot, 0);
         this.previous = performance.now();
