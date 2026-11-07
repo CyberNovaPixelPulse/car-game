@@ -63,7 +63,7 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
   test.setTimeout(240000);
   const c = await tankCrew(
     browser,
-    "gunner",
+    "loader",
     0,
     1000,
     process.env.TANK_EVIDENCE_DIR

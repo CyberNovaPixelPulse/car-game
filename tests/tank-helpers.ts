@@ -14,19 +14,23 @@ const keyboards = new WeakMap<Page, CDPSession>();
 export async function aimAtHeading(page: Page, target: number) {
   const heading = page.getByTestId("turret-heading");
   for (let correction = 0; correction < 8; correction++) {
-    const current = Number((await heading.textContent())!.replace("°", ""));
+    const displayed = (await heading.textContent())!;
+    const current = Number(displayed.replace("°", ""));
     const error = ((target - current + 540) % 360) - 180;
     if (Math.abs(error) < 1) return;
     const key = error > 0 ? "ArrowRight" : "ArrowLeft";
     // Start with the specified half-second ramp and retained speed. The public
     // readout, rather than an assumed input duration, decides when aim is ready.
     const duration =
-      Math.abs(error) > 13
+      Math.abs(error) > 24.4
         ? Math.abs(error) * 20.5
         : Math.sqrt(Math.abs(error)) * 100;
     await page.keyboard.down(key);
     await page.waitForTimeout(duration);
     await page.keyboard.up(key);
+    // Do not accept the pre-keydown zero-rate HUD as a completed coast. The
+    // host may not have painted (or a client received) this short pulse yet.
+    await expect(heading).not.toHaveText(displayed);
     await expect(page.getByTestId("turret-yaw-rate")).toHaveText("0.0°/s");
   }
   const current = Number((await heading.textContent())!.replace("°", ""));
