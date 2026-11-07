@@ -4,6 +4,12 @@ const out =
   process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/final-visual";
 async function capture(page: any, name: string) {
   await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
   await page.screenshot({ path: `${out}/${name}.png` });
   await page.screenshot({ path: `${out}/${name}-full.png`, fullPage: true });
 }
@@ -79,6 +85,7 @@ test("最終入口、三職戰鬥及機槍桌面矩陣", async ({ browser, page 
     await expect(
       c.driver.getByRole("heading", { name: "駕駛工作站" }),
     ).toBeVisible();
+    await c.driver.waitForLoadState("networkidle");
     await expect(c.driver.getByTestId("battle-pause")).toBeHidden();
     await c.gunner.goto("about:blank");
     await c.driver.setViewportSize({ width: 1280, height: 720 });
@@ -89,7 +96,7 @@ test("最終入口、三職戰鬥及機槍桌面矩陣", async ({ browser, page 
     await capture(c.driver, "pause-driver-1280");
     await expect(
       c.driver.getByRole("button", { name: "離開房間", exact: true }),
-    ).toBeInViewport();
+    ).toBeInViewport({ ratio: 1 });
     await c.gunner.goto("/");
     await expect(c.gunner.getByTestId("battle-pause")).toBeHidden();
   } finally {

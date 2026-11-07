@@ -1547,7 +1547,7 @@ legend {
 [data-surface="battle"]
   .battle-station[data-role="driver"]:has(> .battle-pause:not([hidden]))
   > .driver-viewport {
-  height: max(240px, calc(100dvh - 310px));
+  height: max(240px, calc(100dvh - 350px));
 }
 @media (max-width: 600px) {
   [data-surface="battle"] .crew-shell:has(.battle-station[data-role="driver"]) {

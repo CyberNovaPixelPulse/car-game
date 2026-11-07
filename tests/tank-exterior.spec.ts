@@ -33,6 +33,12 @@ test("砲手在筆電視窗能同時看戰場準星、方向、血量及主炮�
       path: "/tmp/car-game-spec30/evidence/31/driver-1280x720.png",
     });
     await c.driver.setViewportSize({ width: 1440, height: 1050 });
+    await c.driver.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
     await c.driver.screenshot({
       path: "/tmp/car-game-spec30/evidence/31/driver-1440x1050.png",
     });
