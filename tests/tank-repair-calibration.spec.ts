@@ -68,6 +68,7 @@ test("實際維修才啟動兩秒圓形校準，正常空白鍵完美成功額�
     await c.loader.screenshot({
       path: `${evidence}/calibration-perfect-1440.png`,
     });
+    if (process.env.TANK_AUDIO_COLLECTOR) await c.loader.waitForTimeout(400);
   } finally {
     await c.close();
   }
@@ -457,7 +458,7 @@ test("裝填手離頁的正常輸入先到時判失敗，剩餘停修凍結並�
   }
 });
 
-test("瀏覽器崩潰補驗：偵測斷線前正常結算，暫停後凍結並以原生儲存重連", async ({
+test("瀏覽器崩潰補驗：偵測前正常結算，缺員暫停後狀態凍結", async ({
   browser,
 }) => {
   const c = await tankCrew(browser, "gunner", 0, 1972);
@@ -470,11 +471,8 @@ test("瀏覽器崩潰補驗：偵測斷線前正常結算，暫停後凍結並�
     await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
       timeout: 12000,
     });
-    const target = (await c.loader
-      .getByTestId("repair-calibration-position")
-      .textContent())!.split("目標")[1];
-    // External renderer crash, not a game API call. Browser sessionStorage is
-    // retained by the same tab and the game performs its normal saved resume.
+    // External renderer crash, not a game API call. This supplemental case
+    // checks detection order and pause; normal navigation covers real resume.
     const devtools = await c.loader.context().newCDPSession(c.loader);
     const crashed = c.loader.waitForEvent("crash");
     void devtools.send("Page.crash").catch(() => {});
@@ -496,22 +494,6 @@ test("瀏覽器崩潰補驗：偵測斷線前正常結算，暫停後凍結並�
       frozen!,
     );
     await expect(c.gunner.getByTestId("tank-health")).toHaveText(health!);
-    await c.loader.reload();
-    await expect(c.loader.getByTestId("loader-mode")).toHaveText("維修模式");
-    await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
-      frozen!,
-    );
-    expect(
-      (await c.loader
-        .getByTestId("repair-calibration-position")
-        .textContent())!.split("目標")[1],
-    ).toBe(target);
-    await c.loader.waitForTimeout(400);
-    await expect(c.loader.getByTestId("repair-calibration")).toBeHidden();
-    expect(await hp(c.loader)).toBeLessThanOrEqual(
-      Number(health!.split("/")[0]),
-    );
-    await c.loader.keyboard.up("r");
   } finally {
     await c.close();
   }

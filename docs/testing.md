@@ -29,3 +29,5 @@ WEB_PORT=5054 PEER_PORT=5055 TANK_NATIVE_BROWSER=1 TANK_THREE_BROWSERS=1 TANK_EV
 #39 新增 `tank-repair` 與 `tank-repair-lifecycle`：以普通敵彈先造成損傷，再用 R、Tab、C 與駕駛鍵驗證維修、限制、三方一致、HP0 不復活及同房換職。修理狀態與工作介面見 `docs/tank-repair.md`；`tank-repair-calibration` 由真實敵彈、可見圓形／角度與 HP 驗證一般／完美獎勵、完整兩秒漏按、各類工作中斷、等待重疊及原位重連，與武器卡彈使用分開狀態。原機槍、車內與煙幕案例已更新為三模式的 Tab 次序，不再假設機槍後直接返回裝填。
 
 #33 的 `tests/tank-hud.spec.ts` 從正常三人房間驗證各視野填滿 1280×720、1440×1050 的實際頁面邊界，共用方向／速度／HP 與退出控制完整同屏；涵蓋裝填、機槍、維修及缺員返回。使用 `TANK_EVIDENCE_DIR` 將新截圖留在指定證據目錄，不覆寫歷史 captures。
+
+校準的瀏覽器崩潰案例是外部 renderer 故障補驗：不呼叫遊戲規則，只確認失聯被權威偵測前繼續正常結算、缺員暫停後凍結。它不代表一般鍵盤操作，也不宣稱 Playwright 能對已崩潰 Page 自動重載；正常離頁／回同一分頁另行驗證原職位重連。
