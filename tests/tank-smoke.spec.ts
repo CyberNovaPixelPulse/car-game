@@ -27,6 +27,9 @@ test("煙霧彈沿用三彈選擇、開裝鎖定與安全退殼後可再裝其�
     await c.loader.keyboard.down("c");
     await c.gunner.keyboard.press("Space");
     await expect(c.gunner.getByTestId("flight-status")).toHaveText("砲彈命中");
+    await expect(c.gunner.getByTestId("smoke-status")).toHaveText("視線清晰", {
+      timeout: 10000,
+    });
     await expect(c.gunner.getByTestId("target-status")).toContainText(
       "四號 H 型 200/200",
     );
@@ -63,19 +66,23 @@ test("煙幕在命中處同步遮住主炮與機槍視線並於約八秒遊戲�
       "煙幕遮蔽視線",
     );
     await expect(c.gunner.getByTestId("target-status")).toContainText(
-      "煙幕遮蔽，無法辨認敵車",
+      "目前沒有觀測到敵車",
     );
     await expect(c.loader.getByTestId("mg-target-status")).toContainText(
-      "煙幕遮蔽，無法辨認敵車",
+      "目前沒有觀測到敵車",
     );
+    for (const p of [c.driver, c.gunner, c.loader])
+      await expect(p.locator(".navigation-enemy")).toHaveCount(0);
+    await expect(c.gunner.getByTestId("enemy-warning")).toHaveText("");
+    await expect(c.gunner.getByTestId("enemy-activity")).toHaveText("");
     await c.gunner.screenshot({
-      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual22/smoke-gunner.png",
+      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual22/smoke-gunner.png",
     });
     await c.loader.screenshot({
-      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual22/smoke-mg.png",
+      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual22/smoke-mg.png",
     });
     await c.driver.screenshot({
-      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual22/smoke-driver.png",
+      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual22/smoke-driver.png",
     });
     await expect(c.gunner.getByTestId("smoke-status")).toHaveText("視線清晰", {
       timeout: 10000,
@@ -87,14 +94,14 @@ test("煙幕在命中處同步遮住主炮與機槍視線並於約八秒遊戲�
       "四號 H 型 200/200",
     );
     await c.gunner.screenshot({
-      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual22/cleared-gunner.png",
+      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual22/cleared-gunner.png",
     });
   } finally {
     await c.close();
   }
 });
 
-test("煙幕讓敵車短暫射最後已見位置後搜尋，乘員可移位逃離舊射線", async ({
+test("煙幕遮住四號情報，乘員移位逃離舊射線並在重見敵車後恢復交戰", async ({
   browser,
 }) => {
   const c = await tankCrew(
@@ -102,7 +109,7 @@ test("煙幕讓敵車短暫射最後已見位置後搜尋，乘員可移位逃�
     "loader",
     0,
     1000,
-    "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual22/search-video",
+    "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual22/search-video",
   );
   try {
     await c.loader.keyboard.press("3");
@@ -155,23 +162,24 @@ test("煙幕讓敵車短暫射最後已見位置後搜尋，乘員可移位逃�
       })(),
     ]);
     await expect(c.driver.getByTestId("tank-speed")).toHaveText("0.0");
-    await expect(c.gunner.getByTestId("target-status")).toContainText(
-      "煙幕遮蔽",
+    await expect(c.gunner.getByTestId("target-status")).not.toContainText(
+      "四號 H 型",
     );
     await c.loader.screenshot({
-      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual22/smoke-transfer-mg.png",
+      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual22/smoke-transfer-mg.png",
     });
-    // This public combat feedback contains phase only, never hidden coordinates/HP.
-    await expect(c.gunner.getByTestId("enemy-activity")).toContainText("搜尋", {
-      timeout: 3000,
-    });
+    // The MG may independently see the flanking Tiger. Hidden Panzer warnings
+    // remain absent; moving out of its old shot lane preserves shared HP.
+    await expect(c.gunner.getByTestId("enemy-warning")).not.toContainText(
+      "四號 H 型",
+    );
     for (const p of [c.gunner, c.driver, c.loader])
       await expect(p.getByTestId("tank-health")).toHaveText(health!);
     await c.gunner.screenshot({
-      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual22/smoke-search.png",
+      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual22/smoke-search.png",
     });
-    await expect(c.gunner.getByTestId("target-status")).not.toContainText(
-      "煙幕遮蔽",
+    await expect(c.gunner.getByTestId("target-status")).toContainText(
+      "四號 H 型",
       { timeout: 7000 },
     );
     await expect(c.gunner.getByTestId("enemy-warning")).toContainText("瞄準", {
@@ -193,7 +201,7 @@ test("敵車已預告時放煙，仍射向最後已見點，側移後不再精�
     "loader",
     0,
     1000,
-    "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual22/last-known-video",
+    "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual22/last-known-video",
   );
   try {
     await c.loader.keyboard.press("3");
@@ -274,18 +282,15 @@ test("敵車已預告時放煙，仍射向最後已見點，側移後不再精�
     await expect(c.gunner.getByTestId("smoke-status")).toHaveText(
       "煙幕遮蔽視線",
     );
-    await expect(c.gunner.getByTestId("enemy-activity")).toContainText(
-      "最後已見位置",
+    await expect(c.gunner.getByTestId("enemy-warning")).not.toContainText(
+      "四號 H 型",
     );
     await c.driver.waitForTimeout(1800);
     await c.driver.keyboard.up("w");
     await expect(c.driver.getByTestId("tank-speed")).toHaveText("0.0");
-    await expect(c.gunner.getByTestId("target-status")).toContainText(
-      "煙幕遮蔽",
+    await expect(c.gunner.getByTestId("target-status")).not.toContainText(
+      "四號 H 型",
     );
-    await expect(c.gunner.getByTestId("enemy-activity")).toContainText("搜尋", {
-      timeout: 2000,
-    });
     for (const p of [c.driver, c.loader, c.gunner])
       await expect(p.getByTestId("tank-health")).toHaveText("100/100");
   } finally {
@@ -322,7 +327,7 @@ test("砲彈正常穿過煙幕命中敵車，煙後穿甲與高爆傷害仍可�
     );
     await fire();
     await expect(c.gunner.getByTestId("target-status")).toContainText(
-      "煙幕遮蔽",
+      "目前沒有觀測到敵車",
     );
     await expect(c.gunner.getByTestId("shot-count")).toHaveText("2");
     await expect(c.gunner.getByTestId("smoke-status")).toHaveText("視線清晰", {
@@ -337,7 +342,7 @@ test("砲彈正常穿過煙幕命中敵車，煙後穿甲與高爆傷害仍可�
       "四號 H 型 0/200",
     );
     await c.gunner.screenshot({
-      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual22/after-through-smoke.png",
+      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual22/after-through-smoke.png",
     });
   } finally {
     await c.close();

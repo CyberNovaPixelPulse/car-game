@@ -1280,6 +1280,11 @@ legend {
   stroke-width: 0.85;
   stroke-linecap: round;
 }
+.navigation-enemy {
+  fill: #ffba9f;
+  stroke: #171e1c;
+  stroke-width: 0.5;
+}
 .battle-navigation .navigation-legend,
 .battle-navigation .navigation-scale {
   margin: 0;

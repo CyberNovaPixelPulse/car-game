@@ -1,3 +1,4 @@
+import { battleView } from "./tank-battle-view";
 /** Shared world-space smoke volume. Only authority time expires a cloud. */
 export interface SmokeCloud {
   id: number;
@@ -39,13 +40,9 @@ export function smokeSight(
   machineGun: boolean,
   now: number,
 ) {
-  const heading = tank.yaw + aim.yaw;
-  const offset = machineGun ? 0 : 1.9;
-  const eye = [
-    tank.x + Math.sin(heading) * offset,
-    machineGun ? 3.1 : 2.85,
-    tank.z - Math.cos(heading) * offset,
-  ];
+  const view = battleView(tank, aim, machineGun ? "machine-gun" : "gunner");
+  const heading = view.yaw;
+  const eye = [view.x, view.y, view.z];
   const end = [
     eye[0] + Math.sin(heading) * Math.cos(aim.pitch) * 80,
     eye[1] + Math.sin(aim.pitch) * 80,

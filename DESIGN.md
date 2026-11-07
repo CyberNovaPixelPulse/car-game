@@ -280,6 +280,8 @@ components:
 
 **The Role Truth Rule.** 視覺只呈現職位獲准知道的資訊；駕駛實際開口限制為水平 60°、垂直 16°，不自由轉頭。
 
+隊伍偵察由實際前窗／主炮／當前機槍外景共同提供，暖色方點標示觀測到的存活敵車。三方地圖、觀測數與敵情文字使用同份房主情報；車內模式只讀共享情報。未觀測敵車的血量、種類、階段及警示不顯示。方點沿用 hud-danger，己方箭頭及主炮細線保留原樣，避免只靠色彩區分。
+
 ## Typography
 
 **Display Font:** Noto Serif TC 700／900（後備 Songti TC、serif），自行託管於 `public/fonts/` 的字元子集 woff2，由 tank.css 開頭 `@font-face`（`font-display: swap`）載入，index.html 預載 900。授權（SIL OFL 1.1）、來源與 SHA-256 見 [字型 README](public/fonts/README.md)；沒有 Google Fonts 執行期依賴。子集只含目前介面字串的字元：新字串若落在明體位置（標題、職位名、讀數、房間代碼），必須依 README 重新產生子集，否則缺字會落到 Songti TC。

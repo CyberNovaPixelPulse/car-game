@@ -1,5 +1,6 @@
 import { TANK_RULES, RECONNECT_GRACE_MS } from "./tank-settings";
-import { smokeBlocks, smokeSight } from "./tank-smoke";
+import { smokeSight } from "./tank-smoke";
+import { validViewAspect } from "./tank-battle-view";
 import { ENEMY_LABELS } from "./tank-enemies";
 import { MG_FIRE } from "./tank-machine-gun";
 import { Session, type Room } from "./network";
@@ -369,7 +370,7 @@ core.present = (state) => {
   presentBattleNavigation(content, state);
   const wave = content.querySelector('[data-testid="wave-status"]');
   if (wave)
-    wave.textContent = `第 ${state.battle.wave} / ${TANK_RULES.waves} 波 · 存活敵車 ${state.weapon.targets.filter((e) => e.hp > 0).length}`;
+    wave.textContent = `第 ${state.battle.wave} / ${TANK_RULES.waves} 波 · 目前觀測敵車 ${state.intel.contacts.filter((e) => e.hp > 0).length}`;
   const speed = content.querySelector('[data-testid="tank-speed"]');
   if (speed) speed.textContent = Math.abs(state.tank.speed).toFixed(1);
   const motion = content.querySelector('[data-testid="tank-motion"]');
@@ -442,20 +443,13 @@ core.present = (state) => {
     stationRole === "loader",
     state.time,
   );
-  const obscured = (target: { x: number; z: number; height: number }) =>
-    smokeBlocks(
-      state.weapon.smoke,
-      sight.eye,
-      [target.x, target.height / 2, target.z],
-      state.time,
-    );
   const smokeStatus = content.querySelector('[data-testid="smoke-status"]');
   if (smokeStatus)
     smokeStatus.textContent = sight.obscured ? "煙幕遮蔽視線" : "視線清晰";
   const enemyWarning = content.querySelector('[data-testid="enemy-warning"]');
   if (enemyWarning)
-    enemyWarning.textContent = state.weapon.targets
-      .filter((e) => e.hp > 0 && e.phase === "warning" && !obscured(e))
+    enemyWarning.textContent = state.intel.contacts
+      .filter((e) => e.hp > 0 && e.phase === "warning")
       .map((e) => `${ENEMY_LABELS[e.kind]} 正在瞄準，即將開火！移動或尋找掩護`)
       .join("；");
   const weapon = state.weapon;
@@ -551,13 +545,9 @@ core.present = (state) => {
     content.querySelector('[data-testid="mg-shot-count"]')!.textContent =
       String(weapon.mg.shots);
     content.querySelector('[data-testid="mg-target-status"]')!.textContent =
-      weapon.targets
-        .map((t) =>
-          obscured(t)
-            ? "煙幕遮蔽，無法辨認敵車"
-            : `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp}`,
-        )
-        .join("；");
+      state.intel.contacts
+        .map((t) => `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp}`)
+        .join("；") || "目前沒有觀測到敵車";
     const workspace = content.querySelector<HTMLElement>(".loader-workspace");
     if (workspace)
       workspace.dataset.posture = stunned
@@ -595,26 +585,25 @@ core.present = (state) => {
     "shot-count": String(weapon.shotsFired),
     "enemy-activity": [
       ...new Set(
-        weapon.targets
+        state.intel.contacts
           .filter((t) => t.hp > 0)
           .map((t) =>
             t.phase === "searching"
-              ? "煙幕中的敵車停止追蹤，搜尋中"
-              : t.phase === "blind-fire" ||
-                  (t.phase === "warning" && obscured(t))
+              ? "觀測敵車搜尋中"
+              : t.phase === "blind-fire"
                 ? "敵車失去視線，短暫瞄準最後已見位置"
                 : "",
           )
           .filter(Boolean),
       ),
     ].join("；"),
-    "target-status": weapon.targets
-      .map((t) =>
-        obscured(t)
-          ? "煙幕遮蔽，無法辨認敵車"
-          : `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp} · ${t.hp <= 0 ? "已擊毀" : t.hp === t.maxHp ? "完好" : "受損"} · ${t.hp <= 0 ? "殘骸" : { approaching: "接近中", aiming: "轉砲瞄準", warning: "瞄準預告", reloading: "重新裝填", "blind-fire": "最後位置射擊", searching: "搜尋中" }[t.phase]}`,
-      )
-      .join("；"),
+    "target-status":
+      state.intel.contacts
+        .map(
+          (t) =>
+            `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp} · ${t.hp <= 0 ? "已擊毀" : t.hp === t.maxHp ? "完好" : "受損"} · ${t.hp <= 0 ? "殘骸" : { approaching: "接近中", aiming: "轉砲瞄準", warning: "瞄準預告", reloading: "重新裝填", "blind-fire": "最後位置射擊", searching: "搜尋中" }[t.phase]}`,
+        )
+        .join("；") || "目前沒有觀測到敵車",
     "flight-status": weapon.projectiles.length
       ? "砲彈飛行中"
       : weapon.impacts.length
@@ -748,6 +737,19 @@ document.addEventListener("visibilitychange", () => {
 });
 function frame(now: number) {
   if (runtime.mode === "online") {
+    const canvas = content.querySelector<HTMLCanvasElement>(
+      stationRole === "gunner"
+        ? 'canvas[aria-label="主炮戰場視野"]'
+        : stationRole === "loader"
+          ? 'canvas[aria-label="機槍戰場視野"]'
+          : 'canvas[aria-label="駕駛裝甲觀察窗"]',
+    );
+    // Only a mounted, painted exterior supplies CSS aspect. A retained/detached
+    // preparation buffer must never grant a wider authoritative observation.
+    if (canvas && canvas.clientWidth > 0 && canvas.clientHeight > 0) {
+      const aspect = canvas.clientWidth / canvas.clientHeight;
+      if (validViewAspect(aspect)) runtime.setViewAspect(aspect);
+    } else runtime.setViewAspect(undefined);
     runtime.frame(now);
     updatePause();
   }

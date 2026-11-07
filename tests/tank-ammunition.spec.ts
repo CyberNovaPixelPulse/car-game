@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { tankCrew } from "./tank-helpers";
+import { tankCrew, observeTiger } from "./tank-helpers";
 test("裝填手選彈經連線同步，開裝後鎖定至發射且保留進度", async ({
   browser,
 }) => {
@@ -58,15 +58,17 @@ for (const [key, direct, adjacent] of [
       await expect(c.gunner.getByTestId("target-status")).toContainText(
         `四號 H 型 ${direct}/200`,
       );
+      // Wait for its normal flank and actually look before checking hidden HP.
+      await observeTiger(c);
       await expect(c.gunner.getByTestId("target-status")).toContainText(
         `虎式 I 型 ${adjacent}/360`,
       );
       await c.gunner.screenshot({
-        path: `/tmp/car-game-to-spec/visual27-final/regression/visual17/${key === "1" ? "he" : "ap"}-impact.png`,
+        path: `/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual17/${key === "1" ? "he" : "ap"}-impact.png`,
         fullPage: true,
       });
       await c.loader.screenshot({
-        path: `/tmp/car-game-to-spec/visual27-final/regression/visual17/${key === "1" ? "he" : "ap"}-loader.png`,
+        path: `/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual17/${key === "1" ? "he" : "ap"}-loader.png`,
         fullPage: true,
       });
     } finally {
@@ -99,7 +101,7 @@ test("近距高爆會傷敵而不傷共用坦克，仍可裝填下一發擊毀",
     for (const p of [c.driver, c.loader, c.gunner])
       await expect(p.getByTestId("tank-health")).toHaveText(healthBefore!);
     await c.gunner.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual17/near-he.png",
+      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual17/near-he.png",
       fullPage: true,
     });
     await c.loader.keyboard.down("r");
@@ -171,7 +173,7 @@ test("穿甲彈在卡彈與蹲下期間保持鎖定，排除故障後仍射出�
       "穿甲彈（已鎖定）",
     );
     await c.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual17/ap-jammed-crouch.png",
+      path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual17/ap-jammed-crouch.png",
       fullPage: true,
     });
     await c.loader.keyboard.up("c");
@@ -200,6 +202,7 @@ test("穿甲彈在卡彈與蹲下期間保持鎖定，排除故障後仍射出�
     await expect(c.gunner.getByTestId("target-status")).toContainText(
       "四號 H 型 20/200",
     );
+    await observeTiger(c);
     await expect(c.gunner.getByTestId("target-status")).toContainText(
       "虎式 I 型 360/360",
     );

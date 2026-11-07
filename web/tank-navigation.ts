@@ -29,13 +29,14 @@ export function mountBattleNavigation(station: Element) {
         <path class="navigation-hull" aria-label="己方車頭" d="M0 -3.8L2.7 3L0 1.7L-2.7 3Z" transform="rotate(0)"/>
         <path class="navigation-gun" aria-label="主炮方向" d="M0 0V-9" transform="rotate(0)"/>
       </g>
-    </svg><p class="navigation-legend">箭頭 車頭 · 細線 主炮</p><p class="navigation-scale">地形示意 · 84 × 84 m</p>`;
+      <g class="navigation-contacts" aria-label="隊伍觀測敵車"></g>
+    </svg><p class="navigation-legend">箭 車頭 · 線 主炮 · 方 敵車</p><p class="navigation-scale">地形示意 · 84 × 84 m</p>`;
 }
 
 /** SVG's positive rotation is clockwise; world -z is north (SVG's top). */
 export function presentBattleNavigation(
   root: ParentNode,
-  state: Pick<TankState, "tank" | "turret">,
+  state: Pick<TankState, "tank" | "turret" | "intel">,
 ) {
   const player = root.querySelector(".navigation-player");
   if (!player) return;
@@ -53,4 +54,30 @@ export function presentBattleNavigation(
       "transform",
       `rotate(${degrees(state.tank.yaw + state.turret.yaw)})`,
     );
+  const contacts = root.querySelector(".navigation-contacts");
+  if (contacts) {
+    const living = state.intel.contacts.filter((c) => c.hp > 0);
+    const ids = new Set(living.map((c) => String(c.id)));
+    for (const marker of contacts.querySelectorAll(".navigation-enemy"))
+      if (!ids.has(marker.getAttribute("data-contact")!)) marker.remove();
+    for (const contact of living) {
+      let marker = contacts.querySelector(`[data-contact="${contact.id}"]`);
+      if (!marker) {
+        marker = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        marker.classList.add("navigation-enemy");
+        marker.setAttribute("data-contact", String(contact.id));
+        marker.setAttribute("width", "2.8");
+        marker.setAttribute("height", "2.8");
+        marker.setAttribute(
+          "aria-label",
+          contact.kind === "panzer"
+            ? "觀測敵車 四號 H 型"
+            : "觀測敵車 虎式 I 型",
+        );
+        contacts.appendChild(marker);
+      }
+      marker.setAttribute("x", (contact.x - 1.4).toFixed(2));
+      marker.setAttribute("y", (contact.z - 1.4).toFixed(2));
+    }
+  }
 }
