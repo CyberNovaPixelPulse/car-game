@@ -344,3 +344,67 @@ test("全螢幕保留裝填與三工作，缺員暫停、結算、同房重玩�
     await c.close();
   }
 });
+
+test("活躍維修校準切換全螢幕保留同次判定，按鈕空白鍵不代為校準", async ({
+  browser,
+}) => {
+  const c = await tankCrew(browser, "gunner", 0, 1972);
+  try {
+    await c.loader.keyboard.press("Tab");
+    await c.loader.keyboard.press("Tab");
+    await expect(c.loader.getByTestId("loader-mode")).toHaveText("維修模式");
+    await expect
+      .poll(
+        async () =>
+          Number(
+            (await c.loader.getByTestId("tank-health").textContent())!.split(
+              "/",
+            )[0],
+          ),
+        { timeout: 45000 },
+      )
+      .toBeLessThanOrEqual(82);
+    await c.loader.keyboard.down("r");
+    await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
+      timeout: 12000,
+    });
+    const target = (await c.loader
+      .getByTestId("repair-calibration-position")
+      .textContent())!
+      .match(/[\d.]+/g)!
+      .slice(1);
+    const button = c.loader.locator("#station-fullscreen");
+    await button.press("Space");
+    await fullscreen(c.loader, true);
+    await expect(c.loader.getByTestId("repair-calibration")).toBeVisible();
+    await expect(
+      c.loader.getByTestId("repair-calibration-result"),
+    ).toContainText("維修校準中");
+    expect(
+      (await c.loader.getByTestId("repair-calibration-position").textContent())!
+        .match(/[\d.]+/g)!
+        .slice(1),
+    ).toEqual(target);
+    await button.press("Space");
+    await fullscreen(c.loader, false);
+    await expect(
+      c.loader.getByTestId("repair-calibration-result"),
+    ).toContainText("維修校準中");
+    expect(
+      (await c.loader.getByTestId("repair-calibration-position").textContent())!
+        .match(/[\d.]+/g)!
+        .slice(1),
+    ).toEqual(target);
+    await expect(c.loader.getByTestId("loader-mode")).toHaveText("維修模式");
+    await expect(c.gunner.getByTestId("shot-count")).toHaveText("0");
+    await c.loader.screenshot({
+      path: `${evidence}/calibration-after-display.png`,
+    });
+    await c.loader.keyboard.up("r");
+    await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
+      "校準失敗・停修兩秒",
+    );
+  } finally {
+    await c.close();
+  }
+});
