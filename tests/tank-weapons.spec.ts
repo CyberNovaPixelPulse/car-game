@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { tankCrew, nativeTaps } from "./tank-helpers";
+import { tankCrew, nativeTaps, elevateCannon } from "./tank-helpers";
 
 test("裝填中斷可續接，砲手就緒後射擊敵車，再退殼裝下一發", async ({
   browser,
@@ -159,8 +159,7 @@ test("只有裝填手能裝彈、只有砲手能射擊，連點不會複製同�
 test("仰射砲彈確實飛行後落地，未命中敵車不會憑空擊毀", async ({ browser }) => {
   const crew = await tankCrew(browser);
   try {
-    await crew.gunner.keyboard.press("w");
-    await crew.gunner.keyboard.press("w");
+    await elevateCannon(crew.gunner);
     await crew.loader.keyboard.down("r");
     await expect(crew.gunner.getByTestId("chamber-state")).toHaveText(
       "主炮就緒",

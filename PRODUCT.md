@@ -40,7 +40,7 @@ Vite、TypeScript、Three.js／WebGL2；PeerJS／WebRTC 連線與房主權威模
 
 ## Product Principles
 
-資訊差是玩法，不因美術或測試而洩漏駕駛不該知道的戰場。角色工作狀態要清楚。寫實題材不取消連點慣性、卡彈小遊戲或退殼暈眩等已定機制。
+資訊差是玩法，不因美術或測試而洩漏駕駛不該知道的戰場。角色工作狀態要清楚。寫實題材不取消長按轉砲的平順加減速、卡彈小遊戲或退殼暈眩等已定機制。
 
 ## Accessibility & Inclusion
 

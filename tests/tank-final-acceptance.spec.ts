@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { tankCrew } from "./tank-helpers";
+import { tankCrew, elevateCannon } from "./tank-helpers";
 
 async function loaded(c: Awaited<ReturnType<typeof tankCrew>>, shell = "2") {
   await c.loader.keyboard.press(shell);
@@ -56,8 +56,7 @@ test("真正飛行中的砲彈在斷線暫停超過壽命仍凍結，原職位�
 }) => {
   const c = await tankCrew(browser);
   try {
-    await c.gunner.keyboard.press("w");
-    await c.gunner.keyboard.press("w");
+    await elevateCannon(c.gunner);
     await loaded(c);
     await c.loader.keyboard.down("c");
     await c.gunner.keyboard.press("Space");
@@ -112,7 +111,7 @@ test("機槍正常掃射確實傷害虎式，兩類敵車共用命中規則", as
     await c.loader.keyboard.up("a");
     await c.loader.keyboard.up("Space");
     await c.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/mg-tiger-hit.png",
+      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/mg-tiger-hit.png",
     });
   } finally {
     await c.close();
@@ -133,8 +132,7 @@ for (const dirty of ["jam", "heat", "smoke-stun", "flight"] as const) {
       } else {
         await loaded(c, dirty === "flight" ? "2" : "3");
         if (dirty === "flight") {
-          await c.gunner.keyboard.press("w");
-          await c.gunner.keyboard.press("w");
+          await elevateCannon(c.gunner);
         }
       }
       await expect
@@ -181,11 +179,11 @@ for (const dirty of ["jam", "heat", "smoke-stun", "flight"] as const) {
         await expect(c.loader.getByTestId("stun-remaining")).not.toHaveText("");
       }
       await c.loader.screenshot({
-        path: `/tmp/car-game-to-spec/visual27-final/dirty-${dirty}-defeat.png`,
+        path: `/tmp/car-game-spec30/evidence/32/regression/visual27-final/dirty-${dirty}-defeat.png`,
       });
       await replay(c);
       await c.loader.screenshot({
-        path: `/tmp/car-game-to-spec/visual27-final/dirty-${dirty}-reset.png`,
+        path: `/tmp/car-game-spec30/evidence/32/regression/visual27-final/dirty-${dirty}-reset.png`,
       });
       if (dirty !== "jam") {
         await loaded(c);
