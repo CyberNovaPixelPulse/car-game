@@ -207,6 +207,9 @@ test("危險、三種工作暫停與戰鬥結算保持可讀，回同房及窄�
       });
       await expect(page.getByTestId("battle-result")).toBeVisible();
     }
+    await expect(
+      c.loader.getByRole("region", { name: "車內維修" }),
+    ).toBeHidden();
     for (const [width, height] of [
       [1280, 720],
       [1440, 1050],

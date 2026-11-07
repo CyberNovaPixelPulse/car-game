@@ -1200,3 +1200,8 @@ legend {
 .battle-station[data-role="driver"] .speed-readout strong {
   line-height: 1.1;
 }
+/* The result owns the central work area; ongoing work must not show through it. */
+.battle-station:has(.battle-outcome:not([hidden])) .repair-workspace,
+.battle-station:has(.battle-outcome:not([hidden])) .jam-game {
+  visibility: hidden;
+}
