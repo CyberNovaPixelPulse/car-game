@@ -9,7 +9,17 @@ const number = async (locator: import("@playwright/test").Locator) =>
 test("砲手離焦、缺員暫停與重新連線後不延續長按或自動開火", async ({
   browser,
 }) => {
-  const crew = await tankCrew(browser);
+  const crew = await tankCrew(
+    browser,
+    "loader",
+    0,
+    1000,
+    undefined,
+    undefined,
+    {
+      headless: false,
+    },
+  );
   try {
     // Playwright normally forces every page to stay focused. Disable that
     // browser-only emulation so real window/tab focus reaches the game.

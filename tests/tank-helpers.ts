@@ -84,6 +84,7 @@ export async function tankCrew(
   seed = 1000,
   recordVideoDir?: string,
   beforeNavigation?: () => void,
+  independentBrowserOptions: { headless?: boolean } = {},
 ) {
   const pages: Page[] = [];
   const separateBrowsers: Browser[] = [];
@@ -96,7 +97,7 @@ export async function tankCrew(
     const owner = independent
       ? await browser.browserType().launch({
           channel: "chromium",
-          headless: true,
+          headless: independentBrowserOptions.headless ?? true,
           chromiumSandbox: true,
           ignoreDefaultArgs: ["--enable-unsafe-swiftshader"],
           args: [
