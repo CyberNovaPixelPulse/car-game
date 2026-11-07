@@ -503,7 +503,7 @@ test("圓針兩秒漏按失敗且持續基本回血，維修校準仍受退殼�
   browser,
 }) => {
   test.setTimeout(150000);
-  const c = await tankCrew(browser, "loader", 0, 1972);
+  const c = await tankCrew(browser, "loader", 0, 1976);
   const load = async () => {
     await c.loader.keyboard.down("r");
     const deadline = Date.now() + 20000;
@@ -547,6 +547,46 @@ test("圓針兩秒漏按失敗且持續基本回血，維修校準仍受退殼�
     await expect
       .poll(() => hp(c.loader), { timeout: 65000 })
       .toBeLessThanOrEqual(80);
+    const onsetInterval = c.loader.evaluate(
+      () =>
+        new Promise<number>((resolve) => {
+          const circle = document.querySelector<HTMLElement>(
+            '[data-testid="repair-calibration"]',
+          )!;
+          const health = () =>
+            Number(
+              document
+                .querySelector('[data-testid="tank-health"]')!
+                .textContent!.split("/")[0],
+            );
+          let previous = health(),
+            previouslyActive = false,
+            began = false,
+            restored = 0;
+          const observer = new MutationObserver(() => {
+            const current = health();
+            if (began) restored += Math.max(0, current - previous);
+            const active = !circle.hidden;
+            if (active && !previouslyActive) {
+              if (!began) {
+                began = true;
+                restored = 0;
+              } else {
+                observer.disconnect();
+                resolve(restored / 2);
+              }
+            }
+            previouslyActive = active;
+            previous = current;
+          });
+          observer.observe(document.querySelector(".battle-station")!, {
+            attributes: true,
+            childList: true,
+            characterData: true,
+            subtree: true,
+          });
+        }),
+    );
     const missed = c.loader.evaluate(
       () =>
         new Promise<{
@@ -614,6 +654,10 @@ test("圓針兩秒漏按失敗且持續基本回血，維修校準仍受退殼�
     await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
       timeout: 18000,
     });
+    const interval = await onsetInterval;
+    console.info("effective repair onset interval", interval);
+    expect(interval).toBeGreaterThanOrEqual(2.9);
+    expect(interval).toBeLessThanOrEqual(6.1);
     await c.gunner.keyboard.press("Space");
     await expect(c.loader.getByTestId("ejection-warning")).toContainText(
       "按住 C",
