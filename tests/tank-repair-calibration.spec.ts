@@ -677,3 +677,85 @@ test("圓針兩秒漏按失敗且持續基本回血，維修校準仍受退殼�
     await c.close();
   }
 });
+
+test("完美獎勵在真實受損後封頂100HP，三方共享並保留實際校準音訊", async ({
+  browser,
+}) => {
+  const c = await tankCrew(browser, "loader", 0, 1976);
+  try {
+    await c.loader.keyboard.press("2");
+    for (const remaining of [20, 0]) {
+      await c.loader.keyboard.down("r");
+      const deadline = Date.now() + 20000;
+      while (
+        (await c.loader.getByTestId("chamber-state").textContent()) !==
+        "主炮就緒"
+      ) {
+        if (Date.now() > deadline) throw new Error("正常裝填未完成");
+        if (
+          (await c.loader.getByTestId("chamber-state").textContent()) === "卡彈"
+        ) {
+          const needle = await c.loader.getByTestId("jam-needle").boundingBox();
+          const zone = await c.loader.getByTestId("jam-zone").boundingBox();
+          if (
+            needle &&
+            zone &&
+            needle.x > zone.x + zone.width * 0.25 &&
+            needle.x < zone.x + zone.width * 0.65
+          )
+            await c.loader.keyboard.press("Space");
+        }
+        await c.loader.waitForTimeout(20);
+      }
+      await c.loader.keyboard.up("r");
+      await c.loader.keyboard.down("c");
+      await c.gunner.keyboard.press("Space");
+      await expect(c.gunner.getByTestId("target-status")).toContainText(
+        `四號 H 型 ${remaining}/200`,
+      );
+      await expect(c.loader.getByTestId("chamber-state")).toHaveText("空膛");
+      await c.loader.keyboard.up("c");
+    }
+    await repairMode(c.loader);
+    await expect(c.loader.getByTestId("tank-health")).toHaveText("90/100", {
+      timeout: 30000,
+    });
+    await c.loader.keyboard.down("r");
+    await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
+      timeout: 12000,
+    });
+    await expect
+      .poll(
+        async () => {
+          const [needle, , , start, end] = (await c.loader
+            .getByTestId("repair-calibration-position")
+            .textContent())!
+            .match(/[\d.]+/g)!
+            .map(Number);
+          return needle >= (start + end) / 2 - 8 && needle <= (start + end) / 2;
+        },
+        { intervals: [10], timeout: 1500 },
+      )
+      .toBe(true);
+    const before = await hp(c.loader);
+    expect(before).toBeGreaterThan(97);
+    expect(before).toBeLessThan(100);
+    await c.loader.keyboard.press("Space");
+    await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
+      "完美校準・額外 +3 HP",
+    );
+    await c.loader.keyboard.up("r");
+    for (const page of [c.loader, c.driver, c.gunner]) {
+      await expect(page.getByTestId("tank-health")).toHaveText("100/100");
+      await expect(page.getByTestId("repair-calibration-result")).toHaveText(
+        "完美校準・額外 +3 HP",
+      );
+    }
+    await c.loader.screenshot({
+      path: `${evidence}/calibration-capped-perfect-1440.png`,
+    });
+    if (process.env.TANK_AUDIO_COLLECTOR) await c.loader.waitForTimeout(500);
+  } finally {
+    await c.close();
+  }
+});
