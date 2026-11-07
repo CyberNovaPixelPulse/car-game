@@ -13,7 +13,7 @@ import { disposeArt } from "./tank-art-materials";
 import { SmokeScene } from "./tank-smoke-scene";
 import { MuzzleFlash } from "./tank-muzzle-flash";
 import { FIRING_FEEDBACK } from "./tank-settings";
-import { DRIVER_VIEW, driverView } from "./tank-driver-view";
+import { battleProjection, battleView } from "./tank-battle-view";
 import { buildDriverArmour } from "./tank-driver-armour";
 import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
 
@@ -156,17 +156,9 @@ export class TankScene {
       scenePixelRatio(width, height, this.quality),
     );
     this.camera.aspect = width / height;
-    if (this.view === "driver")
-      this.camera.fov = THREE.MathUtils.radToDeg(
-        Math.max(
-          DRIVER_VIEW.verticalFov * 1.5,
-          2 *
-            Math.atan(
-              Math.tan(DRIVER_VIEW.cameraHorizontalFov / 2) /
-                this.camera.aspect,
-            ),
-        ),
-      );
+    this.camera.fov = THREE.MathUtils.radToDeg(
+      battleProjection(this.view, this.camera.aspect).verticalFov,
+    );
     this.camera.updateProjectionMatrix();
     this.lastVisual = "";
   }
@@ -233,20 +225,16 @@ export class TankScene {
     this.tank.rotation.y = -t.yaw;
     this.turret.rotation.y = -state.turret.yaw;
     this.elevation.rotation.x = state.turret.pitch;
-    const driver = this.view === "driver" ? driverView(t) : undefined;
-    const aim =
-      driver ?? (this.view === "machine-gun" ? state.weapon.mg : state.turret);
-    const eye = driver?.y ?? (this.view === "machine-gun" ? 3.1 : 2.85);
-    const heading = driver?.yaw ?? t.yaw + aim.yaw;
-    // Gunner remains beyond the roof at the mantlet; MG observes from its hatch.
-    const offset = this.view === "machine-gun" ? 0 : 1.9;
-    const eyeX = driver?.x ?? t.x + Math.sin(heading) * offset;
-    const eyeZ = driver?.z ?? t.z - Math.cos(heading) * offset;
-    this.camera.position.set(eyeX, eye, eyeZ);
+    const view = battleView(
+      t,
+      this.view === "machine-gun" ? state.weapon.mg : state.turret,
+      this.view,
+    );
+    this.camera.position.set(view.x, view.y, view.z);
     this.camera.lookAt(
-      eyeX + Math.sin(heading) * Math.cos(aim.pitch) * 40,
-      eye + Math.sin(aim.pitch) * 40,
-      eyeZ - Math.cos(heading) * Math.cos(aim.pitch) * 40,
+      view.x + Math.sin(view.yaw) * Math.cos(view.pitch) * 40,
+      view.y + Math.sin(view.pitch) * 40,
+      view.z - Math.cos(view.yaw) * Math.cos(view.pitch) * 40,
     );
     // Wave IDs belong to authority. Remove retired groups instead of leaving phantom enemies.
     for (const [id, mesh] of this.targetMeshes) {
