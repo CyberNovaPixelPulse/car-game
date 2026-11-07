@@ -8,6 +8,8 @@ export class TankMechanicalAudio {
   private shots = 0;
   private cooling = false;
   private mode = "loading";
+  private calibrationId = 0;
+  private calibrationResult = "idle";
   reset() {
     this.chamber = "empty";
     this.jam = false;
@@ -15,9 +17,26 @@ export class TankMechanicalAudio {
     this.shots = 0;
     this.cooling = false;
     this.mode = "loading";
+    this.calibrationId = 0;
+    this.calibrationResult = "idle";
   }
   present(state: TankState, audio: AudioContext | undefined, enabled: boolean) {
     const w = state.weapon;
+    const calibration = state.repair.calibration;
+    if (enabled && audio?.state === "running") {
+      if (
+        calibration.id !== this.calibrationId &&
+        calibration.result === "active"
+      )
+        this.calibrationCue(audio, "active");
+      else if (
+        calibration.result !== this.calibrationResult &&
+        ["success", "perfect", "failed"].includes(calibration.result)
+      )
+        this.calibrationCue(audio, calibration.result);
+    }
+    this.calibrationId = calibration.id;
+    this.calibrationResult = calibration.result;
     const step = Math.floor(w.loadProgress * 6);
     const cooling = state.time < w.mg.coolUntil;
     const play = (kind: "slide" | "latch" | "case" | "shot" | "jam") => {
@@ -42,6 +61,33 @@ export class TankMechanicalAudio {
     this.shots = w.mg.shots;
     this.cooling = cooling;
     this.mode = w.mode;
+  }
+  private calibrationCue(audio: AudioContext, result: string) {
+    const notes =
+      result === "perfect"
+        ? [880, 1320, 1760]
+        : result === "success"
+          ? [760, 1040]
+          : result === "failed"
+            ? [220, 110]
+            : [620, 930];
+    notes.forEach((frequency, index) => {
+      const start = audio.currentTime + index * 0.1;
+      const oscillator = audio.createOscillator();
+      const gain = audio.createGain();
+      oscillator.type = "triangle";
+      oscillator.frequency.setValueAtTime(frequency, start);
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.1, start + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.09);
+      oscillator.connect(gain).connect(audio.destination);
+      oscillator.start(start);
+      oscillator.stop(start + 0.1);
+      oscillator.onended = () => {
+        oscillator.disconnect();
+        gain.disconnect();
+      };
+    });
   }
   private strike(
     audio: AudioContext,
