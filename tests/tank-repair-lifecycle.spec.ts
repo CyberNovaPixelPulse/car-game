@@ -11,6 +11,47 @@ async function noHealing(page: Page, milliseconds = 400) {
   // Real enemies may still damage the hull. A blocked repair must never add HP.
   expect(await hp(page)).toBeLessThanOrEqual(before);
 }
+/** A remote pause notice can precede the host's final frozen snapshot. Require
+ * public work/HP to settle within 1s; a live 0.1s countdown cannot pass this
+ * 250ms stability barrier. The subsequent 4.2s freeze assertion stays exact. */
+async function frozenRepairReadout(page: Page) {
+  return page.evaluate(
+    () =>
+      new Promise<{ status: string; health: string }>((resolve, reject) => {
+        const read = () => ({
+          status: document.querySelector('[data-testid="repair-status"]')!
+            .textContent!,
+          health: document.querySelector('[data-testid="tank-health"]')!
+            .textContent!,
+        });
+        let current = read();
+        const done = () => {
+          clearTimeout(deadline);
+          observer.disconnect();
+          resolve(current);
+        };
+        let settled = setTimeout(done, 250);
+        const deadline = setTimeout(() => {
+          clearTimeout(settled);
+          observer.disconnect();
+          reject(new Error("暫停後公開維修倒數或血量仍持續改變"));
+        }, 1000);
+        const observer = new MutationObserver(() => {
+          const next = read();
+          if (next.status === current.status && next.health === current.health)
+            return;
+          current = next;
+          clearTimeout(settled);
+          settled = setTimeout(done, 250);
+        });
+        observer.observe(document.querySelector(".battle-station")!, {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
+      }),
+  );
+}
 async function repairMode(page: Page) {
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
@@ -85,8 +126,9 @@ test("受擊禁修與有效維修都在缺員時凍結，原職位重連不補�
     );
     await c.driver.goto("about:blank");
     await expect(c.loader.getByTestId("battle-pause")).toBeVisible();
-    const waiting = await c.loader.getByTestId("repair-status").textContent();
-    const damaged = await c.loader.getByTestId("tank-health").textContent();
+    const frozenWait = await frozenRepairReadout(c.loader);
+    const waiting = frozenWait.status;
+    const damaged = frozenWait.health;
     await c.loader.waitForTimeout(4200);
     await expect(c.loader.getByTestId("repair-status")).toHaveText(waiting!);
     await expect(c.loader.getByTestId("tank-health")).toHaveText(damaged!);
@@ -104,8 +146,9 @@ test("受擊禁修與有效維修都在缺員時凍結，原職位重連不補�
     );
     await c.driver.goto("about:blank");
     await expect(c.loader.getByTestId("battle-pause")).toBeVisible();
-    const repaired = await c.loader.getByTestId("tank-health").textContent();
-    const working = await c.loader.getByTestId("repair-status").textContent();
+    const frozenWork = await frozenRepairReadout(c.loader);
+    const repaired = frozenWork.health;
+    const working = frozenWork.status;
     await c.loader.keyboard.up("r");
     await c.loader.waitForTimeout(4200);
     await expect(c.loader.getByTestId("tank-health")).toHaveText(repaired!);
@@ -156,6 +199,12 @@ test("維修保留AP卡彈，空白鍵不能排除其他工作的故障", async 
     await c.loader.keyboard.press("Tab");
     await expect(c.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
     await expect(c.loader.getByTestId("chamber-state")).toHaveText("卡彈");
+    await expect(c.loader.getByTestId("jam-zone")).toBeVisible();
+    await expect(c.loader.getByTestId("jam-zone")).toHaveAttribute(
+      "style",
+      zone!,
+    );
+    await expect(c.loader.getByTestId("jam-result")).toHaveText("按空白鍵停針");
   } finally {
     await c.close();
   }
