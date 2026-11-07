@@ -220,11 +220,14 @@ test("一般校準只額外1HP，三至六秒實際工作後才開始且不改�
         }),
     );
     await c.loader.keyboard.down("r");
+    // The already-armed public observer reports onset immediately. Waiting for
+    // visibility's retry schedule first can consume the early general zone.
+    const effectiveWork = await worked;
     await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
       timeout: 12000,
     });
-    expect(await worked).toBeGreaterThanOrEqual(2.9);
-    expect(await worked).toBeLessThanOrEqual(6.1);
+    expect(effectiveWork).toBeGreaterThanOrEqual(2.9);
+    expect(effectiveWork).toBeLessThanOrEqual(6.1);
     await expect
       .poll(
         async () => {

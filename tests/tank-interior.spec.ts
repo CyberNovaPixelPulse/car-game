@@ -72,7 +72,9 @@ test("關閉機械音效仍可見退殼預警，車內蹲下與暈眩不丟工�
     "loader",
     0,
     1000,
-    "/tmp/car-game-spec30/evidence/31/regression/visual26/video",
+    process.env.TANK_EVIDENCE_DIR
+      ? `${process.env.TANK_EVIDENCE_DIR}/legacy-interior-video`
+      : "/tmp/car-game-spec30/evidence/31/regression/visual26/video",
   );
   const video = crew.loader.video();
   try {
@@ -139,7 +141,7 @@ test("關閉機械音效仍可見退殼預警，車內蹲下與暈眩不丟工�
     if (video)
       await copyFile(
         await video.path(),
-        "/tmp/car-game-spec30/evidence/31/regression/visual26/interior-session.webm",
+        `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/31/regression/visual26"}/legacy-interior-session.webm`,
       );
   }
 });

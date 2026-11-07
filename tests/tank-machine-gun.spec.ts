@@ -153,7 +153,9 @@ test("跨機槍模式保留AP卡彈，蹲下與退殼暈眩封鎖全部工作", 
     "gunner",
     0,
     1,
-    "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual20/recordings",
+    process.env.TANK_EVIDENCE_DIR
+      ? `${process.env.TANK_EVIDENCE_DIR}/legacy-mg-recordings`
+      : "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual20/recordings",
   );
   const video = crew.loader.video();
   try {
@@ -299,7 +301,7 @@ test("跨機槍模式保留AP卡彈，蹲下與退殼暈眩封鎖全部工作", 
     if (video)
       await copyFile(
         await video.path(),
-        "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual20/mg-session.webm",
+        `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual20"}/legacy-mg-session.webm`,
       );
   }
 });

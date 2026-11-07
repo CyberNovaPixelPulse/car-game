@@ -20,37 +20,102 @@ async function repairDuringReinforcement(
   await c.loader.keyboard.press("Tab");
   await c.loader.keyboard.press("Tab");
   await expect(c.loader.getByTestId("loader-mode")).toHaveText("維修模式");
+  // Read the first actually painted 8° band locally. Serial browser RPC polls
+  // can miss this 44ms stimulus despite requesting a 10ms polling interval.
+  const perfectBand = c.loader.evaluate(
+    () =>
+      new Promise<number[]>((resolve, reject) => {
+        const circle = document.querySelector<HTMLElement>(
+          '[data-testid="repair-calibration"]',
+        )!;
+        const readout = document.querySelector(
+          '[data-testid="repair-calibration-position"]',
+        )!;
+        let active = false;
+        let deadline: ReturnType<typeof setTimeout>;
+        const finish = (values?: number[]) => {
+          clearTimeout(deadline);
+          observer.disconnect();
+          values
+            ? resolve(values)
+            : reject(new Error("實際圓針未在原期限內呈現完美操作區"));
+        };
+        const observe = () => {
+          if (circle.hidden) return;
+          if (!active) {
+            active = true;
+            clearTimeout(deadline);
+            deadline = setTimeout(() => finish(), 1800);
+          }
+          const values = readout.textContent!.match(/[\d.]+/g)!.map(Number);
+          const [needle, , , start, end] = values;
+          if (needle >= (start + end) / 2 - 8 && needle <= (start + end) / 2)
+            finish(values);
+        };
+        const observer = new MutationObserver(observe);
+        deadline = setTimeout(() => finish(), 10000);
+        observer.observe(document.querySelector(".battle-station")!, {
+          childList: true,
+          characterData: true,
+          attributes: true,
+          subtree: true,
+        });
+        observe();
+      }),
+  );
+  const onset = c.loader.waitForFunction(
+    () => {
+      const circle = document.querySelector<HTMLElement>(
+        '[data-testid="repair-calibration"]',
+      );
+      return !!circle && !circle.hidden;
+    },
+    undefined,
+    { timeout: 10000 },
+  );
   await c.loader.keyboard.down("r");
+  await (await onset).dispose();
   await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
     timeout: 10000,
   });
-  await expect
-    .poll(
-      async () => {
-        const values = (await c.loader
-          .getByTestId("repair-calibration-position")
-          .textContent())!
-          .match(/[\d.]+/g)!
-          .map(Number);
-        const [needle, , , start, end] = values;
-        return needle >= (start + end) / 2 - 8 && needle <= (start + end) / 2;
-      },
-      { intervals: [10], timeout: 1800 },
-    )
-    .toBe(true);
+  const [needle, , , start, end] = await perfectBand;
+  // No async matcher between the observed timing band and the real work key.
   await c.loader.keyboard.press("Space");
+  expect(needle >= (start + end) / 2 - 8 && needle <= (start + end) / 2).toBe(
+    true,
+  );
   await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
     "完美校準・額外 +3 HP",
   );
   await c.loader.keyboard.up("r");
-  const restored = await health(c.loader);
+  // Key-up is transported to the authority. Its public ready status confirms
+  // repair has stopped before fixing the exact shared-health comparison target.
+  await expect(c.loader.getByTestId("repair-status")).toHaveText(
+    "已停穩・按住 R 維修",
+  );
+  let restored: number | undefined;
+  await expect
+    .poll(
+      async () => {
+        const current = await health(c.loader);
+        const stable = current === restored;
+        restored = current;
+        return stable;
+      },
+      { timeout: 1500, intervals: [100] },
+    )
+    .toBe(true);
   expect(restored).toBeGreaterThan(before + 8);
-  for (const page of [c.driver, c.gunner]) {
-    await expect(page.getByTestId("tank-health")).toHaveText(`${restored}/100`);
-    await expect(page.getByTestId("repair-calibration-result")).toHaveText(
-      "完美校準・額外 +3 HP",
-    );
-  }
+  await Promise.all(
+    [c.driver, c.gunner, c.loader].map(async (page) => {
+      await expect(page.getByTestId("tank-health")).toHaveText(
+        `${restored}/100`,
+      );
+      await expect(page.getByTestId("repair-calibration-result")).toHaveText(
+        "完美校準・額外 +3 HP",
+      );
+    }),
+  );
   await c.loader.screenshot({
     path: `${evidence}/repaired-wave-${await c.loader
       .getByTestId("wave-status")
@@ -84,30 +149,36 @@ async function loadAndFire(
   shell = "2",
   aim?: () => Promise<void>,
 ) {
-  await c.loader.keyboard.press(shell);
-  await c.loader.keyboard.down("r");
-  // The loader reads the actual meter and presses Space; jams retain their normal odds.
-  const deadline = Date.now() + 20000;
-  while (
-    (await c.loader.getByTestId("chamber-state").textContent()) !== "主炮就緒"
-  ) {
-    if (Date.now() > deadline) throw new Error("正常裝填未能完成");
-    if (
-      (await c.loader.getByTestId("chamber-state").textContent()) === "卡彈"
+  const loading = (async () => {
+    await c.loader.keyboard.press(shell);
+    await c.loader.keyboard.down("r");
+    // The loader reads the actual meter and presses Space; jams retain their normal odds.
+    const deadline = Date.now() + 20000;
+    while (
+      (await c.loader.getByTestId("chamber-state").textContent()) !== "主炮就緒"
     ) {
-      const needle = await c.loader.getByTestId("jam-needle").boundingBox();
-      const zone = await c.loader.getByTestId("jam-zone").boundingBox();
+      if (Date.now() > deadline) throw new Error("正常裝填未能完成");
       if (
-        needle &&
-        zone &&
-        needle.x > zone.x + zone.width * 0.25 &&
-        needle.x < zone.x + zone.width * 0.65
-      )
-        await c.loader.keyboard.press("Space");
+        (await c.loader.getByTestId("chamber-state").textContent()) === "卡彈"
+      ) {
+        const needle = await c.loader.getByTestId("jam-needle").boundingBox();
+        const zone = await c.loader.getByTestId("jam-zone").boundingBox();
+        if (
+          needle &&
+          zone &&
+          needle.x > zone.x + zone.width * 0.25 &&
+          needle.x < zone.x + zone.width * 0.65
+        )
+          await c.loader.keyboard.press("Space");
+      }
+      await c.loader.waitForTimeout(30);
     }
-    await c.loader.waitForTimeout(30);
-  }
-  await c.loader.keyboard.up("r");
+    await c.loader.keyboard.up("r");
+  })();
+  // Separate crew members work together rather than exposing the stationary
+  // tank while serially waiting for each other's aim and loading tasks.
+  await Promise.all([loading, aim?.()]);
+  // Read the painted bearing again after loading in case the enemy moved.
   await aim?.();
   await c.loader.keyboard.down("c");
   await c.gunner.keyboard.press("Space");
@@ -155,8 +226,10 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
         await expect(
           page.locator(`.navigation-enemy[data-contact="${id}"]`),
         ).toHaveCount(0);
-    await repairDuringReinforcement(c);
-    await aimAtHeading(c.gunner, 0);
+    await Promise.all([
+      repairDuringReinforcement(c),
+      aimAtHeading(c.gunner, 0),
+    ]);
     await expect(c.gunner.getByTestId("turret-yaw-rate")).toHaveText("0.0°/s");
     for (const wave of [2, 3]) {
       await loadAndFire(c, "1");
@@ -172,10 +245,12 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
         expect(hp.every((value) => value < 200)).toBe(true);
       }
       await loadAndFire(c, "1");
-      await aimAtHeading(c.gunner, 16);
-      await loadAndFire(c);
-      await aimAtHeading(c.gunner, 344);
-      await loadAndFire(c);
+      await loadAndFire(c, "2", () =>
+        aimAtObservedEnemy(c.gunner, "四號 H 型", 0),
+      );
+      await loadAndFire(c, "2", () =>
+        aimAtObservedEnemy(c.gunner, "四號 H 型", 0),
+      );
       if (wave === 2) {
         for (const page of [c.driver, c.loader, c.gunner])
           await expect(page.getByTestId("wave-status")).toHaveText(
@@ -190,8 +265,10 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
           expect(await health(page)).toBeGreaterThan(0);
           expect(await health(page)).toBeLessThan(100);
         }
-        await repairDuringReinforcement(c);
-        await aimAtHeading(c.gunner, 0);
+        await Promise.all([
+          repairDuringReinforcement(c),
+          aimAtHeading(c.gunner, 0),
+        ]);
       } else {
         await observeTiger(c);
         await loadAndFire(c, "2", () =>

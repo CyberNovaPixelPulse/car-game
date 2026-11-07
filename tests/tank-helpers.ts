@@ -26,9 +26,9 @@ export async function aimAtHeading(page: Page, target: number) {
       Math.abs(error) > 24.4
         ? Math.abs(error) * 20.5
         : Math.sqrt(Math.abs(error)) * 100;
-    await page.keyboard.down(key);
-    await page.waitForTimeout(duration);
-    await page.keyboard.up(key);
+    // One real held-key operation avoids adding two variable browser-RPC
+    // round trips to a short correction's intended hold time.
+    await page.keyboard.press(key, { delay: duration });
     // Do not accept the pre-keydown zero-rate HUD as a completed coast. The
     // host may not have painted (or a client received) this short pulse yet.
     await expect(heading).not.toHaveText(displayed);
@@ -52,31 +52,99 @@ export async function observeTiger(c: { gunner: Page }) {
     "虎式 I 型",
     { timeout: 30000 },
   );
+  await expect(
+    c.gunner.locator('.navigation-enemy[aria-label="觀測敵車 虎式 I 型"]'),
+  ).toHaveCount(1, { timeout: 30000 });
+  // A silhouette peeking around masonry is an observation, not yet a clear
+  // flat-cannon shot. Crew read the actual painted contact/cover and wait for
+  // its ordinary flank into the nearby open lane; never use hidden ray tests.
+  await expect
+    .poll(
+      () =>
+        c.gunner
+          .getByRole("img", {
+            name: "北方固定朝上的戰場導航",
+          })
+          .evaluate((svg) => {
+            const marker = svg.querySelector<SVGRectElement>(
+              '.navigation-enemy[aria-label="觀測敵車 虎式 I 型"]',
+            );
+            if (!marker) return false;
+            const own = svg
+              .querySelector(".navigation-player")!
+              .getAttribute("transform")!
+              .match(/-?[\d.]+/g)!
+              .map(Number);
+            const target = [
+              marker.x.baseVal.value + marker.width.baseVal.value / 2,
+              marker.y.baseVal.value + marker.height.baseVal.value / 2,
+            ];
+            // The visible map uses its captioned 84m square. The 20m nearby lane keeps
+            // ordinary level shots from falling short while the Tiger approaches.
+            if (Math.hypot(target[0] - own[0], target[1] - own[1]) > 20)
+              return false;
+            const margin = marker.width.baseVal.value / 2;
+            return ![
+              ...svg.querySelectorAll<SVGRectElement>(".navigation-cover rect"),
+            ].some((cover) => {
+              // Sample only the line drawn between the two visible map glyphs, with
+              // a half-marker margin so a partial corner peek does not trigger fire.
+              for (let sample = 0; sample <= 100; sample++) {
+                const x = own[0] + ((target[0] - own[0]) * sample) / 100;
+                const y = own[1] + ((target[1] - own[1]) * sample) / 100;
+                if (
+                  x >= cover.x.baseVal.value - margin &&
+                  x <=
+                    cover.x.baseVal.value +
+                      cover.width.baseVal.value +
+                      margin &&
+                  y >= cover.y.baseVal.value - margin &&
+                  y <=
+                    cover.y.baseVal.value + cover.height.baseVal.value + margin
+                )
+                  return true;
+              }
+              return false;
+            });
+          }),
+      { intervals: [50], timeout: 30000 },
+    )
+    .toBe(true);
 }
 
 /** Crew can report a bearing from the actual north-up map. These are the
  * painted rect/arrow coordinates; no hidden world-state mirror is read. */
-export async function aimAtObservedEnemy(page: Page, label: string) {
+export async function aimAtObservedEnemy(
+  page: Page,
+  label: string,
+  index?: number,
+) {
   const map = page.getByRole("img", { name: "北方固定朝上的戰場導航" });
+  const contacts = map.locator(
+    `.navigation-enemy[aria-label="觀測敵車 ${label}"]`,
+  );
   await expect(
-    map.locator(`.navigation-enemy[aria-label="觀測敵車 ${label}"]`),
+    index === undefined ? contacts : contacts.nth(index),
   ).toHaveCount(1);
-  const bearing = await map.evaluate((svg, label) => {
-    const marker = svg.querySelector<SVGRectElement>(
-      `.navigation-enemy[aria-label="觀測敵車 ${label}"]`,
-    )!;
-    const player = svg
-      .querySelector(".navigation-player")!
-      .getAttribute("transform")!
-      .match(/-?[\d.]+/g)!
-      .map(Number);
-    const x = marker.x.baseVal.value + marker.width.baseVal.value / 2;
-    const z = marker.y.baseVal.value + marker.height.baseVal.value / 2;
-    return (
-      ((Math.atan2(x - player[0], -(z - player[1])) * 180) / Math.PI + 360) %
-      360
-    );
-  }, label);
+  const bearing = await map.evaluate(
+    (svg, { label, index }) => {
+      const marker = svg.querySelectorAll<SVGRectElement>(
+        `.navigation-enemy[aria-label="觀測敵車 ${label}"]`,
+      )[index ?? 0]!;
+      const player = svg
+        .querySelector(".navigation-player")!
+        .getAttribute("transform")!
+        .match(/-?[\d.]+/g)!
+        .map(Number);
+      const x = marker.x.baseVal.value + marker.width.baseVal.value / 2;
+      const z = marker.y.baseVal.value + marker.height.baseVal.value / 2;
+      return (
+        ((Math.atan2(x - player[0], -(z - player[1])) * 180) / Math.PI + 360) %
+        360
+      );
+    },
+    { label, index },
+  );
   await aimAtHeading(page, bearing);
 }
 

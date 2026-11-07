@@ -64,11 +64,11 @@ for (const [key, direct, adjacent] of [
         `虎式 I 型 ${adjacent}/360`,
       );
       await c.gunner.screenshot({
-        path: `/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual17/${key === "1" ? "he" : "ap"}-impact.png`,
+        path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual17"}/legacy-${key === "1" ? "he" : "ap"}-impact.png`,
         fullPage: true,
       });
       await c.loader.screenshot({
-        path: `/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual17/${key === "1" ? "he" : "ap"}-loader.png`,
+        path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual17"}/legacy-${key === "1" ? "he" : "ap"}-loader.png`,
         fullPage: true,
       });
     } finally {

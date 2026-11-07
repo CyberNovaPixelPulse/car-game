@@ -83,7 +83,7 @@ test("缺員等待時砲手與裝填手的提示與離房按鈕均在筆電視�
         p.getByRole("button", { name: "離開房間", exact: true }),
       ).toBeInViewport({ ratio: 1 });
       await p.screenshot({
-        path: `/tmp/car-game-spec30/evidence/31/regression/visual25/final/${role}-waiting-1280.png`,
+        path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/31/regression/visual25/final"}/legacy-${role}-waiting-1280.png`,
       });
     }
   } finally {
