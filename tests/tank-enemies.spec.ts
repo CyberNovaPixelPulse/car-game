@@ -193,10 +193,11 @@ test("擊毀近處四號後，乘員利用石牆遮蔽虎式且己方炮火不�
         expect(p.getByTestId("tank-health")).toHaveText(health!),
       ),
     );
-    // The wall hides the Tiger's live HP as well as its model; the earlier
-    // destroyed Panzer was verified before moving into cover.
-    await expect(c.gunner.getByTestId("target-status")).not.toContainText(
-      "虎式",
+    // This lateral position can see part of the flanking Tiger around cover.
+    // Shared observed HP verifies that the actual blocked shot did no damage;
+    // the initial fully hidden Tiger is covered by tank-scouting.spec.ts.
+    await expect(c.gunner.getByTestId("target-status")).toContainText(
+      "虎式 I 型 360/360",
     );
     await c.gunner.screenshot({
       path: "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21/cover.png",

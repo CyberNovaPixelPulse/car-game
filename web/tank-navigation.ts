@@ -30,7 +30,7 @@ export function mountBattleNavigation(station: Element) {
         <path class="navigation-gun" aria-label="主炮方向" d="M0 0V-9" transform="rotate(0)"/>
       </g>
       <g class="navigation-contacts" aria-label="隊伍觀測敵車"></g>
-    </svg><p class="navigation-legend">箭 車頭 · 線 主炮 · 方 敵車</p><p class="navigation-scale">地形示意 · 84 × 84 m</p>`;
+    </svg><p class="navigation-legend" aria-label="箭頭代表車頭，細線代表主炮，方點代表觀測敵車"><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><path class="navigation-hull" d="M0 -3L2.4 3L0 1.5L-2.4 3Z"/></svg>車頭</span><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><path class="navigation-gun" d="M0 3V-3"/></svg>主炮</span><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><rect class="navigation-enemy-key" x="-2" y="-2" width="4" height="4"/></svg>敵車</span></p><p class="navigation-scale">地形示意 · 84 × 84 m</p>`;
 }
 
 /** SVG's positive rotation is clockwise; world -z is north (SVG's top). */

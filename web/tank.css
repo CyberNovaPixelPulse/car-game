@@ -1280,7 +1280,8 @@ legend {
   stroke-width: 0.85;
   stroke-linecap: round;
 }
-.navigation-enemy {
+.navigation-enemy,
+.navigation-enemy-key {
   fill: #ffba9f;
   stroke: #171e1c;
   stroke-width: 0.5;
@@ -1290,6 +1291,22 @@ legend {
   margin: 0;
   padding: 3px 8px 0;
   font: inherit;
+}
+.battle-navigation .navigation-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+}
+.navigation-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+.navigation-legend svg {
+  width: 10px;
+  height: 10px;
+  flex: none;
 }
 .battle-navigation .navigation-scale {
   padding-bottom: 6px;
