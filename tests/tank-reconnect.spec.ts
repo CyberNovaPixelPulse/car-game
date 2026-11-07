@@ -21,7 +21,7 @@ test("駕駛離頁全場暫停，裝填與戰況凍結，原職位重連後安�
     await expect(c.loader.getByTestId("battle-pause")).toBeVisible();
     await expect(c.gunner.getByTestId("battle-pause")).toBeVisible();
     await c.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/ticket24-loader-pause-fixed-1280.png",
+      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/ticket24-loader-pause-fixed-1280.png",
       fullPage: true,
     });
     const leave = await c.loader
@@ -32,7 +32,7 @@ test("駕駛離頁全場暫停，裝填與戰況凍結，原職位重連後安�
     const health = await c.gunner.getByTestId("tank-health").textContent();
     const enemies = await c.gunner.getByTestId("target-status").textContent();
     await c.loader.keyboard.up("r");
-    await c.gunner.keyboard.press("d");
+    await c.gunner.keyboard.down("ArrowRight");
     await c.loader.waitForTimeout(1800);
     await expect(c.loader.getByTestId("load-progress")).toHaveText(progress!);
     await expect(c.gunner.getByTestId("tank-health")).toHaveText(health!);
@@ -151,11 +151,11 @@ test("非房主裝填手帶同一發卡彈重連，原職位與目標區保留",
         "等待裝填手",
       );
     await c.driver.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/ticket24-paused-driver.png",
+      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/ticket24-paused-driver.png",
       fullPage: true,
     });
     await c.gunner.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/ticket24-paused-gunner.png",
+      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/ticket24-paused-gunner.png",
       fullPage: true,
     });
     const hp = await c.gunner.getByTestId("tank-health").textContent();
@@ -296,11 +296,11 @@ test("缺員超過八秒仍保留煙幕與五秒暈眩，重連後只走剩餘�
     const stun = await c.loader.getByTestId("stun-remaining").textContent();
     const health = await c.gunner.getByTestId("tank-health").textContent();
     await c.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/ticket24-paused-stun.png",
+      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/ticket24-paused-stun.png",
       fullPage: true,
     });
     await c.gunner.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/ticket24-paused-smoke.png",
+      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/ticket24-paused-smoke.png",
       fullPage: true,
     });
     await c.loader.waitForTimeout(9000);
