@@ -34,4 +34,4 @@
 
 目前為使用者接受的簡化二戰程序外觀；不是原先寫實材質標準已通過。模型、地形為原創幾何，本機 CC0 材質出處與雜湊見 [素材來源](public/art/README.md)、[車內來源](public/assets/interior/sources.json)。設計見 [DESIGN.md](DESIGN.md)，規則起始值見 [平衡設定](docs/tank-balance.md)。
 
-戰鬥採全頁場景與角落 HUD，大廳維持手冊風格；HUD／工作面與後續顯示功能接點見 [戰鬥頁面](docs/tank-hud.md)。
+戰鬥採全頁場景與角落 HUD；每名乘員可自行以右上按鈕進出瀏覽器全螢幕，Esc 返回視窗後繼續操作。瀏覽器不開放全螢幕時仍可使用全頁畫面。大廳維持手冊風格；HUD／工作面與顯示控制見 [戰鬥頁面](docs/tank-hud.md)。

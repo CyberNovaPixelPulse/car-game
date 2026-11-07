@@ -866,9 +866,17 @@ legend {
 [data-surface="battle"] .battle-station button:hover:not(:disabled) {
   background: #39473c;
 }
-[data-surface="battle"] .battle-station button[aria-pressed="true"] {
+[data-surface="battle"] .battle-station button[aria-pressed="true"],
+[data-surface="battle"]
+  .battle-station
+  button[aria-pressed="true"]:hover:not(:disabled) {
   background: var(--hud-foreground);
   color: #171e1c;
+}
+[data-surface="battle"] .battle-station button:disabled {
+  color: var(--hud-muted);
+  border-color: var(--hud-rule);
+  background: #171e1c;
 }
 [data-surface="battle"] .battle-station button:focus-visible {
   outline: 3px solid var(--hud-danger);
@@ -916,6 +924,10 @@ legend {
 .battle-intel {
   width: 100%;
   margin-top: 16px;
+}
+.display-status {
+  margin-top: 8px !important;
+  font-size: 13px;
 }
 .battle-intel p + p {
   margin-top: 8px;

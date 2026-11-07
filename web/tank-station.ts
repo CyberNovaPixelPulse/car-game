@@ -25,9 +25,11 @@ export function stationMarkup(role: CrewRole, soundEnabled: boolean) {
       ${role === "loader" ? '<p class="loader-mode-line"><strong data-testid="loader-mode">裝填模式</strong> · Tab 切換工作</p>' : ""}
     </div>
     <div class="battle-utility"><div class="battle-actions">
+      <button type="button" class="secondary" id="station-fullscreen" aria-pressed="false" aria-describedby="station-display-status">進入全螢幕</button>
       ${role === "loader" ? `<button type="button" class="secondary" id="station-sound" aria-pressed="${soundEnabled}">音效：${soundEnabled ? "開" : "關"}</button>` : ""}
       <button class="secondary" id="station-leave">離開房間</button>
     </div>
+      <p class="display-status hud-panel" id="station-display-status" role="status" hidden></p>
       ${role === "gunner" ? '<div class="battle-intel hud-panel"><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p><p data-testid="target-status">敵車接近中</p><p data-testid="flight-status"></p></div>' : role === "loader" ? '<div class="battle-intel hud-panel" hidden><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p><p data-testid="mg-target-status"></p></div>' : ""}
     </div>
     <div class="battle-alerts">
