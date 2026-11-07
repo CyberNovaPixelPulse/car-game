@@ -49,7 +49,10 @@ test("裝填手在真正車內3D工作區操作炮膛，裝填移動可見且無
       "主炮就緒",
     );
     await crew.loader.keyboard.press("Tab");
+    await expect(crew.loader.getByTestId("loader-mode")).toHaveText("維修模式");
     await expect(interior).toBeVisible();
+    await crew.loader.keyboard.press("Tab");
+    await expect(crew.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
     await expect(
       crew.loader.getByRole("img", { name: /戰場視野/ }),
     ).toHaveCount(0);
