@@ -67,7 +67,6 @@ function failCalibration(state: TankState) {
   repair.calibration.suspended = false;
   repair.failureUntil = time + REPAIR_RULES.failureWait;
   repair.blockedUntil = Math.max(repair.blockedUntil, repair.failureUntil);
-  scheduleCalibration(repair);
 }
 /** Only the authority invokes this from the loader's discrete work-key action. */
 export function stopRepairCalibration(state: TankState) {
@@ -99,7 +98,6 @@ export function stopRepairCalibration(state: TankState) {
         ? REPAIR_RULES.perfectHp
         : REPAIR_RULES.successHp),
   );
-  scheduleCalibration(repair);
 }
 
 /** Host-only repair, after incoming damage and this step's actual hull movement. */
@@ -176,6 +174,9 @@ export function stepRepair(state: TankState, held: boolean, dt: number) {
     c.elapsed = 0;
     c.target = random(repair) * (1 - REPAIR_RULES.calibrationWidth);
     c.result = "active";
+    // Count this attempt's valid base-healing work toward the next onset.
+    // Settling a result or pausing/changing work must not reroll the schedule.
+    scheduleCalibration(repair);
   }
 }
 
