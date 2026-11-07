@@ -48,6 +48,11 @@ async function replay(c: Awaited<ReturnType<typeof tankCrew>>) {
   await expect(c.loader.getByTestId("mg-heat")).toHaveText("0");
   await expect(c.loader.getByTestId("mg-shot-count")).toHaveText("0");
   await c.loader.keyboard.press("Tab");
+  await expect(c.loader.getByTestId("loader-mode")).toHaveText("維修模式");
+  await expect(c.loader.getByTestId("repair-status")).toHaveText(
+    "車體完好・100 / 100 HP",
+  );
+  await c.loader.keyboard.press("Tab");
   await expect(c.loader.getByTestId("load-progress")).toHaveText("0");
 }
 

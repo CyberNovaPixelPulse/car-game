@@ -1,3 +1,9 @@
+import {
+  createRepairState,
+  stepRepair,
+  validRepair,
+  type RepairState,
+} from "./tank-repair";
 import { AIMING, DRIVING, MG_AIMING, TANK_RULES } from "./tank-settings";
 import {
   createEnemyBattle,
@@ -41,7 +47,8 @@ export const BATTLEFIELD = {
   ],
 } as const;
 export interface TankState {
-  version: 1;
+  version: 2;
+  repair: RepairState;
   time: number;
   weapon: WeaponState;
   battle: EnemyBattle;
@@ -57,7 +64,8 @@ export interface TankState {
   };
 }
 const initial = (seed = 1): TankState => ({
-  version: 1,
+  version: 2,
+  repair: createRepairState(),
   time: 0,
   weapon: createWeaponState(seed),
   battle: createEnemyBattle(),
@@ -108,7 +116,12 @@ export class TankCore implements GameCore<TankState> {
     if (this.roleOf(participant) === "loader" && action === MODE) {
       const w = this.state.weapon;
       if (loaderCanWork(w, this.state.time))
-        w.mode = w.mode === "loading" ? "machine-gun" : "loading";
+        w.mode =
+          w.mode === "loading"
+            ? "machine-gun"
+            : w.mode === "machine-gun"
+              ? "repair"
+              : "loading";
       return;
     }
     if (
@@ -224,10 +237,14 @@ export class TankCore implements GameCore<TankState> {
     // Resolve incoming damage first: zero HP always defeats the crew, even on
     // the step that destroys the last enemy. Weapon/MG/smoke work continues
     // across waves; only a new round starts from initial().
-    if (this.state.battle.failed) return;
+    if (this.state.battle.failed) {
+      stepRepair(this.state, false, dt);
+      return;
+    }
     if (this.state.weapon.targets.every((enemy) => enemy.hp <= 0)) {
       if (this.state.battle.wave === TANK_RULES.waves) {
         this.state.battle.won = true;
+        stepRepair(this.state, false, dt);
         return;
       }
       this.state.battle.wave++;
@@ -305,6 +322,7 @@ export class TankCore implements GameCore<TankState> {
       t.x = x;
       t.z = z;
     }
+    stepRepair(this.state, loading, dt);
   }
   draw(participant: number) {
     this.present(this.state, participant);
@@ -318,7 +336,8 @@ export class TankCore implements GameCore<TankState> {
   restore(snapshot: string) {
     const next: TankState = JSON.parse(snapshot);
     if (
-      next.version !== 1 ||
+      next.version !== 2 ||
+      !validRepair(next.repair) ||
       !next.battle ||
       typeof next.battle.failed !== "boolean" ||
       typeof next.battle.won !== "boolean" ||
@@ -350,6 +369,8 @@ export class TankCore implements GameCore<TankState> {
         next.tank.speed,
         next.tank.turnRate,
       ].every(Number.isFinite) ||
+      next.tank.hp < 0 ||
+      next.tank.hp > TANK_RULES.maxHp ||
       typeof next.tank.blocked !== "boolean"
     )
       throw new Error("坦克戰況格式不符，請重新加入房間。");

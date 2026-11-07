@@ -19,6 +19,8 @@ test("煙霧彈沿用三彈選擇、開裝鎖定與安全退殼後可再裝其�
     await c.loader.keyboard.press("2");
     await expect(c.loader.getByTestId("selected-shell")).toHaveText("煙霧彈");
     await c.loader.keyboard.press("Tab");
+    await expect(c.loader.getByTestId("loader-mode")).toHaveText("維修模式");
+    await c.loader.keyboard.press("Tab");
     await c.loader.keyboard.down("r");
     await expect(c.gunner.getByTestId("chamber-state")).toHaveText("主炮就緒");
     await c.loader.keyboard.up("r");
