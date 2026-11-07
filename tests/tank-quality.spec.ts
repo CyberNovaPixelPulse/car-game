@@ -28,6 +28,32 @@ const health = async (page: Page) =>
 const battleKeys = (page: Page) =>
   page.locator(".battle-station").click({ position: { x: 500, y: 600 } });
 
+test("主炮已就緒時畫質選單的空白鍵不開火，返回戰場後同一發仍能正常射擊", async ({
+  browser,
+}) => {
+  const c = await tankCrew(browser, "loader", 0, 1976);
+  try {
+    await c.loader.keyboard.down("r");
+    await expect(c.gunner.getByTestId("chamber-state")).toHaveText("主炮就緒");
+    await c.loader.keyboard.up("r");
+    await c.gunner.keyboard.press("Tab");
+    await expect(quality(c.gunner)).toBeFocused();
+    await c.gunner.keyboard.press("Space");
+    await c.gunner.keyboard.press("Escape");
+    await quality(c.gunner).selectOption("high");
+    await expect(c.gunner.getByTestId("shot-count")).toHaveText("0");
+    await expect(c.gunner.getByTestId("chamber-state")).toHaveText("主炮就緒");
+    await battleKeys(c.gunner);
+    await c.loader.keyboard.down("c");
+    await c.gunner.keyboard.press("Space");
+    for (const page of [c.loader, c.driver, c.gunner])
+      await expect(page.getByTestId("shot-count")).toHaveText("1");
+    await c.loader.keyboard.up("c");
+  } finally {
+    await c.close();
+  }
+});
+
 test("原生選單不轉炮，保留中途裝填與機槍，維修校準跨畫質尺寸全螢幕及缺員暫停不重置", async ({
   browser,
 }) => {
