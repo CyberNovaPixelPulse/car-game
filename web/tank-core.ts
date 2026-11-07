@@ -1,6 +1,7 @@
 import {
   createRepairState,
   stepRepair,
+  stopRepairCalibration,
   validRepair,
   type RepairState,
 } from "./tank-repair";
@@ -47,7 +48,7 @@ export const BATTLEFIELD = {
   ],
 } as const;
 export interface TankState {
-  version: 2;
+  version: 3;
   repair: RepairState;
   time: number;
   weapon: WeaponState;
@@ -64,8 +65,8 @@ export interface TankState {
   };
 }
 const initial = (seed = 1): TankState => ({
-  version: 2,
-  repair: createRepairState(),
+  version: 3,
+  repair: createRepairState(seed),
   time: 0,
   weapon: createWeaponState(seed),
   battle: createEnemyBattle(),
@@ -89,11 +90,18 @@ const approach = (value: number, target: number, amount: number) =>
 export class TankCore implements GameCore<TankState> {
   private state = initial();
   private controls = new Map<number, number>();
+  private paused = false;
   present: (state: TankState, participant: number) => void = () => {};
   constructor(private roleOf: (participant: number) => CrewRole | undefined) {}
   start(options: GameStart) {
     this.state = initial(options.seed);
     this.controls.clear();
+    this.paused = false;
+  }
+  pause(paused: boolean) {
+    this.paused = paused;
+    if (paused && this.state.repair.calibration.result === "active")
+      this.state.repair.calibration.suspended = true;
   }
   input(participant: number, keys: number) {
     if (this.state.battle.failed || this.state.battle.won) return;
@@ -110,6 +118,10 @@ export class TankCore implements GameCore<TankState> {
           ? keys & (15 | LOAD | CROUCH | MG_FIRE)
           : 0,
     );
+    // Ordered input precedes the discrete work action. A release/crouch must
+    // settle an active calibration before a following Space can award HP.
+    if (!this.paused && this.roleOf(participant) === "loader")
+      stepRepair(this.state, Boolean(keys & LOAD), 0);
   }
   action(participant: number, action: number) {
     if (this.state.battle.failed || this.state.battle.won) return;
@@ -122,6 +134,7 @@ export class TankCore implements GameCore<TankState> {
             : w.mode === "machine-gun"
               ? "repair"
               : "loading";
+      stepRepair(this.state, false, 0);
       return;
     }
     if (
@@ -139,7 +152,9 @@ export class TankCore implements GameCore<TankState> {
       return;
     }
     if (this.roleOf(participant) === "loader" && action === STOP_JAM) {
-      stopJam(this.state.weapon, this.state.time);
+      if (this.state.weapon.mode === "repair")
+        stopRepairCalibration(this.state);
+      else stopJam(this.state.weapon, this.state.time);
       return;
     }
     if (this.roleOf(participant) !== "gunner") return;
@@ -160,7 +175,7 @@ export class TankCore implements GameCore<TankState> {
     if (!connected) this.controls.delete(participant);
   }
   step(elapsed: number) {
-    if (!Number.isFinite(elapsed) || elapsed <= 0) return;
+    if (this.paused || !Number.isFinite(elapsed) || elapsed <= 0) return;
     // Preserve elapsed gameplay time under slow rendering. Small physics steps
     // prevent tunnelling without lengthening loader timers at low frame rates.
     let remaining = elapsed;
@@ -336,7 +351,7 @@ export class TankCore implements GameCore<TankState> {
   restore(snapshot: string) {
     const next: TankState = JSON.parse(snapshot);
     if (
-      next.version !== 2 ||
+      next.version !== 3 ||
       !validRepair(next.repair) ||
       !next.battle ||
       typeof next.battle.failed !== "boolean" ||
