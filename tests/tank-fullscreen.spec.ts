@@ -90,6 +90,12 @@ test("每位乘員自行以可信按鈕進出完整工作站全螢幕，鍵盤�
         (other) => other !== page,
       ))
         await fullscreen(other, false);
+      await page.keyboard.press("Escape");
+      await fullscreen(page, false);
+      await page
+        .getByRole("button", { name: "進入全螢幕", exact: true })
+        .press("Space");
+      await fullscreen(page, true);
       await page
         .getByRole("button", { name: "退出全螢幕", exact: true })
         .press("Space");
@@ -198,5 +204,143 @@ test("瀏覽器權限不開放全螢幕時有可見提示，音效控制後仍�
     expect(await driver.evaluate(() => document.fullscreenElement)).toBeNull();
   } finally {
     for (const context of contexts) await context.close();
+  }
+});
+
+test("全螢幕保留裝填與三工作，缺員暫停、結算、同房重玩及離房清除顯示狀態", async ({
+  browser,
+}) => {
+  test.setTimeout(180000);
+  const c = await tankCrew(browser);
+  try {
+    await c.loader.setViewportSize({ width: 1280, height: 720 });
+    await c.loader.keyboard.down("r");
+    await expect
+      .poll(async () =>
+        Number(await c.loader.getByTestId("load-progress").textContent()),
+      )
+      .toBeGreaterThan(10);
+    await c.loader.keyboard.up("r");
+    let progress = "";
+    await expect
+      .poll(async () => {
+        const now = (await c.loader
+          .getByTestId("load-progress")
+          .textContent())!;
+        const same = now === progress;
+        progress = now;
+        return same;
+      })
+      .toBe(true);
+    await c.loader.locator("#station-fullscreen").click();
+    await fullscreen(c.loader, true);
+    await expect(c.loader.getByTestId("load-progress")).toHaveText(progress);
+    await expect(
+      c.loader.getByRole("img", {
+        name: "北方固定朝上的戰場導航",
+        exact: true,
+      }),
+    ).toBeInViewport({ ratio: 1 });
+    await c.loader.screenshot({
+      path: `${evidence}/loading-fullscreen-1280.png`,
+    });
+    for (const [mode, name, view] of [
+      ["機槍模式", "mg", "機槍戰場視野"],
+      ["維修模式", "repair", "車內炮膛與彈藥架"],
+    ] as const) {
+      await c.loader.keyboard.press("Tab");
+      await expect(c.loader.getByTestId("loader-mode")).toHaveText(mode);
+      await visibleBattle(c.loader, view);
+      await expect(c.loader.getByTestId("load-progress")).toHaveText(progress);
+      await c.loader.screenshot({
+        path: `${evidence}/${name}-fullscreen-1280.png`,
+      });
+    }
+    await c.loader.setViewportSize({ width: 1440, height: 1050 });
+    await visibleBattle(c.loader, "車內炮膛與彈藥架");
+    await c.loader.screenshot({
+      path: `${evidence}/repair-fullscreen-1440.png`,
+    });
+    await c.driver.goto("about:blank");
+    await expect(c.loader.getByTestId("battle-pause")).toBeInViewport({
+      ratio: 1,
+    });
+    await c.loader.screenshot({
+      path: `${evidence}/pause-fullscreen-1440.png`,
+    });
+    await c.loader.locator("#station-fullscreen").click();
+    await fullscreen(c.loader, false);
+    await c.loader.locator("#station-fullscreen").click();
+    await fullscreen(c.loader, true);
+    await c.driver.goto("/");
+    await expect(c.loader.getByTestId("battle-pause")).toBeHidden();
+    await expect(c.loader.getByTestId("loader-mode")).toHaveText("維修模式");
+    await expect(c.loader.getByTestId("load-progress")).toHaveText(progress);
+    await c.loader.keyboard.press("Tab");
+    await expect(c.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
+    await expect(c.loader.getByTestId("load-progress")).toHaveText(progress);
+    // Natural enemy damage reaches the ordinary authoritative failure result.
+    await expect(c.loader.getByTestId("battle-result")).toHaveText("戰鬥失敗", {
+      timeout: 130000,
+    });
+    await fullscreen(c.loader, true);
+    for (const [width, height] of [
+      [1280, 720],
+      [1440, 1050],
+    ] as const) {
+      await c.loader.setViewportSize({ width, height });
+      await expect(
+        c.loader.getByRole("button", { name: "回到房間", exact: true }),
+      ).toBeInViewport({ ratio: 1 });
+      await expect(c.loader.locator("#station-leave")).toBeInViewport({
+        ratio: 1,
+      });
+      await c.loader.screenshot({
+        path: `${evidence}/result-fullscreen-${width}.png`,
+      });
+    }
+    await c.loader
+      .getByRole("button", { name: "回到房間", exact: true })
+      .click();
+    for (const [page, role] of [
+      [c.loader, "裝填手"],
+      [c.driver, "駕駛"],
+      [c.gunner, "砲手"],
+    ] as const) {
+      await expect(page.getByTestId("room-code")).toHaveText(c.code);
+      await expect
+        .poll(() => page.evaluate(() => document.fullscreenElement === null))
+        .toBe(true);
+      await expect(page.locator("#station-fullscreen")).toHaveCount(0);
+      await page
+        .getByRole("button", { name: `擔任${role}`, exact: true })
+        .click();
+      await page.getByRole("button", { name: "準備", exact: true }).click();
+    }
+    await c.loader
+      .getByRole("button", { name: "開始戰鬥", exact: true })
+      .click();
+    for (const page of [c.loader, c.driver, c.gunner])
+      await fullscreen(page, false);
+    await expect(c.loader.getByTestId("load-progress")).toHaveText("0");
+    await c.driver.locator("#station-fullscreen").click();
+    await fullscreen(c.driver, true);
+    await c.driver.locator("#station-leave").click();
+    await expect(c.driver.getByLabel("乘員名稱")).toBeVisible();
+    expect(
+      await c.driver.evaluate(() => document.fullscreenElement),
+    ).toBeNull();
+    await expect(c.loader.getByTestId("battle-pause")).toBeVisible();
+    await c.loader.locator("#station-fullscreen").click();
+    await fullscreen(c.loader, true);
+    await c.loader.locator("#station-leave").click();
+    for (const page of [c.loader, c.gunner]) {
+      await expect(page.getByLabel("乘員名稱")).toBeVisible();
+      expect(await page.evaluate(() => document.fullscreenElement)).toBeNull();
+      await expect(page.locator("#station-fullscreen")).toHaveCount(0);
+    }
+    await c.loader.screenshot({ path: `${evidence}/left-room-manual.png` });
+  } finally {
+    await c.close();
   }
 });

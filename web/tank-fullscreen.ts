@@ -37,6 +37,19 @@ export function attachFullscreenControl(station: HTMLElement) {
     failure = "";
     sync();
   }
+  function escapeFullscreen(event: KeyboardEvent) {
+    if (
+      event.isTrusted &&
+      event.key === "Escape" &&
+      document.fullscreenElement === station
+    ) {
+      // Preserve the browser's normal Escape action as well. Some browser
+      // input paths deliver the key to the page without performing that exit.
+      void document.exitFullscreen().catch(() => {
+        if (!disposed && document.fullscreenElement === station) failed();
+      });
+    }
+  }
   // Invoke directly inside the local trusted click, before any asynchronous work.
   button.onclick = async (event) => {
     if (disposed || pending) return;
@@ -62,12 +75,14 @@ export function attachFullscreenControl(station: HTMLElement) {
     }
   };
   document.addEventListener("fullscreenchange", changed);
+  document.addEventListener("keydown", escapeFullscreen);
   station.addEventListener("fullscreenerror", failed);
   sync();
   return () => {
     disposed = true;
     button.onclick = null;
     document.removeEventListener("fullscreenchange", changed);
+    document.removeEventListener("keydown", escapeFullscreen);
     station.removeEventListener("fullscreenerror", failed);
     if (document.fullscreenElement === station)
       void document.exitFullscreen().catch(() => {});

@@ -31,3 +31,7 @@ WEB_PORT=5054 PEER_PORT=5055 TANK_NATIVE_BROWSER=1 TANK_THREE_BROWSERS=1 TANK_EV
 #36 的 `tank-navigation` 使用真正三人連線、W 行駛至固定石牆、D 原地轉向及方向鍵長按轉砲，直接觀察可見 SVG 的位置／方向與原有 HUD。SVG 的變換就是實際繪圖，不是隱藏座標鏡像；純垂直的主炮線幾何寬度為零，須檢查實際描邊及截圖，不能只靠框尺寸判斷可見。全角色、裝填手三種工作及兩種桌機尺寸另留首屏截圖；地圖行為見 `docs/tank-navigation.md`。本票局部結果不能代替整合後完整批次。
 
 #33 的 `tests/tank-hud.spec.ts` 從正常三人房間驗證各視野填滿 1280×720、1440×1050 的實際頁面邊界，共用方向／速度／HP 與退出控制完整同屏；涵蓋裝填、機槍、維修及缺員返回。使用 `TANK_EVIDENCE_DIR` 將新截圖留在指定證據目錄，不覆寫歷史 captures。
+
+#34 的 `tests/tank-fullscreen.spec.ts` 使用各自可信點擊及鍵盤 Esc／Space，觀察公開 `document.fullscreenElement`、完整場景／HUD／小地圖、切換後實際轉砲／裝填、三種工作與暫停／結算／回房重玩／離房。瀏覽器不可用路徑由真實 `Permissions-Policy: fullscreen=()` 回應驗證；被攔截的本機測試文件另外授予該暫時 context 的 `local-network-access`，讓 Chromium 能使用本機 PeerServer，沒有修改正式產品的網路設定。
+
+`tests/tank-fullscreen-native.spec.ts` 是明確啟動的補驗，預設略過。`TANK_BROWSER_ESCAPE=1` 以 headed 瀏覽器可信鍵盤事件驗證 Esc 與立即操作；`TANK_NATIVE_ESCAPE=1` 使用 macOS System Events，只向本次測試瀏覽器的公開 CDP 程序 ID 發送原生 Esc；`TANK_CUA_ESCAPE=1` 留下 `native-ready.json`，供電腦控制工具對該測試視窗正常按 Esc。原生 OS／CUA 需要已解鎖的 Mac；邏輯 `document.hasFocus()` 不證明鎖定桌面上的實體按鍵已送達。補驗保留事件可信度觀察，從不替換全螢幕 API。三個 context 與三台電腦、瀏覽器可信事件與 OS 原生輸入須按實際證據分別描述。
