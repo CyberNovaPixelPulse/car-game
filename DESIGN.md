@@ -1,6 +1,6 @@
 ---
 name: "三人坦克合作戰鬥"
-description: "1944 年諾曼第背景下，三名乘員在雙色手冊圖版上認領座位，再於同一套圖版語言的受限視野工作站協作。"
+description: "1944 年諾曼第背景下，三名乘員在手冊大廳認領座位，再於全頁受限視野與角落 HUD 協作。"
 colors:
   paper: "#ebe5d2"
   paper-deep: "#e2dbc4"
@@ -12,6 +12,11 @@ colors:
   ink-hover: "#36352d"
   ink-disabled: "#857f69"
   mg-reticle: "#ede8c5"
+  hud-background: "#171e1ce8"
+  hud-foreground: "#f5f1e4"
+  hud-muted: "#d2cbb4"
+  hud-rule: "#858b79"
+  hud-danger: "#ffba9f"
   interior-background: "#171e1c"
   interior-paint: "#697367"
   interior-dark-paint: "#39473c"
@@ -168,60 +173,60 @@ components:
     textColor: "{colors.ink-red}"
     typography: "{typography.plate-room-code}"
   station-plate:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.interior-background}"
+    textColor: "{colors.hud-foreground}"
     rounded: "{rounded.plate}"
-    padding: "14px 16px"
+    padding: "0"
   station-plate-driver:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.interior-background}"
+    textColor: "{colors.hud-foreground}"
     rounded: "{rounded.plate}"
-    padding: "14px 16px"
+    padding: "0"
   scene-figure:
-    backgroundColor: "{colors.paper-deep}"
+    backgroundColor: "{colors.interior-background}"
     rounded: "{rounded.plate}"
   scene-label:
-    backgroundColor: "{colors.paper}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.hud-background}"
+    textColor: "{colors.hud-foreground}"
     rounded: "{rounded.plate}"
     padding: "0.3rem 0.6rem"
   mg-hud:
-    backgroundColor: "{colors.paper}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.hud-background}"
+    textColor: "{colors.hud-foreground}"
     rounded: "{rounded.plate}"
     padding: "8px 12px"
   mg-hud-overheated:
-    textColor: "{colors.ink-red}"
+    textColor: "{colors.hud-danger}"
   enemy-warning:
-    backgroundColor: "{colors.paper}"
-    textColor: "{colors.ink-red}"
+    backgroundColor: "{colors.hud-background}"
+    textColor: "{colors.hud-danger}"
     rounded: "{rounded.plate}"
   work-progress:
-    backgroundColor: "{colors.paper-field}"
+    backgroundColor: "{colors.interior-background}"
     rounded: "{rounded.plate}"
     height: "10px"
   jam-track:
-    backgroundColor: "{colors.paper}"
+    backgroundColor: "{colors.hud-background}"
     rounded: "{rounded.plate}"
     height: "38px"
   jam-needle:
-    backgroundColor: "{colors.ink-red}"
+    backgroundColor: "{colors.hud-danger}"
     width: "4px"
   battle-pause:
-    backgroundColor: "{colors.paper-field}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.interior-background}"
+    textColor: "{colors.hud-foreground}"
     rounded: "{rounded.plate}"
     padding: "1rem"
   battle-result-failed:
-    textColor: "{colors.ink-red}"
+    textColor: "{colors.hud-danger}"
   battle-result-won:
-    textColor: "{colors.ink}"
+    textColor: "{colors.hud-foreground}"
   station-sound-on:
-    backgroundColor: "{colors.ink}"
-    textColor: "{colors.paper}"
+    backgroundColor: "{colors.hud-foreground}"
+    textColor: "{colors.hud-background}"
     rounded: "{rounded.plate}"
   driver-speed:
-    textColor: "{colors.ink}"
+    textColor: "{colors.hud-foreground}"
     typography: "{typography.driver-speed}"
 ---
 
@@ -231,23 +236,23 @@ components:
 
 **Creative North Star: "三人共乘一台重型戰車"**
 
-三位乘員共用一台重型戰車，以各自受限的視野與清楚的工作狀態協作。整個 HTML 介面是同一張戰時技術手冊的雙色凸版圖版：手冊紙為底、單一墨色負責線圖、規線、文字與實心主按鈕，第二色朱紅保留給極少數必須立刻注意的東西。`html[data-surface]` 仍分 manual（主選單與大廳）與 battle（三個戰鬥工作站），但兩者共用 `:root[data-surface]` 上的同一組紙／墨 token；切換只改版面與朱紅的語意，不換世界。
+三位乘員共用一台重型戰車，以受限視野與清楚的工作狀態協作。入口與大廳保留雙色戰時手冊；#30／#33 將戰鬥改為鋪滿頁面的真實 3D 場景與半透明角落 HUD。兩者保留方角、明體名稱／數字、清楚中文與危險狀態的強調色。
 
 **入口與大廳。** 認領職位就是在 Sherman 俯視圖版上認領一個有編號的乘員座位。車體線圖上的三個座位記號即時反映權威房間狀態（空位留白、他人墨色、自己朱紅），以 1px 引線連到編號圖例；右側面板有朱紅大字房間代碼、編號乘員表與準備／開始／離開。
 
-**戰鬥工作站。** 每個工作站是一張圖版：2px 墨框、透明紙底、明體 900 標題。即時 3D 外景或車內是這張圖版的「圖」，以 2px 墨線框起；場景上的覆蓋層是紙底墨線的標籤。朱紅只標示現在需要行動的危險。#30／#31 將駕駛圖版改為有厚度的受限裝甲前窗，下方保留緊湊速度與車況讀數。3D 世界本身仍是 1944 年卡昂周邊的石造農村、土路及自然日光，車輛、田行與葉叢保留使用者接受的簡化程序外觀；圖版語言只屬於 HTML 介面，不把 3D 場景畫成紙。
+**戰鬥工作站。** 車外或車內視野覆蓋整個頁面，移除 HTML 紙框、場景外長條與額外留白。HUD 是清晰 DOM 文字與深色半透明底襯，不使用模糊。駕駛仍透過真正有厚度的裝甲前窗觀察，實際開口水平 60°、垂直 16°；周圍裝甲是 3D 世界的一部分。坦克與諾曼第村落保留使用者接受的簡化外觀。
 
 **Key Characteristics:**
 
-- 兩個表面共用紙／墨／朱紅三種墨水角色、方角與 1–2px 墨線；沒有陰影、沒有圓角卡片。
+- 大廳使用紙／墨／朱紅，戰鬥使用深色半透明底、亮字與危險暖色；共用方角、明體與清晰規線。
 - 大廳：車體俯視圖的座位記號、圖例與乘員表永遠是三個座位，鏡射權威房間狀態。
-- 戰鬥：工作站是圖版、3D 場景是圖、覆蓋層是紙標籤；朱紅只在危險當下出現。
+- 戰鬥：3D 場景鋪滿頁面，工作資訊及操作在角落，中央準星或車內工作面保持可見。
 - 接受的簡化程序外觀，保留 Sherman／四號 H／虎式 I 辨識。
 - 自然日光外景與封閉工作燈車內，分開處理照明。
 - 場景優先、工作資訊緊湊；駕駛只從固定車頭的狹長前窗觀察，側後方由隊友協助。
 - 明確中文、數字、焦點與可見危險提示，支援桌機實體鍵盤。
 
-紙／墨 token 以 [tank.css](web/tank.css) 的 `:root[data-surface]` 區塊為準；大廳規則在 `[data-surface="manual"]`，戰鬥規則從「Battle surface: each workstation is a plate」註解開始，後接「Red ink is for danger now」與「Driver's armour」兩段。戰鬥的格線、場景高度與覆蓋層位置仍由同檔較前段的工作站版面規則決定。方向依 [surface brief](.impeccable/surfaces/web-tank-main-ts.md)；3D 世界依 [PRODUCT.md](PRODUCT.md)、[外景 brief](.impeccable/briefs/tank-exterior.md)、[外景](web/tank-scene.ts)、[車模](web/tank-vehicle-model.ts)、[地景](web/tank-environment.ts) 與 [車內](web/tank-interior-scene.ts)。使用者於 2026-11-07 接受「接受目前簡化外觀，修正浮空零件後完成整合」；此文件記錄已修正附著的當前實作，沒有宣稱先前寫實標準通過。
+大廳 token 與版面依 tank.css 的 manual 區塊，戰鬥依同檔「The manual lobby gives way to a full viewport」區塊。方向依 surface brief；資產及接受的簡化外觀依 PRODUCT.md、既有外景及車內文件。
 
 ## Colors
 
@@ -269,9 +274,9 @@ components:
 - **車內機械色**：interior-background 襯托 paint／dark-paint、裸鋼、深色機械、黃銅與橡膠；不把暗部照成第二個室外場景。
 - **外景材質基色**：Sherman 灰綠、Panzer／Tiger 沙土色，以及 earth／grass／field-soil／masonry 共同建立可辨識的簡化農村場景。3D 基色是材質輸入，不是最後畫面像素或歷史軍漆規格。
 
-**The Second Ink Rule.** 朱紅在大廳只標示屬於你的東西與要念給隊友的房間代碼，在戰鬥只標示現在需要行動的危險；兩處共用朱紅焦點框。其他狀態一律用墨、淡墨與留白。
+**The Second Ink Rule.** 大廳朱紅只標示你的座位、選擇及房間代碼。戰鬥危險暖色只標示現在需要行動的狀態，並配合中文與數字；一般工作保持亮字。
 
-**The Danger Is Now Rule.** 戰鬥朱紅跟著狀態亮起、跟著狀態熄滅：受傷文字只在 `.under-fire`（受擊一秒內）為朱紅，之後回淡墨；機槍熱量平常是墨色，只有 `data-overheated` 轉朱紅；結算只有 `data-outcome="failed"` 為朱紅，勝利用墨。
+**The Danger Is Now Rule.** 受傷文字只在 `.under-fire` 受擊一秒內使用 hud-danger，之後回 hud-muted；機槍只有 `data-overheated` 使用危險色；失敗使用危險色，勝利用一般前景色。
 
 **The Role Truth Rule.** 視覺只呈現職位獲准知道的資訊；駕駛實際開口限制為水平 60°、垂直 16°，不自由轉頭。
 
@@ -290,12 +295,12 @@ components:
 - **Plate room code**：朱紅大字房間代碼；600px 以下 36px。
 - **Plate numeral**：座位記號與圖例圓圈內的 1／2／3；乘員表座位欄 18px。
 - **Station title**：砲手與裝填手工作站標題，明體 900、0.06em；駕駛為 20px（station-title-driver）。戰鬥結算 h2 同為明體 900、0.06em。
-- **Station readout**：工作站內所有 strong 讀數（朝向、轉速、彈種、裝填進度、發射數、機槍熱度、暈眩倒數等）為明體 700、表格數字，字級沿用所在行；共用血量為 900、1.15em。
+- **Station readout**：工作站內所有 strong 讀數（朝向、轉速、彈種、裝填進度、發射數、機槍熱度、暈眩倒數等）為明體 700、表格數字，字級沿用所在行；共用血量為 900、20px。
 - **Driver speed**：駕駛速度數字 32px／900、行高 1；其旁動態與車體狀態行為 14px 系統黑體（driver-status）。
 - **Plate body／label／caption**：大廳說明 15px、標籤與狀態 14px、圖說與欄位標頭 13px，皆系統黑體；表單 label 600。
-- **Work line**：砲手工作站直屬行與武器狀態列 14px、行高 1.5；機槍 HUD 14px、行高 1.45。退殼警示在裝填工作區為 18px／700 黑體。
+- **Work line**：砲手工作站直屬行與武器狀態列 14px、行高 1.5；機槍 HUD 14px、行高 1.5。退殼警示為 14px／700 黑體。
 - **Work readout**：砲手朝向讀數行 16px。
-- **Compact control**：13px，只用於裝填工作站的音效及離開按鈕。
+- **Compact control**：戰鬥操作列 14px，最小高度 40px。
 
 **The Serif Is For Names And Numbers Rule.** 明體只用在標題、職位名稱、座位與讀數數字、房間代碼、駕駛狀態行與結算；說明、警示句與按鍵提示一律系統黑體。
 
@@ -307,23 +312,23 @@ components:
 
 1000px 以下圖版改單欄，面板改上緣 2px 墨線。600px 以下主容器 20px 16px 32px、頁首單欄、圖區單欄、車體圖縮為 220px 置中並隱藏引線，圖例取消固定高度，乘員表欄寬縮為 32px 與 8px 欄距。390px 寬度仍明示需要三位玩家、三台電腦與實體鍵盤；這是窄桌機視窗，不是觸控設計。
 
-**砲手工作站。** 容器最大 1600px、內距 12px 18px 24px；工作站雙欄 minmax(0, 1fr)／auto、間距 8px 20px、內距 14px 16px。戰鬥收起頁首與入房介紹。場景跨欄，高度 clamp(300px, calc(100dvh - 300px), 720px)；方向、HP、武器狀態列（上下 1px 墨線）與敵情行緊鄰場景。敵方瞄準預告與敵情行由 tank-main.ts 移到場景之前的工作站列，不蓋在場景上；煙幕狀態留在場景右下。700px 以下改單欄與 320px 場景。1280×720 的主要工作資訊以同屏為目標；實際可見範圍仍隨敵情、暫停與結算文字改變，一般離開控制可能在初始畫面下方，勿記錄成所有控制都在首屏。
+**共用戰鬥頁面。** `.battle-station` 高 100dvh、無外距內距或邊框，實際 canvas 從 (0,0) 延伸至頁面右下。左上 300px HUD 顯示職位、HP、波次、速度、車況、車頭及主炮方向；右上 `.battle-utility` 讓操作列換行後自然推移下方敵情，中央警示保留獨立欄位。右下 340px 工作區顯示彈藥、裝填、轉速或機槍熱度／冷卻與當前按鍵。HUD 外緣統一留 16px 安全距離，不需要頁面捲動。
 
-**裝填工作區。** 全寬主容器，內距 12px 18px，工作站內距 12px。主畫面是封閉炮尾、滑塊、後座導桿、手輪、砲彈架及曲面內壁；下緣工作條顯示所選／膛內彈、階段、進度與發射數。場景高度 max(300px, calc(100dvh - 310px))；卡彈軌出現時為上方工作區騰出高度。受傷文字固定在工作站右上。600px 以下改為 340px 場景、流動狀態列與 8px 主容器內距。機槍獨立外景高 max(300px, calc(100dvh - 340px))，熱量 HUD 放進場景左下。
+**警示與工作面。** 危險和暫停放在上方中央、兩側 HUD 之間，保留正常主炮／機槍準星。車內卡彈與維修工作面置中；校準沿用維修區。所有職位與工作模式共用左下 192×192px `.battle-navigation` 小地圖掛載位置，無內容時不畫空框。
 
-**駕駛工作站。** #30／#31 取代盲開圖版：主容器最大 1600px，內距 12px 18px 24px；工作站內距 14px 16px，標題與共用 HP 並列，實際裝甲觀察窗跨欄。場景高 clamp(300px, calc(100dvh - 280px), 720px)，下方保留緊湊速度／動態／受阻儀表與按鍵說明。駕駛不再重複座位圖，側後方仍依賴隊友觀察。600px 以下單欄。全螢幕 HUD 整合由 #30 的後續切片接續。
+**暫停、結算與返回。** 缺員提示保留等待對象、現實倒數與凍結語意，離房始終在右上。結算與回房在中央，HP 留在左上。回房恢復手冊版面。主選單、工作站、新大廳、結算與暫停只在轉場時回到頁首。
 
-暫停不遮掉凍結語意；各工作站為完整等待文字騰出場景高度。結算保留明確結果與 HP，返回控制固定右下 24px，裝填工作區另有場景中結果層。進入主選單、工作站、新的大廳、結算或暫停狀態時，各在轉換當下將頁面捲至頂端；一般狀態更新不重複拉回頂端。這是現有響應行為，不是手機觸控設計。
+桌機驗收為 1280×720 與 1440×1050；1000px 以下縮小 HUD 並調整警示，600px 以下保留主要工作與離房。390px 入口仍提示三台電腦與實體鍵盤，不宣稱觸控玩法。
 
 ## Elevation & Depth
 
-整個 HTML 介面平面：沒有陰影、沒有浮起卡片、沒有模糊或玻璃。層次只靠三層紙色與墨線粗細：2px 結構框（大廳圖版、工作站、場景外框、卡彈區）、1.5px 輸入框、覆蓋標籤、進度條與卡彈軌、1px 列規線與引線、1.2px 虛線（艙間分隔與副駕艙口）。強調靠更粗或雙線：受擊 3px 朱紅外框（offset 4px）、暈眩 4px 朱紅車內框、暫停 4px 雙墨線。
+HTML 保持平面。大廳以紙色與墨線分層；戰鬥以 #171e1c／91% 底襯、#f5f1e4 主文字、#d2cbb4 次文字、#858b79 的 1px 規線及 #ffba9f 危險色分層。不加入模糊、陰影或玻璃裝飾。受擊為頁面內側 3px 框、暈眩為車內 4px 框、暫停為 4px 雙線。
 
 ### Shadow Vocabulary
 
 - **準星墨環**（`box-shadow: 0 0 0 1px #1c1c18`）：零位移、零模糊的 1px 墨色外環，只用在砲手十字準星的兩條 paper-field 細線，讓它在明亮與陰暗場景上都可讀。這是描邊，不是投影。
 
-**The Ruled, Not Raised Rule.** 以規線和紙色分層，不用陰影、模糊或浮起；需要更強調時加粗墨線或改雙線。
+**The Ruled, Not Raised Rule.** 大廳以紙色分層，戰鬥以半透明深底與亮字分層；不用陰影或模糊，強調使用規線與明確文字。
 
 3D 深度由程序幾何、材質與光照形成；保留簡化表面，不把所有漆面改成鏡面金屬。外景實際 render budget 是內部繪圖最多 1024×576、DPR 最多 1.5，日光陰影 512×512；ACES 曝光 0.98、半球光強度 1.25、日光 2.3。本機 1K Pure Sky 僅作光照／背景，環境強度 0.35、背景強度 0.8，不宣稱是諾曼第照片。陰影只隨車體／炮塔姿態及敵車集合變更刷新，靜止場景有 250ms 低頻補畫；煙雲、彈道與命中特效仍更新。這些是程式中的資源安排，不是 FPS 保證。
 
@@ -335,15 +340,15 @@ components:
 
 所有按鈕、輸入、面板、工作站、場景框、覆蓋標籤、進度條與卡彈軌都是方角。圓形只出現在手冊圖版的編號記號（車體圖座位圓半徑 15、圖例 34px 編號圓圈）與機槍 18px 圓形準星。車體圖為線稿：左右履帶帶 14 組履帶節線、圓角車首、砲塔圓、主炮管、兩個前艙口（駕駛實線、副駕虛線）及艙間分隔虛線；圖說明示「示意，未依比例」。可認領職位以 2px 底線表示可按，已被他人擔任時底線消失。
 
-砲手準星由兩條 28px paper-field 細線交叉、外加 1px 墨環。卡彈軌高 38px；目標區以 -45° 墨色斜線（1.5px 墨／5.5px 紙間隙的 repeating-linear-gradient）與 2px 墨框表示，「目標」字樣的第一行襯 paper-field 保持可讀；指針寬 4px、朱紅、1px 紙色邊。斜線填色是手冊圖的剖面線，不是裝飾紋理。
+砲手準星由兩條 28px 亮色細線交叉，外加 1px 深色墨環。機槍為 18px 圓形準星。卡彈軌高 38px，目標區亮底深字、2px 線，指針寬 4px、危險暖色、1px 深色描邊。
 
 車體用原創斜面、圓鑄炮塔、分離輪組與履帶辨識。Sherman 保留六路輪／三組 VVSS、短 75mm 炮；四號 H 用八路輪、分段側裙及 L/48 長炮；虎式 I 用寬車身、交錯大輪與不同炮塔／88mm 炮。扣件以各車實際偏移的 cupola cap 為中心，Sherman 燈具坐在斜裝甲與短支架上。這些辨識與支撐關係比額外表面裝飾優先。
 
 ## Components
 
-### 按鈕與輸入（兩個表面）
+### 大廳按鈕與輸入
 
-印刷按鈕：主要為實心墨底紙色字、2px 墨框、700 字重；次要（加入房間、離開房間、音效開關）透明底墨字，hover 換成 paper-field。停用時改為透明底、ink-disabled 字與 rule 框，不降透明度，讓「開始戰鬥」在等待時仍可讀。焦點是 3px 朱紅 outline、offset 3px。音效開關開啟時為墨底紙字。裝填工作站的音效與離開鈕為 13px 緊湊尺寸；不另創按鈕家族。輸入為 paper-field 底、1.5px 墨框、方角、朱紅游標；房間代碼輸入大寫並用明體 700、0.16em 字距。
+印刷按鈕：主要為實心墨底紙色字、2px 墨框、700 字重；次要（加入房間、離開房間、音效開關）透明底墨字，hover 換成 paper-field。停用時改為透明底、ink-disabled 字與 rule 框，不降透明度，讓「開始戰鬥」在等待時仍可讀。焦點是 3px 朱紅 outline、offset 3px。音效開關開啟時為墨底紙字。戰鬥按鈕依下方 HUD 規則。輸入為 paper-field 底、1.5px 墨框、方角、朱紅游標；房間代碼輸入大寫並用明體 700、0.16em 字距。
 
 ### 車體座位圖與圖例
 
@@ -357,21 +362,11 @@ Sherman 俯視線圖上的三個座位記號：空位為紙色填、墨框墨字
 
 建立／加入、乘員列、職位、準備與房主開始仍採清楚表單。準備先顯示「正在準備工作畫面，完成後才會標示已準備；可取消或改選職位。」等待真實貼圖、shader compile 與首個 GPU draw；裝填手同時準備車內與機槍並重用準備好的 renderer。取消、改職、離房、返回大廳使過期準備失效並釋放所屬資源。一般隊友 ready 更新保留暖機資源；駕駛同樣準備裝甲前窗的實際外景並在開戰重用。恢復舊戰鬥遭拒時，若畫面已是入房表單，保留使用者正在輸入的名稱／代碼與既有表單節點，只更新真實拒絕訊息並隱藏失效重試；從大廳或戰鬥終房仍完整回主選單。較新的加入／恢復擁有自己的連線，舊恢復失敗不能清理它。依據 [tank-main.ts](web/tank-main.ts) 與 [tank-art-preparation.ts](web/tank-art-preparation.ts)。
 
-### 工作站圖版
+### 戰鬥 HUD
 
-透明紙底、2px 墨框、方角；標題為 station title。場景（砲手外景、裝填車內、機槍外景）以 2px 墨色 outline 框成圖版的「圖」，canvas 繪出前露出 paper-deep。砲手武器狀態列上下 1px 墨線，裝填手為 1px rule。進度條（裝填進度、機槍熱度）是 1.5px 墨框、paper-field 槽、墨色填充的方角條。共用波次列提供目前波數及存活敵車數。
+工作站為無框全頁場景。角落面板方角、1px hud-rule、12px 14px 內距；名稱為明體 900／20px，讀數為明體 700，內文 14px／1.5，按鍵提示 13px。HP 為明體 900／20px，駕駛速度為 32px。HUD 按鈕深底亮字、1px 線、8px 14px 內距，最小高 40px，焦點為 3px 危險暖色。
 
-### 場景覆蓋層與警示
-
-煙幕狀態與機槍 HUD 是紙底墨字、1.5px 墨框的方角標籤，不用不透明整片面板遮住場景。機槍 HUD 平常墨色，`data-overheated` 時框、字與熱量條改朱紅；機槍用自己的 yaw／pitch 視角，不跟主炮轉。敵方瞄準預告為紙底、朱紅 700 字、2px 朱紅框，放在場景前的工作站列。受擊一秒內工作站加 3px 朱紅外框（offset 4px），受傷文字朱紅；窗口過後文字回淡墨、外框消失。裝填手暈眩時車內框加粗為 4px 朱紅，倒數為朱紅表格數字；退殼警示朱紅。所有警示同時用中文與數字交代狀態。
-
-### 卡彈、暫停與結算
-
-卡彈區為 paper-field 底、2px 墨框，明體 700 朱紅標題「卡彈：停在目標區」，軌道見 Shapes。暫停為 paper-field 底、墨字、4px 雙墨線框，明示等誰重連、剩餘秒數及所有操作與戰況已凍結，保留離開／結算返回動作。結算為明體 900 標題，失敗朱紅、勝利墨色；裝填工作區的場景內結果層加紙底與 2px 墨框。
-
-### 駕駛圖版
-
-固定車內左前眼位，透過水平 60°、垂直 16°的狹長開口看前方。裝甲是相機前的實體不透明 3D 板，內壁向外收窄並有 0.28m 的遊戲化厚度；較寬的呈現相機只用來同時看見裝甲周邊。隨車身移動與轉向，不隨主炮或滑鼠轉頭。速度保留 32px 明體數字，動態／受阻文字與共用血量清楚可讀。
+進度及熱量條高 10px、深槽亮填色；過熱同時顯示文字、倒數和危險色。卡彈軌高 38px、目標區亮底深字、指針為暖色。退殼、暈眩、受擊與暫停位於上方中央；結算有明確結果與回房按鈕。駕駛裝甲為真實相機幾何，不能當成頁面外框移除。
 
 ### Motion, visibility and ownership
 
@@ -383,7 +378,7 @@ Sherman 俯視線圖上的三個座位記號：空位為紙色填、墨框墨字
 
 ### 驗證狀態
 
-卡彈、暫停、結算、暈眩、退殼與機槍過熱在新樣式下只從 CSS 確認，尚未有截圖；不得把這些狀態記為已通過視覺檢查。已知未解：敵方瞄準預告出現時，因為它被移到場景之前，砲手場景會整體下移（既有行為，未修）。
+#33 桌機、模式、警示與轉場證據依 `/tmp/car-game-spec30/reports/33.md` 的實際來源。先前 #31 的 720px 標題裁切與 #39 的 HP／傷害文字重疊是被替換的舊版問題，不繼承為新版通過證據。完整回歸、全螢幕與小地圖依後續整合驗證。
 
 ### Art provenance
 
@@ -393,11 +388,11 @@ Sherman 俯視線圖上的三個座位記號：空位為紙色填、墨框墨字
 
 ### Do:
 
-- Do 讓新介面元素待在 `data-surface` 範圍內，只用 paper／paper-deep／paper-field、ink／ink-soft／rule 與 ink-red 這些墨水角色。
+- Do 讓新介面元素待在 `data-surface` 範圍內，大廳用紙／墨 token，戰鬥用 hud token。
 - Do 讓座位記號、圖例與乘員表從同一份權威房間狀態產生，並永遠呈現三個座位。
-- Do 以 2px 墨線框結構、1.5px 墨線框標籤與欄位、1px 規線分隔列；名稱、標題與讀數數字用 Noto Serif TC，說明用系統黑體。
-- Do 讓戰鬥朱紅跟著危險狀態出現與消失（受擊窗口、過熱、失敗），過去的狀態回到墨或淡墨。
-- Do 把 3D 場景框成圖版的圖，覆蓋資訊做成紙底墨線標籤，不用整片面板蓋住場景。
+- Do 在大廳以墨線框結構與欄位，在戰鬥以 1px HUD 規線分隔；名稱與數字用 Noto Serif TC，說明用系統黑體。
+- Do 讓戰鬥危險色跟著即時狀態出現與消失，過去狀態回到一般或次要文字。
+- Do 讓戰鬥場景鋪滿頁面，把工作資訊與控制留在角落；中央只放當前車內工作或結算。
 - Do 在明體位置新增中文字串時，依字型 README 重新產生 Noto Serif TC 子集並更新雜湊。
 - Do 保留六個 Sherman 路輪、三組 VVSS 及三種車型的不同輪組、炮塔與炮長。
 - Do 讓實際貼圖、shader 編譯與首個 GPU draw 完成後才送出準備票，保留可見準備中與取消狀態。
@@ -407,7 +402,7 @@ Sherman 俯視線圖上的三個座位記號：空位為紙色填、墨框墨字
 
 ### Don't:
 
-- Don't 在大廳用朱紅表示「你」以外的一般狀態，或在戰鬥用朱紅表示一般狀態、已過去的傷害或勝利。
+- Don't 在大廳用朱紅表示一般狀態，或在戰鬥用危險色表示過去的傷害與勝利。
 - Don't 加入陰影、模糊、玻璃、圓角卡片、英雄插圖或角色卡；強調用更粗或雙墨線。
 - Don't 加入軍徽、部隊標誌或旗幟。
 - Don't 重新引入外部字型服務或系統內建的替代展示字體來取代自託管明體。

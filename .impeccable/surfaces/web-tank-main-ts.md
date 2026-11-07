@@ -7,9 +7,9 @@ related_targets: ["web/tank.css"]
 
 # Lobby and role select (manual plate)
 
-Scope: entry menu (create/join) and room lobby rendered by web/tank-main.ts menu() and lobby(), and, since the second round, the three battle workstations rendered by station() (gunner, loader interior and MG, blind driver). Mode: Operate. Both surfaces share the manual world through html[data-surface]; battle keeps its incumbent layout because tests pin headings and HP in view at 720px height.
+Scope: entry and lobby retain the manual plate. Battle is an Operate surface inside the full viewport scene, as approved in #30/#33. It uses crisp DOM text on #171e1c at 91% opacity, foreground #f5f1e4, muted #d2cbb4, rule #858b79 and danger #ffba9f. No blur, shadows, paper frame or scene-external status strip.
 
-Battle extension rule: on the battle surface red ink marks only danger that needs action now (enemy aiming, a hit inside its one-second window, ejection, stun, jam, MG overheat, a failed battle). Past damage, a won battle and normal MG heat stay in ink. The live 3D scene is the plate's figure, framed by an ink rule; overlays are paper labels with ink rules. The driver plate carries the hull seat key with seat 1 in red and no battlefield information.
+Battle layout: role/shared state and direction top-left; leave/sound and future display controls top-right; current work bottom-right; shared navigation slot bottom-left (192px). Danger and reconnect freeze messages use upper center, keeping the normal reticle clear. Repair/calibration and jam stay in the central interior workspace. Driver armour remains real h60/v16 geometry. Result and return are centered, with HP and leave still visible. Preserve accessible names/testids and authority/lifecycle behavior.
 
 Audience and task: three friends on their own voice call, each at a desktop with a physical keyboard, gather in a private room, each claims one unique crew position, prepares, and the host starts. User complaint that drove the redesign: the lobby read as a generic web form.
 
