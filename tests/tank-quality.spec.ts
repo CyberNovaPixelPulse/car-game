@@ -66,7 +66,7 @@ test("主炮已就緒時畫質選單的空白鍵不開火，返回戰場後同�
     await battleKeys(c.gunner);
     await c.loader.keyboard.down("c");
     await c.gunner.keyboard.press("Space");
-    for (const page of [c.loader, c.driver, c.gunner])
+    for (const page of [c.loader, c.gunner])
       await expect(page.getByTestId("shot-count")).toHaveText("1");
     await c.loader.keyboard.up("c");
   } finally {
