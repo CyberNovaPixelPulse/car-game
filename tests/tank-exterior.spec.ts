@@ -19,16 +19,28 @@ test("砲手在筆電視窗能同時看戰場準星、方向、血量及主炮�
     ])
       await expect(c.gunner.getByTestId(id)).toBeInViewport({ ratio: 1 });
     await c.gunner.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual25/gunner-laptop.png",
+      path: "/tmp/car-game-spec30/evidence/31/regression/visual25/gunner-laptop.png",
     });
     await c.gunner.setViewportSize({ width: 1440, height: 1050 });
     await c.gunner.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual25/gunner-desktop.png",
+      path: "/tmp/car-game-spec30/evidence/31/regression/visual25/gunner-desktop.png",
     });
     await c.driver.setViewportSize({ width: 1280, height: 720 });
-    await expect(c.driver.locator("canvas")).toHaveCount(0);
+    await expect(
+      c.driver.getByRole("img", { name: "駕駛裝甲觀察窗" }),
+    ).toBeInViewport({ ratio: 1 });
     await c.driver.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual25/driver-private.png",
+      path: "/tmp/car-game-spec30/evidence/31/driver-1280x720.png",
+    });
+    await c.driver.setViewportSize({ width: 1440, height: 1050 });
+    await c.driver.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    await c.driver.screenshot({
+      path: "/tmp/car-game-spec30/evidence/31/driver-1440x1050.png",
     });
   } finally {
     await c.close();
@@ -47,7 +59,7 @@ test("機槍外部視角在筆電仍保留方向準星與工作狀態", async ({
       ratio: 1,
     });
     await c.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual25/machine-gun-laptop.png",
+      path: "/tmp/car-game-spec30/evidence/31/regression/visual25/machine-gun-laptop.png",
     });
   } finally {
     await c.close();
@@ -71,7 +83,7 @@ test("缺員等待時砲手與裝填手的提示與離房按鈕均在筆電視�
         p.getByRole("button", { name: "離開房間", exact: true }),
       ).toBeInViewport({ ratio: 1 });
       await p.screenshot({
-        path: `/tmp/car-game-to-spec/visual27-final/regression/visual25/final/${role}-waiting-1280.png`,
+        path: `/tmp/car-game-spec30/evidence/31/regression/visual25/final/${role}-waiting-1280.png`,
       });
     }
   } finally {

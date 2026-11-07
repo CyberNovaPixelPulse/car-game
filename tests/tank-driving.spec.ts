@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { tankCrew } from "./tank-helpers";
 
-test("非房主駕駛操控同車，砲手可看戰場但駕駛與裝填手看不到外部", async ({
+test("非房主駕駛從受限裝甲觀察窗操控同車，裝填手仍留在車內", async ({
   browser,
 }) => {
   const crew = await tankCrew(browser);
@@ -10,7 +10,10 @@ test("非房主駕駛操控同車，砲手可看戰場但駕駛與裝填手看�
     await expect(
       crew.gunner.getByRole("img", { name: "主炮戰場視野" }),
     ).toBeVisible();
-    await expect(crew.driver.locator("canvas")).toHaveCount(0);
+    await expect(
+      crew.driver.getByRole("img", { name: "駕駛裝甲觀察窗" }),
+    ).toBeVisible();
+    await expect(crew.driver.getByText(/觀察窗固定朝車頭/)).toBeVisible();
     await expect(
       crew.loader.getByRole("img", { name: /戰場視野/ }),
     ).toHaveCount(0);
@@ -21,6 +24,9 @@ test("非房主駕駛操控同車，砲手可看戰場但駕駛與裝填手看�
     await crew.gunner.waitForTimeout(500);
     await crew.gunner.keyboard.up("w");
     await expect(crew.driver.getByTestId("tank-speed")).toHaveText("0.0");
+    const before = await crew.driver
+      .getByRole("img", { name: "駕駛裝甲觀察窗" })
+      .screenshot();
     await crew.driver.keyboard.down("w");
     await expect
       .poll(async () =>
@@ -34,6 +40,10 @@ test("非房主駕駛操控同車，砲手可看戰場但駕駛與裝填手看�
       .toBeGreaterThan(1);
     await crew.driver.keyboard.up("w");
     await expect(crew.driver.getByTestId("tank-motion")).toHaveText("靜止");
+    const after = await crew.driver
+      .getByRole("img", { name: "駕駛裝甲觀察窗" })
+      .screenshot();
+    expect(before.equals(after)).toBe(false);
   } finally {
     await crew.close();
   }
@@ -42,6 +52,9 @@ test("非房主駕駛操控同車，砲手可看戰場但駕駛與裝填手看�
 test("駕駛可原地轉向再倒車，三人車況保持一致", async ({ browser }) => {
   const crew = await tankCrew(browser);
   try {
+    const before = await crew.driver
+      .getByRole("img", { name: "駕駛裝甲觀察窗" })
+      .screenshot();
     await crew.driver.keyboard.down("d");
     await expect
       .poll(async () =>
@@ -54,12 +67,15 @@ test("駕駛可原地轉向再倒車，三人車況保持一致", async ({ brows
       .toBeGreaterThan(15);
     await expect(crew.driver.getByTestId("tank-speed")).toHaveText("0.0");
     await crew.driver.keyboard.up("d");
+    const after = await crew.driver
+      .getByRole("img", { name: "駕駛裝甲觀察窗" })
+      .screenshot();
+    expect(before.equals(after)).toBe(false);
     await crew.driver.keyboard.down("s");
     await expect(crew.driver.getByTestId("tank-motion")).toHaveText("倒車");
     await expect(crew.gunner.getByTestId("tank-motion")).toHaveText("倒車");
     await crew.driver.keyboard.up("s");
     await expect(crew.driver.getByTestId("tank-motion")).toHaveText("靜止");
-    await expect(crew.driver.getByTestId("hull-heading")).toHaveCount(0);
   } finally {
     await crew.close();
   }
@@ -70,6 +86,10 @@ test("前進遇固定石牆會受阻，倒車能脫離，砲手視野真實呈�
 }) => {
   const crew = await tankCrew(browser);
   try {
+    await crew.loader.keyboard.press("Tab");
+    const loaderBefore = await crew.loader
+      .getByRole("img", { name: "機槍戰場視野" })
+      .screenshot();
     const before = await crew.gunner
       .getByRole("img", { name: "主炮戰場視野" })
       .screenshot();
@@ -85,6 +105,18 @@ test("前進遇固定石牆會受阻，倒車能脫離，砲手視野真實呈�
       .getByRole("img", { name: "主炮戰場視野" })
       .screenshot();
     expect(before.equals(after)).toBe(false);
+    const loaderAfter = await crew.loader
+      .getByRole("img", { name: "機槍戰場視野" })
+      .screenshot();
+    expect(loaderBefore.equals(loaderAfter)).toBe(false);
+    for (const [page, role] of [
+      [crew.driver, "driver"],
+      [crew.gunner, "gunner"],
+      [crew.loader, "loader-mg"],
+    ] as const)
+      await page.screenshot({
+        path: `/tmp/car-game-spec30/evidence/31/blocked-${role}.png`,
+      });
     await crew.driver.keyboard.up("w");
     await crew.driver.keyboard.down("s");
     await expect(crew.driver.getByTestId("tank-motion")).toHaveText("倒車");

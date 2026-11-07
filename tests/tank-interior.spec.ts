@@ -25,7 +25,7 @@ test("裝填手在真正車內3D工作區操作炮膛，裝填移動可見且無
     expect(before.equals(during)).toBe(false);
     await expect(crew.loader.getByTestId("load-progress")).toBeInViewport();
     await crew.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual26/loading.png",
+      path: "/tmp/car-game-spec30/evidence/31/regression/visual26/loading.png",
     });
     await crew.loader.keyboard.down("r");
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText(
@@ -34,7 +34,7 @@ test("裝填手在真正車內3D工作區操作炮膛，裝填移動可見且無
     await crew.loader.keyboard.up("r");
     await crew.loader.setViewportSize({ width: 1440, height: 1050 });
     await crew.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual26/loaded-desktop.png",
+      path: "/tmp/car-game-spec30/evidence/31/regression/visual26/loaded-desktop.png",
     });
     await crew.loader.setViewportSize({ width: 1280, height: 720 });
     await crew.loader.keyboard.press("Tab");
@@ -43,7 +43,7 @@ test("裝填手在真正車內3D工作區操作炮膛，裝填移動可見且無
     ).toBeVisible();
     await expect(interior).not.toBeVisible();
     await crew.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual26/mg.png",
+      path: "/tmp/car-game-spec30/evidence/31/regression/visual26/mg.png",
     });
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText(
       "主炮就緒",
@@ -56,7 +56,9 @@ test("裝填手在真正車內3D工作區操作炮膛，裝填移動可見且無
     await expect(
       crew.loader.getByRole("img", { name: /戰場視野/ }),
     ).toHaveCount(0);
-    await expect(crew.driver.locator("canvas")).toHaveCount(0);
+    await expect(
+      crew.driver.getByRole("img", { name: "駕駛裝甲觀察窗" }),
+    ).toBeVisible();
   } finally {
     await crew.close();
   }
@@ -70,7 +72,7 @@ test("關閉機械音效仍可見退殼預警，車內蹲下與暈眩不丟工�
     "loader",
     0,
     1000,
-    "/tmp/car-game-to-spec/visual27-final/regression/visual26/video",
+    "/tmp/car-game-spec30/evidence/31/regression/visual26/video",
   );
   const video = crew.loader.video();
   try {
@@ -98,7 +100,7 @@ test("關閉機械音效仍可見退殼預警，車內蹲下與暈眩不丟工�
       .screenshot();
     expect(standing.equals(ducked)).toBe(false);
     await crew.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual26/crouched.png",
+      path: "/tmp/car-game-spec30/evidence/31/regression/visual26/crouched.png",
     });
     await crew.gunner.keyboard.press("Space");
     await expect(crew.loader.getByTestId("ejection-warning")).toHaveText(
@@ -121,7 +123,7 @@ test("關閉機械音效仍可見退殼預警，車內蹲下與暈眩不丟工�
     );
     await expect(crew.loader.getByTestId("stun-remaining")).toBeInViewport();
     await crew.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual26/stunned.png",
+      path: "/tmp/car-game-spec30/evidence/31/regression/visual26/stunned.png",
     });
     await crew.loader.keyboard.down("r");
     await crew.loader.keyboard.press("Tab");
@@ -137,7 +139,7 @@ test("關閉機械音效仍可見退殼預警，車內蹲下與暈眩不丟工�
     if (video)
       await copyFile(
         await video.path(),
-        "/tmp/car-game-to-spec/visual27-final/regression/visual26/interior-session.webm",
+        "/tmp/car-game-spec30/evidence/31/regression/visual26/interior-session.webm",
       );
   }
 });
@@ -153,7 +155,7 @@ test("窄視窗的說明與入房表單保持可讀", async ({ page }) => {
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(390);
   await page.screenshot({
-    path: "/tmp/car-game-to-spec/visual27-final/regression/visual26/narrow-entry.png",
+    path: "/tmp/car-game-spec30/evidence/31/regression/visual26/narrow-entry.png",
     fullPage: true,
   });
 });

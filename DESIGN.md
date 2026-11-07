@@ -59,7 +59,7 @@ typography:
     letterSpacing: "0.06em"
   station-title-driver:
     fontFamily: '"Noto Serif TC", "Songti TC", serif'
-    fontSize: "28px"
+    fontSize: "20px"
     fontWeight: 900
     letterSpacing: "0.06em"
   station-readout:
@@ -68,14 +68,14 @@ typography:
     fontFeature: "tnum"
   driver-speed:
     fontFamily: '"Noto Serif TC", "Songti TC", serif'
-    fontSize: "96px"
+    fontSize: "32px"
     fontWeight: 900
-    lineHeight: 1.1
+    lineHeight: 1
     fontFeature: "tnum"
   driver-status:
-    fontFamily: '"Noto Serif TC", "Songti TC", serif'
-    fontSize: "22px"
-    fontWeight: 700
+    fontFamily: '"PingFang TC", "Noto Sans TC", sans-serif'
+    fontSize: "14px"
+    fontWeight: 400
   plate-body:
     fontFamily: '"PingFang TC", "Noto Sans TC", sans-serif'
     fontSize: "15px"
@@ -110,7 +110,7 @@ spacing:
   work-gap: "8px"
   station-edge: "12px"
   station-column: "20px"
-  driver-column: "32px"
+  driver-column: "20px"
 components:
   plate-button-primary:
     backgroundColor: "{colors.ink}"
@@ -176,7 +176,7 @@ components:
     backgroundColor: "transparent"
     textColor: "{colors.ink}"
     rounded: "{rounded.plate}"
-    padding: "28px 32px 32px"
+    padding: "14px 16px"
   scene-figure:
     backgroundColor: "{colors.paper-deep}"
     rounded: "{rounded.plate}"
@@ -235,7 +235,7 @@ components:
 
 **入口與大廳。** 認領職位就是在 Sherman 俯視圖版上認領一個有編號的乘員座位。車體線圖上的三個座位記號即時反映權威房間狀態（空位留白、他人墨色、自己朱紅），以 1px 引線連到編號圖例；右側面板有朱紅大字房間代碼、編號乘員表與準備／開始／離開。
 
-**戰鬥工作站。** 每個工作站是一張圖版：2px 墨框、透明紙底、明體 900 標題。即時 3D 外景或車內是這張圖版的「圖」，以 2px 墨線框起；場景上的覆蓋層是紙底墨線的標籤。朱紅只標示現在需要行動的危險。駕駛沒有外景，他的圖版就是巨大的明體速度讀數、規線狀態列與車體座位圖例（座位 1 朱紅）。3D 世界本身仍是 1944 年卡昂周邊的石造農村、土路及自然日光，車輛、田行與葉叢保留使用者接受的簡化程序外觀；圖版語言只屬於 HTML 介面，不把 3D 場景畫成紙。
+**戰鬥工作站。** 每個工作站是一張圖版：2px 墨框、透明紙底、明體 900 標題。即時 3D 外景或車內是這張圖版的「圖」，以 2px 墨線框起；場景上的覆蓋層是紙底墨線的標籤。朱紅只標示現在需要行動的危險。#30／#31 將駕駛圖版改為有厚度的受限裝甲前窗，下方保留緊湊速度與車況讀數。3D 世界本身仍是 1944 年卡昂周邊的石造農村、土路及自然日光，車輛、田行與葉叢保留使用者接受的簡化程序外觀；圖版語言只屬於 HTML 介面，不把 3D 場景畫成紙。
 
 **Key Characteristics:**
 
@@ -244,10 +244,10 @@ components:
 - 戰鬥：工作站是圖版、3D 場景是圖、覆蓋層是紙標籤；朱紅只在危險當下出現。
 - 接受的簡化程序外觀，保留 Sherman／四號 H／虎式 I 辨識。
 - 自然日光外景與封閉工作燈車內，分開處理照明。
-- 場景優先、工作資訊緊湊，駕駛維持沒有外景的資訊限制。
+- 場景優先、工作資訊緊湊；駕駛只從固定車頭的狹長前窗觀察，側後方由隊友協助。
 - 明確中文、數字、焦點與可見危險提示，支援桌機實體鍵盤。
 
-紙／墨 token 以 [tank.css](web/tank.css) 的 `:root[data-surface]` 區塊為準；大廳規則在 `[data-surface="manual"]`，戰鬥規則從「Battle surface: each workstation is a plate」註解開始，後接「Red ink is for danger now」與「Driver: no scene」兩段。戰鬥的格線、場景高度與覆蓋層位置仍由同檔較前段的工作站版面規則決定。方向依 [surface brief](.impeccable/surfaces/web-tank-main-ts.md)；3D 世界依 [PRODUCT.md](PRODUCT.md)、[外景 brief](.impeccable/briefs/tank-exterior.md)、[外景](web/tank-scene.ts)、[車模](web/tank-vehicle-model.ts)、[地景](web/tank-environment.ts) 與 [車內](web/tank-interior-scene.ts)。使用者於 2026-11-07 接受「接受目前簡化外觀，修正浮空零件後完成整合」；此文件記錄已修正附著的當前實作，沒有宣稱先前寫實標準通過。
+紙／墨 token 以 [tank.css](web/tank.css) 的 `:root[data-surface]` 區塊為準；大廳規則在 `[data-surface="manual"]`，戰鬥規則從「Battle surface: each workstation is a plate」註解開始，後接「Red ink is for danger now」與「Driver's armour」兩段。戰鬥的格線、場景高度與覆蓋層位置仍由同檔較前段的工作站版面規則決定。方向依 [surface brief](.impeccable/surfaces/web-tank-main-ts.md)；3D 世界依 [PRODUCT.md](PRODUCT.md)、[外景 brief](.impeccable/briefs/tank-exterior.md)、[外景](web/tank-scene.ts)、[車模](web/tank-vehicle-model.ts)、[地景](web/tank-environment.ts) 與 [車內](web/tank-interior-scene.ts)。使用者於 2026-11-07 接受「接受目前簡化外觀，修正浮空零件後完成整合」；此文件記錄已修正附著的當前實作，沒有宣稱先前寫實標準通過。
 
 ## Colors
 
@@ -273,7 +273,7 @@ components:
 
 **The Danger Is Now Rule.** 戰鬥朱紅跟著狀態亮起、跟著狀態熄滅：受傷文字只在 `.under-fire`（受擊一秒內）為朱紅，之後回淡墨；機槍熱量平常是墨色，只有 `data-overheated` 轉朱紅；結算只有 `data-outcome="failed"` 為朱紅，勝利用墨。
 
-**The Role Truth Rule.** 視覺只呈現職位獲准知道的資訊；駕駛不建立外部 renderer。
+**The Role Truth Rule.** 視覺只呈現職位獲准知道的資訊；駕駛實際開口限制為水平 60°、垂直 16°，不自由轉頭。
 
 ## Typography
 
@@ -289,9 +289,9 @@ components:
 - **Plate role**：大廳可認領職位按鈕，下方 2px 墨線；主選單圖例職位名稱同明體 22px。
 - **Plate room code**：朱紅大字房間代碼；600px 以下 36px。
 - **Plate numeral**：座位記號與圖例圓圈內的 1／2／3；乘員表座位欄 18px。
-- **Station title**：砲手與裝填手工作站標題，明體 900、0.06em；駕駛為 28px 並帶 2px 墨線底線（station-title-driver）。戰鬥結算 h2 同為明體 900、0.06em。
+- **Station title**：砲手與裝填手工作站標題，明體 900、0.06em；駕駛為 20px（station-title-driver）。戰鬥結算 h2 同為明體 900、0.06em。
 - **Station readout**：工作站內所有 strong 讀數（朝向、轉速、彈種、裝填進度、發射數、機槍熱度、暈眩倒數等）為明體 700、表格數字，字級沿用所在行；共用血量為 900、1.15em。
-- **Driver speed**：駕駛速度數字 96px／900、行高 1.1，600px 以下 72px；其下動態與車體狀態行為明體 700 22px（driver-status）。
+- **Driver speed**：駕駛速度數字 32px／900、行高 1；其旁動態與車體狀態行為 14px 系統黑體（driver-status）。
 - **Plate body／label／caption**：大廳說明 15px、標籤與狀態 14px、圖說與欄位標頭 13px，皆系統黑體；表單 label 600。
 - **Work line**：砲手工作站直屬行與武器狀態列 14px、行高 1.5；機槍 HUD 14px、行高 1.45。退殼警示在裝填工作區為 18px／700 黑體。
 - **Work readout**：砲手朝向讀數行 16px。
@@ -311,7 +311,7 @@ components:
 
 **裝填工作區。** 全寬主容器，內距 12px 18px，工作站內距 12px。主畫面是封閉炮尾、滑塊、後座導桿、手輪、砲彈架及曲面內壁；下緣工作條顯示所選／膛內彈、階段、進度與發射數。場景高度 max(300px, calc(100dvh - 310px))；卡彈軌出現時為上方工作區騰出高度。受傷文字固定在工作站右上。600px 以下改為 340px 場景、流動狀態列與 8px 主容器內距。機槍獨立外景高 max(300px, calc(100dvh - 340px))，熱量 HUD 放進場景左下。
 
-**駕駛工作站。** 主容器最大 760px、內距 36px 18px 24px；工作站內距 28px 32px 32px，兩欄 grid minmax(0, 1fr)／170px、欄距 32px。左欄是盲開儀表：上下 1px 墨線、內距 16px 0 8px，內部兩欄（速度數字跨兩列、動態與車體狀態行在右），「速度」標籤跨欄。右欄是 170px 車體座位圖（引線隱藏、圖說 12px）。標題、任務、血量與按鍵提示跨兩欄，離開鈕靠左。空白受傷提示不佔位。600px 以下全部單欄、座位圖 160px。
+**駕駛工作站。** #30／#31 取代盲開圖版：主容器最大 1600px，內距 12px 18px 24px；工作站內距 14px 16px，標題與共用 HP 並列，實際裝甲觀察窗跨欄。場景高 clamp(300px, calc(100dvh - 280px), 720px)，下方保留緊湊速度／動態／受阻儀表與按鍵說明。駕駛不再重複座位圖，側後方仍依賴隊友觀察。600px 以下單欄。全螢幕 HUD 整合由 #30 的後續切片接續。
 
 暫停不遮掉凍結語意；各工作站為完整等待文字騰出場景高度。結算保留明確結果與 HP，返回控制固定右下 24px，裝填工作區另有場景中結果層。進入主選單、工作站、新的大廳、結算或暫停狀態時，各在轉換當下將頁面捲至頂端；一般狀態更新不重複拉回頂端。這是現有響應行為，不是手機觸控設計。
 
@@ -347,7 +347,7 @@ components:
 
 ### 車體座位圖與圖例
 
-Sherman 俯視線圖上的三個座位記號：空位為紙色填、墨框墨字；他人已佔為墨填紙字；你的座位為朱紅填紙字。每個記號以 1px 引線轉折連到右側同號圖例列。主選單顯示同一張圖但三席皆空；大廳圖例每列是真實的職位按鈕、任務說明與擔任者（空位／目前由某人擔任／你已擔任），列的編號圓圈依 data-state 同步填色。可按的職位列 hover 時整列換為 paper-field（160ms ease-out，是唯一的 CSS transition）。座位記號鏡射權威房間狀態，三台瀏覽器同步。駕駛工作站重用同一張圖作為座位圖例：座位 1 朱紅、2 與 3 墨色、引線隱藏。
+Sherman 俯視線圖上的三個座位記號：空位為紙色填、墨框墨字；他人已佔為墨填紙字；你的座位為朱紅填紙字。每個記號以 1px 引線轉折連到右側同號圖例列。主選單顯示同一張圖但三席皆空；大廳圖例每列是真實的職位按鈕、任務說明與擔任者（空位／目前由某人擔任／你已擔任），列的編號圓圈依 data-state 同步填色。可按的職位列 hover 時整列換為 paper-field（160ms ease-out，是唯一的 CSS transition）。座位記號鏡射權威房間狀態，三台瀏覽器同步。駕駛在戰鬥以裝甲觀察窗取代重複座位圖。
 
 ### 房間面板與乘員表
 
@@ -355,7 +355,7 @@ Sherman 俯視線圖上的三個座位記號：空位為紙色填、墨框墨字
 
 ### Room and preparation
 
-建立／加入、乘員列、職位、準備與房主開始仍採清楚表單。準備先顯示「正在準備工作畫面，完成後才會標示已準備；可取消或改選職位。」等待真實貼圖、shader compile 與首個 GPU draw；裝填手同時準備車內與機槍並重用準備好的 renderer。取消、改職、離房、返回大廳使過期準備失效並釋放所屬資源。一般隊友 ready 更新保留暖機資源；駕駛不準備外景。恢復舊戰鬥遭拒時，若畫面已是入房表單，保留使用者正在輸入的名稱／代碼與既有表單節點，只更新真實拒絕訊息並隱藏失效重試；從大廳或戰鬥終房仍完整回主選單。較新的加入／恢復擁有自己的連線，舊恢復失敗不能清理它。依據 [tank-main.ts](web/tank-main.ts) 與 [tank-art-preparation.ts](web/tank-art-preparation.ts)。
+建立／加入、乘員列、職位、準備與房主開始仍採清楚表單。準備先顯示「正在準備工作畫面，完成後才會標示已準備；可取消或改選職位。」等待真實貼圖、shader compile 與首個 GPU draw；裝填手同時準備車內與機槍並重用準備好的 renderer。取消、改職、離房、返回大廳使過期準備失效並釋放所屬資源。一般隊友 ready 更新保留暖機資源；駕駛同樣準備裝甲前窗的實際外景並在開戰重用。恢復舊戰鬥遭拒時，若畫面已是入房表單，保留使用者正在輸入的名稱／代碼與既有表單節點，只更新真實拒絕訊息並隱藏失效重試；從大廳或戰鬥終房仍完整回主選單。較新的加入／恢復擁有自己的連線，舊恢復失敗不能清理它。依據 [tank-main.ts](web/tank-main.ts) 與 [tank-art-preparation.ts](web/tank-art-preparation.ts)。
 
 ### 工作站圖版
 
@@ -371,7 +371,7 @@ Sherman 俯視線圖上的三個座位記號：空位為紙色填、墨框墨字
 
 ### 駕駛圖版
 
-沒有外景。左欄是 96px 明體 900 速度數字（m/s 單位留黑體）、淡墨「速度」標籤與兩行明體 700 22px 的動態／車體狀態，以上下 1px 墨線收成一塊儀表；右欄是座位圖例。標題 28px 帶 2px 墨線底線。
+固定車內左前眼位，透過水平 60°、垂直 16°的狹長開口看前方。裝甲是相機前的實體不透明 3D 板，內壁向外收窄並有 0.28m 的遊戲化厚度；較寬的呈現相機只用來同時看見裝甲周邊。隨車身移動與轉向，不隨主炮或滑鼠轉頭。速度保留 32px 明體數字，動態／受阻文字與共用血量清楚可讀。
 
 ### Motion, visibility and ownership
 
@@ -387,7 +387,7 @@ Sherman 俯視線圖上的三個座位記號：空位為紙色填、墨框墨字
 
 ### Art provenance
 
-大廳與駕駛的車體圖是 tank-main.ts 內聯的原創 SVG 線稿，沒有外部來源。Noto Serif TC 子集的授權、來源與雜湊見 [字型 README](public/fonts/README.md)。本機 Poly Haven CC0-1.0 表面圖含 diffuse／OpenGL normal／roughness，只有 diffuse 使用 sRGB。來源與包裝雜湊見 [外景 README](public/art/README.md)、[表面 manifest](public/art/asset-manifest.json)、[天空 manifest](public/art/sky/asset-manifest.json) 與 [車內來源](public/assets/interior/sources.json)。車內 Green Metal Rust 作者為 Rob Tuytel，保留原像素及嵌入來源 metadata。歷史典藏只作研究；不輸入博物館圖片作遊戲表面，不聲稱掃描精度。
+大廳的車體圖是 tank-main.ts 內聯的原創 SVG 線稿，沒有外部來源。Noto Serif TC 子集的授權、來源與雜湊見 [字型 README](public/fonts/README.md)。本機 Poly Haven CC0-1.0 表面圖含 diffuse／OpenGL normal／roughness，只有 diffuse 使用 sRGB。來源與包裝雜湊見 [外景 README](public/art/README.md)、[表面 manifest](public/art/asset-manifest.json)、[天空 manifest](public/art/sky/asset-manifest.json) 與 [車內來源](public/assets/interior/sources.json)。車內 Green Metal Rust 作者為 Rob Tuytel，保留原像素及嵌入來源 metadata。歷史典藏只作研究；不輸入博物館圖片作遊戲表面，不聲稱掃描精度。
 
 ## Do's and Don'ts
 
@@ -412,6 +412,6 @@ Sherman 俯視線圖上的三個座位記號：空位為紙色填、墨框墨字
 - Don't 加入軍徽、部隊標誌或旗幟。
 - Don't 重新引入外部字型服務或系統內建的替代展示字體來取代自託管明體。
 - Don't 把接受的簡化外觀改述為原先偏寫實標準已通過，或新增未經要求的寫實重建義務。
-- Don't 給駕駛外景、把機槍視角綁到主炮，或用美術改變碰撞、傷害與權威時鐘。
+- Don't 讓駕駛裝甲窗口外洩漏視野、把機槍視角綁到主炮，或用美術改變碰撞、傷害與權威時鐘。
 - Don't 把博物館研究影像、材質色或光照資產說成掃描模型、歷史軍漆色號或諾曼第實景照片。
 - Don't 宣稱窄螢幕已有觸控玩法，或把此設計紀錄當作 FPS、音效聆聽、未截圖戰鬥狀態或完整 #27 驗證證書。
