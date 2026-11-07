@@ -653,6 +653,12 @@ const driveKeys: Record<string, number> = {
   a: DRIVE.left,
   d: DRIVE.right,
 };
+const aimKeys: Record<string, number> = {
+  ArrowLeft: AIM.left,
+  ArrowRight: AIM.right,
+  ArrowUp: AIM.up,
+  ArrowDown: AIM.down,
+};
 window.addEventListener("keydown", (event) => {
   if (runtime.mode !== "online" || runtime.paused) return;
   if (stationRole === "loader" && event.code === "Tab") {
@@ -683,17 +689,17 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (stationRole === "gunner") {
-    const aimKeys: Record<string, number> = {
-      a: AIM.left,
-      d: AIM.right,
-      w: AIM.up,
-      s: AIM.down,
-      " ": FIRE,
-    };
-    const action = aimKeys[event.key.toLowerCase()];
-    if (action === undefined) return;
+    if (event.code === "Space") {
+      event.preventDefault();
+      if (!event.repeat) runtime.action(FIRE);
+      return;
+    }
+    const key = aimKeys[event.code];
+    if (!key) return;
     event.preventDefault();
-    if (!event.repeat) runtime.action(action);
+    if (event.repeat) return;
+    held |= key;
+    runtime.setInput(held);
     return;
   }
   if (stationRole !== "driver" && stationRole !== "loader") return;
@@ -713,20 +719,26 @@ window.addEventListener("keydown", (event) => {
 });
 window.addEventListener("keyup", (event) => {
   const key =
-    event.code === "Space"
-      ? MG_FIRE
-      : event.key.toLowerCase() === "r"
-        ? LOAD
-        : event.key.toLowerCase() === "c"
-          ? CROUCH
-          : driveKeys[event.key.toLowerCase()];
+    stationRole === "gunner"
+      ? aimKeys[event.code]
+      : event.code === "Space"
+        ? MG_FIRE
+        : event.key.toLowerCase() === "r"
+          ? LOAD
+          : event.key.toLowerCase() === "c"
+            ? CROUCH
+            : driveKeys[event.key.toLowerCase()];
   if (!key) return;
   held &= ~key;
   runtime.setInput(held);
 });
-window.addEventListener("blur", () => {
+function releaseControls() {
   held = 0;
   runtime.clearInput();
+}
+window.addEventListener("blur", releaseControls);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) releaseControls();
 });
 function frame(now: number) {
   if (runtime.mode === "online") {

@@ -8,6 +8,41 @@ import {
 
 const keyboards = new WeakMap<Page, CDPSession>();
 
+/** Aim through the visible compass with real held keys, then correct any
+ * delivery/coasting error from the compass. No authority state is accessed.
+ */
+export async function aimAtHeading(page: Page, target: number) {
+  const heading = page.getByTestId("turret-heading");
+  for (let correction = 0; correction < 8; correction++) {
+    const displayed = (await heading.textContent())!;
+    const current = Number(displayed.replace("°", ""));
+    const error = ((target - current + 540) % 360) - 180;
+    if (Math.abs(error) < 1) return;
+    const key = error > 0 ? "ArrowRight" : "ArrowLeft";
+    // Start with the specified half-second ramp and retained speed. The public
+    // readout, rather than an assumed input duration, decides when aim is ready.
+    const duration =
+      Math.abs(error) > 24.4
+        ? Math.abs(error) * 20.5
+        : Math.sqrt(Math.abs(error)) * 100;
+    await page.keyboard.down(key);
+    await page.waitForTimeout(duration);
+    await page.keyboard.up(key);
+    // Do not accept the pre-keydown zero-rate HUD as a completed coast. The
+    // host may not have painted (or a client received) this short pulse yet.
+    await expect(heading).not.toHaveText(displayed);
+    await expect(page.getByTestId("turret-yaw-rate")).toHaveText("0.0°/s");
+  }
+  const current = Number((await heading.textContent())!.replace("°", ""));
+  expect(Math.abs(((target - current + 540) % 360) - 180)).toBeLessThan(1);
+}
+
+export async function elevateCannon(page: Page) {
+  await page.keyboard.down("ArrowUp");
+  await expect(page.getByTestId("turret-pitch")).toHaveText("28.6°");
+  await page.keyboard.up("ArrowUp");
+}
+
 /** Genuine browser key events, scheduled independently of protocol acknowledgement.
  * This keeps a rapid burst / 90ms rhythm rapid while screenshots stall individual RPCs.
  * Sessions are attached before navigation; no post-start warmup, DOM dispatch or clock hook.
@@ -53,6 +88,7 @@ export async function tankCrew(
   seed = 1000,
   recordVideoDir?: string,
   beforeNavigation?: () => void,
+  independentBrowserOptions: { headless?: boolean } = {},
 ) {
   const pages: Page[] = [];
   const separateBrowsers: Browser[] = [];
@@ -65,7 +101,7 @@ export async function tankCrew(
     const owner = independent
       ? await browser.browserType().launch({
           channel: "chromium",
-          headless: true,
+          headless: independentBrowserOptions.headless ?? true,
           chromiumSandbox: true,
           ignoreDefaultArgs: ["--enable-unsafe-swiftshader"],
           args: [

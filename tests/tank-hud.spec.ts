@@ -5,6 +5,10 @@ const evidence =
   process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/33";
 async function fullBattle(page: Page, view: string) {
   const scene = page.getByRole("img", { name: view, exact: true });
+  if (view === "主炮戰場視野")
+    await expect(
+      page.getByText("按住方向鍵左右轉砲", { exact: false }),
+    ).toBeVisible();
   await expect(scene).toBeInViewport({ ratio: 1 });
   // The visible render surface itself reaches every page edge; armour is real 3D.
   const size = page.viewportSize()!;

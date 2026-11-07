@@ -45,7 +45,7 @@ export function stationMarkup(role: CrewRole, soundEnabled: boolean) {
       role === "gunner"
         ? `
       <div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span></div>
-      <div class="battle-work hud-panel">${weaponStatus}<p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note gunner-controls">連點 A／D 左右、W／S 上下；反方向連點可煞停。按住只推動一次。</p><p class="note">主炮就緒後，按空白鍵開火。</p></div>
+      <div class="battle-work hud-panel">${weaponStatus}<p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note gunner-controls">按住方向鍵左右轉砲、上下俯仰；約半秒加速與停止，反向先煞停再反轉。</p><p class="note">主炮就緒後，按空白鍵開火。</p></div>
     `
         : role === "driver"
           ? `

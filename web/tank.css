@@ -984,7 +984,7 @@ legend {
   left: var(--hud-inset);
   bottom: var(--hud-inset);
   width: var(--navigation-size);
-  height: var(--navigation-size);
+  min-height: var(--navigation-size);
 }
 .battle-navigation:empty {
   pointer-events: none;
