@@ -1,24 +1,78 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-07T02:20:58.025025+00:00",
+  "generatedAt": "2026-11-07T06:23:40.214311+00:00",
   "title": "Design System: 三人坦克合作戰鬥",
   "extensions": {
     "colorMeta": {
-      "action-olive": {
-        "role": "primary",
-        "displayName": "操作橄欖綠"
-      },
-      "focus-amber": {
-        "role": "primary",
-        "displayName": "焦點琥珀"
-      },
-      "charcoal": {
+      "paper": {
         "role": "neutral",
-        "displayName": "炭灰"
+        "displayName": "手冊紙",
+        "tonalRamp": [
+          "#3b382e",
+          "#5a5546",
+          "#7b7561",
+          "#9d967e",
+          "#bdb59b",
+          "#d6cfb7",
+          "#ebe5d2",
+          "#f8f5ec"
+        ]
       },
-      "work-surface": {
+      "paper-deep": {
         "role": "neutral",
-        "displayName": "灰綠工作表面"
+        "displayName": "深紙（面板與場景底）"
+      },
+      "paper-field": {
+        "role": "neutral",
+        "displayName": "亮紙（輸入、槽、暫停與準星）"
+      },
+      "ink": {
+        "role": "primary",
+        "displayName": "手冊墨",
+        "tonalRamp": [
+          "#1c1c18",
+          "#2a2924",
+          "#36352d",
+          "#4d4a3c",
+          "#6a6655",
+          "#857f69",
+          "#b3aa8f",
+          "#d6cfb7"
+        ]
+      },
+      "ink-soft": {
+        "role": "neutral",
+        "displayName": "淡墨"
+      },
+      "ink-red": {
+        "role": "secondary",
+        "displayName": "第二墨朱紅",
+        "tonalRamp": [
+          "#3e1410",
+          "#5e1f19",
+          "#802a22",
+          "#a3352b",
+          "#c0574b",
+          "#d68379",
+          "#e8b1a9",
+          "#f6dcd8"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "規線"
+      },
+      "ink-hover": {
+        "role": "primary",
+        "displayName": "墨鈕 hover"
+      },
+      "ink-disabled": {
+        "role": "neutral",
+        "displayName": "停用墨"
+      },
+      "mg-reticle": {
+        "role": "neutral",
+        "displayName": "機槍準星線色"
       },
       "interior-background": {
         "role": "neutral",
@@ -26,168 +80,298 @@
       }
     },
     "typographyMeta": {
-      "display": {
-        "displayName": "首頁標題",
-        "purpose": "房間進入畫面的 h1；戰鬥時收起。"
+      "plate-display": {
+        "displayName": "圖版大標",
+        "purpose": "大廳頁首 h1；自託管 Noto Serif TC 900。"
       },
-      "title": {
+      "plate-headline": {
+        "displayName": "圖版標題",
+        "purpose": "兩個表面的 h2 基礎與大廳 legend。"
+      },
+      "plate-role": {
+        "displayName": "職位名稱",
+        "purpose": "大廳可認領職位按鈕，2px 底線。"
+      },
+      "plate-room-code": {
+        "displayName": "房間代碼",
+        "purpose": "朱紅大字代碼，念給隊友；600px 以下 36px。"
+      },
+      "plate-numeral": {
+        "displayName": "座位數字",
+        "purpose": "座位記號與圖例編號圓圈；乘員表座位欄 18px。"
+      },
+      "station-title": {
         "displayName": "工作站標題",
-        "purpose": "砲手與裝填工作站的緊湊標題。"
+        "purpose": "砲手與裝填手工作站 h2；結算 h2 同為明體 900。"
       },
-      "speed": {
-        "displayName": "速度讀數",
-        "purpose": "盲開駕駛的主要數字。"
+      "station-title-driver": {
+        "displayName": "駕駛工作站標題",
+        "purpose": "28px，帶 2px 墨線底線。"
+      },
+      "station-readout": {
+        "displayName": "工作讀數",
+        "purpose": "工作站內 strong 讀數；字級沿用所在行，共用血量 900、1.15em。"
+      },
+      "driver-speed": {
+        "displayName": "駕駛速度",
+        "purpose": "盲開駕駛主要數字；600px 以下 72px。"
+      },
+      "driver-status": {
+        "displayName": "駕駛狀態行",
+        "purpose": "速度旁的動態與車體狀態。"
+      },
+      "plate-caption": {
+        "displayName": "圖說",
+        "purpose": "圖 1 圖說與乘員表欄位標頭。"
+      },
+      "work-line": {
+        "displayName": "工作行",
+        "purpose": "砲手直屬行、武器狀態列與機槍 HUD 的緊湊黑體。"
+      },
+      "work-readout": {
+        "displayName": "朝向讀數行",
+        "purpose": "砲手 heading-readout。"
       },
       "compact-control": {
         "displayName": "裝填工作站小型控制",
-        "purpose": "只用於 #station-leave 與 #station-sound；不新增共用字重。"
-      },
-      "work-readout": {
-        "displayName": "工作讀數與卡彈標題",
-        "purpose": "砲手 heading-readout 與裝填工作站 jam-game h3 的來源字級；各自保留原有／繼承字重。"
-      },
-      "viewport-warning": {
-        "displayName": "場景內警示來源規則",
-        "purpose": "限定 .battle-viewport [data-testid=\"enemy-warning\"]；目前砲手將提示移至場景前，實際使用直屬 p 的 14px，不代表新增通用正文尺寸。"
-      },
-      "ejection-baseline": {
-        "displayName": "退殼警示基礎規則",
-        "purpose": "限定 .ejection-warning 的來源基礎尺寸；當前裝填工作區更明確 selector 覆寫為 18px／700。"
+        "purpose": "只用於音效與離開按鈕。"
       }
     },
     "shadows": [
       {
-        "name": "sight-legibility",
-        "value": "0 1px 2px #252c2d",
-        "purpose": "砲手十字準星對明亮場景的可讀性。"
+        "name": "sight-ink-ring",
+        "value": "0 0 0 1px #1c1c18",
+        "purpose": "砲手十字準星兩條紙色細線的 1px 墨環；零位移零模糊的描邊，不是投影。"
       }
     ],
-    "motion": [],
+    "motion": [
+      {
+        "name": "plate-row-hover",
+        "value": "background-color 160ms ease-out",
+        "purpose": "大廳可認領職位列 hover 換紙色；唯一的 CSS transition，戰鬥沒有 transition。"
+      }
+    ],
     "breakpoints": [
       {
-        "name": "room-and-loader",
-        "value": "600px"
+        "name": "plate-stack",
+        "value": "1000px"
       },
       {
         "name": "gunner-single-column",
         "value": "700px"
+      },
+      {
+        "name": "room-loader-driver",
+        "value": "600px"
       }
-    ]
+    ],
+    "focus": [
+      {
+        "name": "plate-focus",
+        "value": "outline: 3px solid #a3352b; outline-offset: 3px",
+        "purpose": "兩個表面的按鈕與輸入鍵盤焦點。"
+      }
+    ],
+    "strokes": [
+      {
+        "name": "structure",
+        "value": "2px solid #1c1c18",
+        "purpose": "圖版、工作站、場景外框、卡彈區。"
+      },
+      {
+        "name": "label",
+        "value": "1.5px solid #1c1c18",
+        "purpose": "輸入、覆蓋標籤、進度條、卡彈軌。"
+      },
+      {
+        "name": "row",
+        "value": "1px solid #b3aa8f",
+        "purpose": "列規線。"
+      },
+      {
+        "name": "under-fire",
+        "value": "outline: 3px solid #a3352b; outline-offset: 4px",
+        "purpose": "受擊一秒內工作站外框。"
+      },
+      {
+        "name": "stunned",
+        "value": "outline: 4px solid #a3352b",
+        "purpose": "裝填手暈眩車內框。"
+      },
+      {
+        "name": "pause",
+        "value": "4px double #1c1c18",
+        "purpose": "等待重連框。"
+      }
+    ],
+    "fontLoading": {
+      "family": "Noto Serif TC",
+      "weights": [
+        700,
+        900
+      ],
+      "source": "public/fonts/noto-serif-tc-{700,900}.woff2，字元子集，SIL OFL 1.1；來源與 SHA-256 見 public/fonts/README.md",
+      "selfHosted": true,
+      "preload": "900（index.html）",
+      "fontDisplay": "swap",
+      "fallback": "Songti TC, serif",
+      "maintenance": "明體位置新增字元時需依 README 重新產生子集。"
+    }
   },
   "components": [
     {
-      "name": "主要按鈕",
+      "name": "圖版主要按鈕",
       "kind": "button",
-      "refersTo": "button-primary",
-      "description": "建立、加入與準備等主要操作。",
-      "html": "<button class=\"ds-button\">準備</button>",
-      "css": ".ds-button{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:#58624b;color:#fffef3;border:1px solid #a8b19a;font-size:inherit;padding:12px 20px;border-radius:5px;cursor:pointer;white-space:nowrap}.ds-button:hover:not(:disabled){background:#697557}.ds-button:disabled{opacity:.48;cursor:not-allowed}.ds-button:focus-visible{outline:3px solid #d6ac64;outline-offset:4px}"
+      "refersTo": "plate-button-primary",
+      "description": "大廳建立房間、準備、開始戰鬥。",
+      "html": "<button class=\"ds-plate-btn\">建立房間</button>",
+      "css": ".ds-plate-btn{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:#1c1c18;color:#ebe5d2;border:2px solid #1c1c18;border-radius:0;font-weight:700;font-size:16px;padding:12px 22px;cursor:pointer;white-space:nowrap}.ds-plate-btn:hover:not(:disabled){background:#36352d}.ds-plate-btn:focus-visible{outline:3px solid #a3352b;outline-offset:3px}.ds-plate-btn:disabled{background:transparent;color:#857f69;border-color:#b3aa8f;cursor:not-allowed}.ds-plate-btn.ds-secondary{background:transparent;color:#1c1c18}.ds-plate-btn.ds-secondary:hover:not(:disabled){background:#f5f1e4}"
     },
     {
-      "name": "次要按鈕",
+      "name": "圖版次要按鈕",
       "kind": "button",
-      "refersTo": "button-secondary",
-      "description": "離開房間等次要操作；沿用主按鈕 hover、disabled 與鍵盤焦點。",
-      "html": "<button class=\"ds-button\">離開房間</button>",
-      "css": ".ds-button{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:#58624b;color:#fffef3;border:1px solid #a8b19a;font-size:inherit;padding:12px 20px;border-radius:5px;cursor:pointer;white-space:nowrap}.ds-button:hover:not(:disabled){background:#697557}.ds-button:disabled{opacity:.48;cursor:not-allowed}.ds-button:focus-visible{outline:3px solid #d6ac64;outline-offset:4px}.ds-button{background:transparent}"
+      "refersTo": "plate-button-secondary",
+      "description": "加入房間、離開房間；停用時不降透明度。",
+      "html": "<button class=\"ds-plate-btn ds-secondary\">離開房間</button> <button class=\"ds-plate-btn\" disabled>開始戰鬥</button>",
+      "css": ".ds-plate-btn{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:#1c1c18;color:#ebe5d2;border:2px solid #1c1c18;border-radius:0;font-weight:700;font-size:16px;padding:12px 22px;cursor:pointer;white-space:nowrap}.ds-plate-btn:hover:not(:disabled){background:#36352d}.ds-plate-btn:focus-visible{outline:3px solid #a3352b;outline-offset:3px}.ds-plate-btn:disabled{background:transparent;color:#857f69;border-color:#b3aa8f;cursor:not-allowed}.ds-plate-btn.ds-secondary{background:transparent;color:#1c1c18}.ds-plate-btn.ds-secondary:hover:not(:disabled){background:#f5f1e4}"
     },
     {
-      "name": "已選職位",
-      "kind": "button",
-      "refersTo": "button-selected",
-      "description": "以顏色及 pressed 語意表示已選職位。",
-      "html": "<button class=\"ds-button\" aria-pressed=\"true\">砲手</button>",
-      "css": ".ds-button{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:#58624b;color:#fffef3;border:1px solid #a8b19a;font-size:inherit;padding:12px 20px;border-radius:5px;cursor:pointer;white-space:nowrap}.ds-button:hover:not(:disabled){background:#697557}.ds-button:disabled{opacity:.48;cursor:not-allowed}.ds-button:focus-visible{outline:3px solid #d6ac64;outline-offset:4px}.ds-button[aria-pressed=\"true\"]{background:#91ae8a;color:#18231b;border-color:#b7d1ae}"
-    },
-    {
-      "name": "乘員輸入",
+      "name": "圖版輸入",
       "kind": "input",
-      "refersTo": "input",
-      "description": "名稱及房間代碼共用的輸入外觀。",
-      "html": "<input class=\"ds-input\" aria-label=\"乘員名稱\" placeholder=\"乘員名稱\">",
-      "css": ".ds-input{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:#303936;border:1px solid #88927f;color:#f0eee5;padding:12px 14px;width:100%;min-width:0;border-radius:5px;caret-color:#d6ac64}.ds-input:focus-visible{outline:3px solid #d6ac64;outline-offset:4px}"
+      "refersTo": "plate-input",
+      "description": "乘員名稱與房間代碼。",
+      "html": "<input class=\"ds-plate-input\" aria-label=\"乘員名稱\" placeholder=\"乘員名稱\">",
+      "css": ".ds-plate-input{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:#f5f1e4;color:#1c1c18;border:1.5px solid #1c1c18;border-radius:0;padding:12px 14px;width:100%;font-size:16px;caret-color:#a3352b}.ds-plate-input::placeholder{color:#4d4a3c}.ds-plate-input:focus-visible{outline:3px solid #a3352b;outline-offset:3px}"
     },
     {
-      "name": "房間工作站",
-      "kind": "card",
-      "refersTo": "workstation",
-      "description": "一般工作站容器；戰鬥工作站有方角及專用緊湊配置。",
-      "html": "<section class=\"ds-workstation\"><h2>乘員集合</h2><p>全員準備後，由房主開始戰鬥。</p></section>",
-      "css": ".ds-workstation{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;min-height:280px;padding:28px;background:#303936;border-radius:8px;color:#e8e6dc}.ds-workstation h2{font-size:23px;font-weight:600;margin:0 0 20px}.ds-workstation p{line-height:1.7;max-width:70ch}"
-    },
-    {
-      "name": "等待重連",
+      "name": "職位認領列",
       "kind": "custom",
-      "refersTo": "battle-pause",
-      "description": "完整凍結與重連文字，伴隨原有退出操作。",
-      "html": "<p class=\"ds-pause\">戰鬥暫停・等待乘員重新連線，剩餘 30 秒。所有操作與戰況已凍結。</p>",
-      "css": ".ds-pause{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;padding:1rem;background:#3d341c;border:1px solid #c8a65d;color:#fff0c5;font-weight:700;line-height:1.7;max-width:70ch}"
+      "refersTo": "plate-role-claim",
+      "description": "圖例列：編號圓圈、明體職位按鈕、任務與擔任者；你的職位為朱紅。",
+      "html": "<ol class=\"ds-legend\"><li data-state=\"mine\"><button aria-pressed=\"true\">擔任砲手</button><p>瞄準並開火。</p><p class=\"ds-owner\">你已擔任</p></li><li data-state=\"free\"><button aria-pressed=\"false\">擔任裝填手</button><p>裝填主炮並操作機槍。</p><p class=\"ds-owner\">空位</p></li></ol>",
+      "css": ".ds-legend{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;list-style:none;margin:0;padding:0;counter-reset:seat 1;background:#ebe5d2;color:#4d4a3c}.ds-legend li{counter-increment:seat;position:relative;padding:12px 12px 12px 52px;font-size:15px;line-height:1.7;transition:background-color 160ms ease-out}.ds-legend li+li{border-top:1px solid #b3aa8f}.ds-legend li:has(button:hover){background:#f5f1e4}.ds-legend li::before{content:counter(seat);position:absolute;left:0;top:14px;width:34px;height:34px;border:2px solid #1c1c18;border-radius:50%;display:grid;place-items:center;font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:17px;color:#1c1c18}.ds-legend li[data-state=\"mine\"]::before{background:#a3352b;border-color:#a3352b;color:#ebe5d2}.ds-legend button{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-size:23px;font-weight:700;line-height:1.3;padding:2px 0 3px;background:transparent;color:#1c1c18;border:0;border-bottom:2px solid #1c1c18;border-radius:0;cursor:pointer}.ds-legend button[aria-pressed=\"true\"]{color:#a3352b;border-bottom-color:#a3352b}.ds-legend button:focus-visible{outline:3px solid #a3352b;outline-offset:3px}.ds-legend p{margin:8px 0 0}.ds-legend .ds-owner{margin-top:4px;font-weight:700;color:#1c1c18}.ds-legend li[data-state=\"mine\"] .ds-owner{color:#a3352b}"
+    },
+    {
+      "name": "車體座位圖",
+      "kind": "custom",
+      "refersTo": "plate-seat-mine",
+      "description": "Sherman 俯視線圖；座位記號空位紙色、他人墨色、自己朱紅，引線連到圖例。",
+      "html": "<figure class=\"ds-plate\"><svg viewBox=\"0 0 300 340\" width=\"240\" role=\"img\" aria-label=\"乘員位置示意\"><g class=\"ds-hull\"><rect x=\"34\" y=\"20\" width=\"16\" height=\"290\"/><rect x=\"190\" y=\"20\" width=\"16\" height=\"290\"/><path d=\"M50 40 Q50 22 70 22 H170 Q190 22 190 40 V300 H50Z\"/><circle cx=\"120\" cy=\"176\" r=\"62\"/><rect x=\"113\" y=\"0\" width=\"14\" height=\"116\"/><path d=\"M60 110 H180\" class=\"ds-dash\"/><rect x=\"70\" y=\"56\" width=\"44\" height=\"36\"/><rect x=\"126\" y=\"56\" width=\"44\" height=\"36\" class=\"ds-dash\"/></g><g class=\"ds-leaders\"><path d=\"M107 74 L232 17 H300\"/><path d=\"M165 176 L232 147 H300\"/><path d=\"M105 176 L232 277 H300\"/></g><g class=\"ds-seat ds-taken\"><circle cx=\"92\" cy=\"74\" r=\"15\"/><text x=\"92\" y=\"80\">1</text></g><g class=\"ds-seat ds-mine\"><circle cx=\"150\" cy=\"176\" r=\"15\"/><text x=\"150\" y=\"182\">2</text></g><g class=\"ds-seat\"><circle cx=\"90\" cy=\"176\" r=\"15\"/><text x=\"90\" y=\"182\">3</text></g></svg><figcaption>圖 1　M4 中型戰車乘員位置，前方朝上（示意，未依比例）</figcaption></figure>",
+      "css": ".ds-plate{margin:0;background:#ebe5d2;padding:16px;font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;}.ds-hull{fill:none;stroke:#1c1c18;stroke-width:2}.ds-hull .ds-dash{stroke-dasharray:5 4;stroke-width:1.2}.ds-leaders{fill:none;stroke:#1c1c18;stroke-width:1}.ds-seat circle{stroke:#1c1c18;stroke-width:2;fill:#ebe5d2}.ds-seat text{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:17px;text-anchor:middle;fill:#1c1c18}.ds-taken circle{fill:#1c1c18}.ds-taken text,.ds-mine text{fill:#ebe5d2}.ds-mine circle{fill:#a3352b;stroke:#a3352b}.ds-plate figcaption{margin-top:10px;font-size:13px;line-height:1.6;color:#4d4a3c}"
+    },
+    {
+      "name": "房間面板與乘員表",
+      "kind": "card",
+      "refersTo": "plate-panel",
+      "description": "深紙面板：朱紅房間代碼、人數列、編號乘員表，空位列補齊三席。",
+      "html": "<div class=\"ds-panel\"><p class=\"ds-code-label\">房間代碼・念給隊友 <strong>K7Q2MA</strong></p><p class=\"ds-count\">2／3 就位・1 人已準備</p><div class=\"ds-row ds-head\"><span>位置</span><span>乘員</span><span>職位</span><span>狀態</span></div><div class=\"ds-row ds-me\"><span class=\"ds-seatno\">2</span><strong>阿明（你）</strong><span>砲手</span><b>已準備</b></div><div class=\"ds-row\"><span class=\"ds-seatno\">1</span><strong>小華（房主）</strong><span>駕駛</span><b class=\"ds-not\">未準備</b></div><p class=\"ds-open\">空位・等待隊友加入</p></div>",
+      "css": ".ds-panel{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:#e2dbc4;color:#1c1c18;padding:28px 32px 32px;border:2px solid #1c1c18}.ds-code-label{margin:0;font-size:14px;color:#4d4a3c}.ds-code-label strong{display:block;margin-top:2px;font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:44px;line-height:1.2;letter-spacing:.16em;color:#a3352b;font-variant-numeric:tabular-nums}.ds-count{margin:8px 0 6px;font-size:14px;font-weight:600;color:#4d4a3c}.ds-row{display:grid;grid-template-columns:36px minmax(0,1fr) auto 56px;column-gap:12px;align-items:baseline;padding:12px 0;border-bottom:1px solid #b3aa8f}.ds-row span{color:#4d4a3c;font-size:15px}.ds-row b{text-align:right;font-weight:700}.ds-row b.ds-not{color:#4d4a3c;font-weight:400}.ds-head{font-size:13px;padding:0 0 6px;border-bottom:2px solid #1c1c18}.ds-head span{font-size:13px}.ds-head span:last-child{text-align:right}.ds-row .ds-seatno{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:18px;color:#1c1c18}.ds-me strong,.ds-me .ds-seatno{color:#a3352b}.ds-open{margin:0;padding:12px 0 12px 48px;border-bottom:1px solid #b3aa8f;font-size:15px;color:#4d4a3c}"
+    },
+    {
+      "name": "工作站圖版",
+      "kind": "card",
+      "refersTo": "station-plate",
+      "description": "戰鬥工作站：2px 墨框、透明紙底、明體 900 標題、明體 700 表格讀數，3D 場景以 2px 墨線框成圖。",
+      "html": "<section class=\"ds-station\"><h2>砲手工作站</h2><p class=\"ds-hp\">共用坦克血量 <strong>100/100</strong></p><div class=\"ds-scene\"><span class=\"ds-sight\" aria-hidden=\"true\"></span><p class=\"ds-label\">視線清晰</p></div><div class=\"ds-weapon\"><p>膛內：<strong>高爆彈</strong></p><p>裝填進度 <strong>60</strong>%</p><progress max=\"100\" value=\"60\" aria-label=\"裝填進度\"></progress></div></section>",
+      "css": ".ds-station{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:transparent;color:#1c1c18;border:2px solid #1c1c18;border-radius:0;padding:14px 16px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 20px}.ds-station h2{margin:0;font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:22px;letter-spacing:.06em}.ds-station p{margin:0;font-size:14px;line-height:1.5}.ds-station strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:700;font-variant-numeric:tabular-nums}.ds-hp strong{font-weight:900;font-size:1.15em}.ds-scene{grid-column:1/-1;position:relative;height:180px;background:#e2dbc4;outline:2px solid #1c1c18}.ds-sight{position:absolute;left:50%;top:50%;width:28px;height:28px;transform:translate(-50%,-50%)}.ds-sight::before,.ds-sight::after{content:\"\";position:absolute;background:#f5f1e4;box-shadow:0 0 0 1px #1c1c18}.ds-sight::before{width:28px;height:1px;left:0;top:14px}.ds-sight::after{width:1px;height:28px;left:14px;top:0}.ds-label{position:absolute;right:1rem;bottom:.75rem;padding:.3rem .6rem;background:#ebe5d2;color:#1c1c18;border:1.5px solid #1c1c18}.ds-weapon{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:6px 20px;padding:8px 0;border-block:1px solid #1c1c18}.ds-weapon progress{appearance:none;width:130px;height:10px;border:1.5px solid #1c1c18;border-radius:0;background:#f5f1e4}.ds-weapon progress::-webkit-progress-bar{background:#f5f1e4}.ds-weapon progress::-webkit-progress-value{background:#1c1c18}.ds-weapon progress::-moz-progress-bar{background:#1c1c18}"
+    },
+    {
+      "name": "危險警示",
+      "kind": "custom",
+      "refersTo": "enemy-warning",
+      "description": "敵方瞄準預告：紙底朱紅字、2px 朱紅框；受擊一秒內的 3px 朱紅外框示意。",
+      "html": "<div class=\"ds-fire\"><p class=\"ds-warn\">四號戰車正在瞄準我們，約 2 秒後開火</p><p class=\"ds-dmg\">受到攻擊：血量 -12</p></div>",
+      "css": ".ds-fire{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;color:#1c1c18;border:2px solid #1c1c18;outline:3px solid #a3352b;outline-offset:4px;padding:14px 16px;background:#ebe5d2}.ds-warn{margin:0 0 8px;padding:.3rem .6rem;background:#ebe5d2;color:#a3352b;border:2px solid #a3352b;font-weight:700;font-size:14px;line-height:1.5}.ds-dmg{margin:0;color:#a3352b;font-size:14px}"
+    },
+    {
+      "name": "機槍熱量 HUD",
+      "kind": "custom",
+      "refersTo": "mg-hud",
+      "description": "機槍場景左下的紙標籤；平常墨色，data-overheated 時框、字與熱量條轉朱紅。",
+      "html": "<div class=\"ds-mg\"><p>機槍熱度 <strong>40</strong>% · 可以射擊</p><progress max=\"100\" value=\"40\" aria-label=\"機槍熱度\"></progress></div> <div class=\"ds-mg\" data-overheated><p>機槍熱度 <strong>100</strong>% · 過熱冷卻中 <strong>2.4</strong></p><progress max=\"100\" value=\"100\" aria-label=\"機槍熱度\"></progress></div>",
+      "css": ".ds-mg{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;display:inline-block;vertical-align:top;margin:4px;padding:8px 12px;background:#ebe5d2;color:#1c1c18;border:1.5px solid #1c1c18;border-radius:0;font-size:14px;line-height:1.45;font-variant-numeric:tabular-nums}.ds-mg p{margin:0 0 5px}.ds-mg strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:700}.ds-mg progress{appearance:none;display:block;width:220px;height:12px;border:1.5px solid #1c1c18;border-radius:0;background:#f5f1e4}.ds-mg progress::-webkit-progress-bar{background:#f5f1e4}.ds-mg progress::-webkit-progress-value{background:#1c1c18}.ds-mg progress::-moz-progress-bar{background:#1c1c18}.ds-mg[data-overheated]{border-color:#a3352b;color:#a3352b}.ds-mg[data-overheated] progress::-webkit-progress-value{background:#a3352b}.ds-mg[data-overheated] progress::-moz-progress-bar{background:#a3352b}"
     },
     {
       "name": "卡彈工作軌",
       "kind": "custom",
       "refersTo": "jam-track",
-      "description": "成功區、邊界與指針；示例不假裝執行卡彈規則。",
-      "html": "<div class=\"ds-jam\" aria-label=\"卡彈工作軌示意\"><div class=\"ds-zone\" style=\"left:40%;width:22%\">目標</div><div class=\"ds-needle\" style=\"left:50%\"></div></div>",
-      "css": ".ds-jam{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;position:relative;height:38px;background:#252c2d;border:1px solid #b7b2a2}.ds-zone{position:absolute;top:0;bottom:0;background:#91ae8a;color:#19221c;border:2px solid #e8e6dc;text-align:center;line-height:34px;font-weight:700}.ds-needle{position:absolute;top:-7px;bottom:-7px;width:4px;transform:translateX(-2px);background:#fff8dc;border:1px solid #252c2d}"
+      "description": "paper-field 卡彈區、明體朱紅標題、墨斜線目標區與朱紅指針；示例不執行卡彈規則。",
+      "html": "<section class=\"ds-jam\"><h3>卡彈：停在目標區</h3><div class=\"ds-track\"><span class=\"ds-zone\" style=\"left:40%;width:22%\">目標</span><span class=\"ds-needle\" style=\"left:50%\"></span></div><p>按空白鍵停針</p></section>",
+      "css": ".ds-jam{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;padding:12px 16px;background:#f5f1e4;color:#1c1c18;border:2px solid #1c1c18}.ds-jam h3{margin:0 0 16px;font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:700;font-size:18px;color:#a3352b}.ds-track{position:relative;height:38px;background:#ebe5d2;border:1.5px solid #1c1c18}.ds-zone{position:absolute;top:0;bottom:0;text-align:center;line-height:34px;font-weight:700;color:#1c1c18;border:2px solid #1c1c18;background:repeating-linear-gradient(-45deg,#1c1c18 0 1.5px,#f5f1e4 1.5px 7px)}.ds-zone::first-line{background:#f5f1e4}.ds-needle{position:absolute;top:-7px;bottom:-7px;width:4px;transform:translateX(-2px);background:#a3352b;border:1px solid #ebe5d2}.ds-jam p{margin:14px 0 0;font-weight:600}"
     },
     {
-      "name": "砲手十字準星",
+      "name": "等待重連",
       "kind": "custom",
-      "refersTo": "gunner-reticle",
-      "description": "位於主炮場景中心；細線與微陰影支援明亮外景，沒有互動狀態。",
-      "html": "<span class=\"ds-reticle\" aria-hidden=\"true\"></span>",
-      "css": ".ds-reticle{position:relative;display:block;width:28px;height:28px;pointer-events:none}.ds-reticle::before,.ds-reticle::after{content:\"\";position:absolute;background:#fff8db;box-shadow:0 1px 2px #252c2d}.ds-reticle::before{width:28px;height:1px;left:0;top:14px}.ds-reticle::after{width:1px;height:28px;left:14px;top:0}"
+      "refersTo": "battle-pause",
+      "description": "paper-field 底、4px 雙墨線框，完整凍結與重連文字。",
+      "html": "<p class=\"ds-pause\">戰鬥暫停・等待砲手重新連線，剩餘 30 秒。所有操作與戰況已凍結。</p>",
+      "css": ".ds-pause{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;margin:0;padding:1rem;background:#f5f1e4;color:#1c1c18;border:4px double #1c1c18;font-weight:700;line-height:1.7;max-width:70ch}"
     },
     {
-      "name": "機槍熱量工作條",
+      "name": "駕駛圖版",
       "kind": "custom",
-      "refersTo": "mg-hud",
-      "description": "機槍外景左下的熱度、鎖定與倒數資訊；文字與數字同時呈現狀態。",
-      "html": "<div class=\"ds-mg-hud\"><p>機槍熱度 <strong>40</strong>% · 可以射擊</p><progress aria-label=\"機槍熱度\" max=\"100\" value=\"40\"></progress></div>",
-      "css": ".ds-mg-hud{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;width:fit-content;max-width:100%;padding:8px 12px;background:#252c2d;color:#e8e6dc;font-size:14px;font-variant-numeric:tabular-nums}.ds-mg-hud p{margin:0 0 5px;line-height:1.7;max-width:70ch}.ds-mg-hud progress{display:block;width:min(220px,100%);height:12px;accent-color:#d6ac64}"
-    },
-    {
-      "name": "盲開駕駛儀表",
-      "kind": "custom",
-      "description": "駕駛只見數字與工作狀態，沒有外景。戰鬥收起入房介紹，儀表內距採緊湊配置。",
-      "html": "<div class=\"ds-driver-instruments\"><p class=\"ds-instrument-label\">速度</p><p class=\"ds-speed\"><strong>0.0</strong> m/s</p><p>靜止</p><p>車體正常</p></div>",
-      "css": ".ds-driver-instruments{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;color:#e8e6dc;max-width:420px;padding:12px 0 20px}.ds-driver-instruments p{margin:8px 0;line-height:1.7;max-width:70ch}.ds-instrument-label{color:#c1c4b6}.ds-speed{font-variant-numeric:tabular-nums}.ds-speed strong{font-size:64px;font-weight:500}"
+      "refersTo": "driver-speed",
+      "description": "沒有外景：96px 明體速度、規線狀態列與座位 1 朱紅的座位圖例欄。",
+      "html": "<section class=\"ds-driver\"><h2>駕駛工作站</h2><div class=\"ds-inst\"><p class=\"ds-il\">速度</p><p class=\"ds-speed\"><strong>4.2</strong> m/s</p><p class=\"ds-st\">前進</p><p class=\"ds-st\">車體正常</p></div><svg class=\"ds-key\" viewBox=\"0 0 120 120\" role=\"img\" aria-label=\"座位圖例\"><g class=\"ds-s ds-me\"><circle cx=\"30\" cy=\"30\" r=\"15\"/><text x=\"30\" y=\"36\">1</text></g><g class=\"ds-s\"><circle cx=\"80\" cy=\"80\" r=\"15\"/><text x=\"80\" y=\"86\">2</text></g><g class=\"ds-s\"><circle cx=\"30\" cy=\"80\" r=\"15\"/><text x=\"30\" y=\"86\">3</text></g></svg></section>",
+      "css": ".ds-driver{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;display:grid;grid-template-columns:minmax(0,1fr) 120px;column-gap:32px;padding:28px 32px 32px;background:#ebe5d2;color:#1c1c18;border:2px solid #1c1c18}.ds-driver h2{grid-column:1/-1;margin:0 0 12px;padding-bottom:12px;border-bottom:2px solid #1c1c18;font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:28px;letter-spacing:.06em}.ds-inst{display:grid;grid-template-columns:auto 1fr;column-gap:32px;align-items:baseline;padding:16px 0 8px;border-block:1px solid #1c1c18}.ds-inst p{margin:0}.ds-il{grid-column:1/-1;color:#4d4a3c;font-size:14px}.ds-speed{grid-row:span 2;font-variant-numeric:tabular-nums}.ds-speed strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:96px;line-height:1.1}.ds-st{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:700;font-size:22px}.ds-key{width:120px;align-self:start;margin-top:8px}.ds-s circle{fill:#1c1c18;stroke:#1c1c18;stroke-width:2}.ds-s text{fill:#ebe5d2;font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:17px;text-anchor:middle}.ds-me circle{fill:#a3352b;stroke:#a3352b}"
     }
   ],
   "narrative": {
     "northStar": "三人共乘一台重型戰車",
-    "overview": "三位乘員共用一台重型戰車，以各自受限的視野與清楚的工作狀態協作。世界採 1944 年卡昂周邊的石造農村、土路及自然日光；車輛、田行與葉叢保留使用者明確接受的簡化程序外觀。機械零件仍須實際附著支撐表面，車型輪廓與比例關係仍是辨識依據。\n\n根路徑由 index.html 載入 tank-main.ts，直接呈現坦克房間。房間介面延續炭灰、灰綠與繁體中文無襯線字體。戰鬥時場景取得主要空間，緊湊文字、數字與進度條支援操作；不把戰場規則包裝成虛構的古董儀表皮膚。Experience 世界與 Operate 邊緣 HUD 是外景 brief 的表達方式，不是所有未來畫面的固定模式。",
+    "overview": "三位乘員共用一台重型戰車，以各自受限的視野與清楚的工作狀態協作。整個 HTML 介面是同一張戰時技術手冊的雙色凸版圖版：手冊紙為底、單一墨色負責線圖、規線、文字與實心主按鈕，第二色朱紅保留給極少數必須立刻注意的東西。`html[data-surface]` 仍分 manual（主選單與大廳）與 battle（三個戰鬥工作站），但兩者共用 `:root[data-surface]` 上的同一組紙／墨 token；切換只改版面與朱紅的語意，不換世界。\n\n**入口與大廳。** 認領職位就是在 Sherman 俯視圖版上認領一個有編號的乘員座位。車體線圖上的三個座位記號即時反映權威房間狀態（空位留白、他人墨色、自己朱紅），以 1px 引線連到編號圖例；右側面板有朱紅大字房間代碼、編號乘員表與準備／開始／離開。\n\n**戰鬥工作站。** 每個工作站是一張圖版：2px 墨框、透明紙底、明體 900 標題。即時 3D 外景或車內是這張圖版的「圖」，以 2px 墨線框起；場景上的覆蓋層是紙底墨線的標籤。朱紅只標示現在需要行動的危險。駕駛沒有外景，他的圖版就是巨大的明體速度讀數、規線狀態列與車體座位圖例（座位 1 朱紅）。3D 世界本身仍是 1944 年卡昂周邊的石造農村、土路及自然日光，車輛、田行與葉叢保留使用者接受的簡化程序外觀；圖版語言只屬於 HTML 介面，不把 3D 場景畫成紙。",
     "keyCharacteristics": [
+      "兩個表面共用紙／墨／朱紅三種墨水角色、方角與 1–2px 墨線；沒有陰影、沒有圓角卡片。",
+      "大廳：車體俯視圖的座位記號、圖例與乘員表永遠是三個座位，鏡射權威房間狀態。",
+      "戰鬥：工作站是圖版、3D 場景是圖、覆蓋層是紙標籤；朱紅只在危險當下出現。",
       "接受的簡化程序外觀，保留 Sherman／四號 H／虎式 I 辨識。",
       "自然日光外景與封閉工作燈車內，分開處理照明。",
       "場景優先、工作資訊緊湊，駕駛維持沒有外景的資訊限制。",
-      "明確中文、數字、焦點與可見危險提示，支援桌機實體鍵盤。",
-      "駕駛戰鬥收起入房介紹，盲開儀表以緊湊留白保留警示與離開動作。"
+      "明確中文、數字、焦點與可見危險提示，支援桌機實體鍵盤。"
     ],
     "rules": [
+      {
+        "name": "The Second Ink Rule",
+        "body": "朱紅在大廳只標示屬於你的東西與要念給隊友的房間代碼，在戰鬥只標示現在需要行動的危險；兩處共用朱紅焦點框。其他狀態一律用墨、淡墨與留白。",
+        "section": "colors"
+      },
+      {
+        "name": "The Danger Is Now Rule",
+        "body": "戰鬥朱紅跟著狀態亮起、跟著狀態熄滅：受傷文字只在 `.under-fire`（受擊一秒內）為朱紅，之後回淡墨；機槍熱量平常是墨色，只有 `data-overheated` 轉朱紅；結算只有 `data-outcome=\"failed\"` 為朱紅，勝利用墨。",
+        "section": "colors"
+      },
       {
         "name": "The Role Truth Rule",
         "body": "視覺只呈現職位獲准知道的資訊；駕駛不建立外部 renderer。",
         "section": "colors"
       },
       {
-        "name": "The Supported Parts Rule",
-        "body": "扣件、燈具及其他機械附屬件必須坐在其實際支撐表面；簡化外觀不取消物理附著。",
-        "section": "elevation"
+        "name": "The Serif Is For Names And Numbers Rule",
+        "body": "明體只用在標題、職位名稱、座位與讀數數字、房間代碼、駕駛狀態行與結算；說明、警示句與按鍵提示一律系統黑體。",
+        "section": "typography"
       },
       {
-        "name": "Transition scroll placement",
-        "body": "進入主選單、工作站、新大廳、結算與暫停時，轉換當下捲至頁首一次；一般狀態更新不重複捲動。 Recovery rejection preserves an existing join form and its input; stale retry is hidden.",
+        "name": "The Always Three Seats Rule",
+        "body": "圖版、圖例與乘員表永遠呈現三個座位；人數不足時以「空位・等待隊友加入」列補齊，座位數字取自職位順序（1 駕駛、2 砲手、3 裝填手）。",
         "section": "layout"
       },
       {
-        "name": "Authority muzzle flashes",
-        "body": "主炮／敵炮火光為 0.18 秒、機槍每發 0.07 秒共同遊戲時間；短促暖橙與亮黃白加色星芒讀實際炮口 anchor。玩家主炮／敵炮／機槍大小為 0.6／0.85／0.22 世界單位；與彈道、曳光及命中分開，保留深度遮擋及 HUD／準星。暫停凍結，換局與資源釋放清除。",
-        "section": "motion"
+        "name": "The Ruled, Not Raised Rule",
+        "body": "以規線和紙色分層，不用陰影、模糊或浮起；需要更強調時加粗墨線或改雙線。",
+        "section": "elevation"
+      },
+      {
+        "name": "The Supported Parts Rule",
+        "body": "扣件、燈具及其他機械附屬件必須坐在其實際支撐表面；簡化外觀不取消物理附著。",
+        "section": "elevation"
       }
     ],
     "dos": [
+      "Do 讓新介面元素待在 `data-surface` 範圍內，只用 paper／paper-deep／paper-field、ink／ink-soft／rule 與 ink-red 這些墨水角色。",
+      "Do 讓座位記號、圖例與乘員表從同一份權威房間狀態產生，並永遠呈現三個座位。",
+      "Do 以 2px 墨線框結構、1.5px 墨線框標籤與欄位、1px 規線分隔列；名稱、標題與讀數數字用 Noto Serif TC，說明用系統黑體。",
+      "Do 讓戰鬥朱紅跟著危險狀態出現與消失（受擊窗口、過熱、失敗），過去的狀態回到墨或淡墨。",
+      "Do 把 3D 場景框成圖版的圖，覆蓋資訊做成紙底墨線標籤，不用整片面板蓋住場景。",
+      "Do 在明體位置新增中文字串時，依字型 README 重新產生 Noto Serif TC 子集並更新雜湊。",
       "Do 保留六個 Sherman 路輪、三組 VVSS 及三種車型的不同輪組、炮塔與炮長。",
       "Do 讓實際貼圖、shader 編譯與首個 GPU draw 完成後才送出準備票，保留可見準備中與取消狀態。",
       "Do 讓警示、暫停與結算文字和退出／返回操作保持可讀，並在靜音時保留可見危險提示。",
@@ -195,10 +379,14 @@
       "Do 讓低草保持裝飾，石造掩體對齊權威碰撞盒，動畫只讀權威快照。"
     ],
     "donts": [
+      "Don't 在大廳用朱紅表示「你」以外的一般狀態，或在戰鬥用朱紅表示一般狀態、已過去的傷害或勝利。",
+      "Don't 加入陰影、模糊、玻璃、圓角卡片、英雄插圖或角色卡；強調用更粗或雙墨線。",
+      "Don't 加入軍徽、部隊標誌或旗幟。",
+      "Don't 重新引入外部字型服務或系統內建的替代展示字體來取代自託管明體。",
       "Don't 把接受的簡化外觀改述為原先偏寫實標準已通過，或新增未經要求的寫實重建義務。",
       "Don't 給駕駛外景、把機槍視角綁到主炮，或用美術改變碰撞、傷害與權威時鐘。",
       "Don't 把博物館研究影像、材質色或光照資產說成掃描模型、歷史軍漆色號或諾曼第實景照片。",
-      "Don't 宣稱窄螢幕已有觸控玩法，或把此設計紀錄當作 FPS、音效聆聽或完整 #27 驗證證書。"
+      "Don't 宣稱窄螢幕已有觸控玩法，或把此設計紀錄當作 FPS、音效聆聽、未截圖戰鬥狀態或完整 #27 驗證證書。"
     ]
   }
 }

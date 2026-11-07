@@ -1,3 +1,15 @@
+@font-face {
+  font-family: "Noto Serif TC";
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/noto-serif-tc-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Noto Serif TC";
+  font-weight: 900;
+  font-display: swap;
+  src: url("/fonts/noto-serif-tc-900.woff2") format("woff2");
+}
 :root {
   color-scheme: dark;
   font-family: "PingFang TC", "Noto Sans TC", sans-serif;
@@ -807,4 +819,758 @@ legend {
 }
 .battle-station[data-role="driver"] > [data-testid="damage-warning"]:empty {
   display: none;
+}
+
+/* Manual world: a two-ink technical-manual plate shared by the lobby and the battle stations. */
+:root[data-surface] {
+  --paper: #ebe5d2;
+  --paper-deep: #e2dbc4;
+  --paper-field: #f5f1e4;
+  --ink: #1c1c18;
+  --ink-soft: #4d4a3c;
+  --ink-red: #a3352b;
+  --rule: #b3aa8f;
+  --plate-serif: "Noto Serif TC", "Songti TC", serif;
+  color-scheme: light;
+  color: var(--ink);
+  background: var(--paper);
+}
+[data-surface] body {
+  background: var(--paper);
+}
+[data-surface] ::selection {
+  background: var(--ink-red);
+  color: var(--paper);
+}
+[data-surface="manual"] .crew-shell {
+  max-width: 1200px;
+  padding: 36px 48px 48px;
+}
+[data-surface="manual"] header {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  column-gap: 24px;
+  margin-bottom: 32px;
+  padding-bottom: 18px;
+  border-bottom: 2px solid var(--ink);
+}
+[data-surface="manual"] h1 {
+  font-family: var(--plate-serif);
+  font-weight: 900;
+  font-size: clamp(28px, 3.4vw, 40px);
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+[data-surface="manual"] header p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+[data-surface="manual"] header .setting {
+  justify-self: end;
+}
+[data-surface="manual"] header p:last-child {
+  grid-column: 1 / -1;
+  margin-top: 10px;
+  color: var(--ink);
+}
+[data-surface] h2,
+[data-surface="manual"] legend {
+  font-family: var(--plate-serif);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  margin: 0 0 16px;
+}
+[data-surface] .note,
+[data-surface] .setting {
+  color: var(--ink-soft);
+}
+[data-surface] label {
+  font-weight: 600;
+}
+[data-surface] input {
+  background: var(--paper-field);
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  border-radius: 0;
+  caret-color: var(--ink-red);
+}
+[data-surface] input::placeholder {
+  color: var(--ink-soft);
+}
+[data-surface] button {
+  background: var(--ink);
+  color: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  font-weight: 700;
+  padding: 12px 22px;
+}
+[data-surface] button:hover:not(:disabled) {
+  background: #36352d;
+}
+[data-surface] button.secondary {
+  background: transparent;
+  color: var(--ink);
+}
+[data-surface] button.secondary:hover:not(:disabled) {
+  background: var(--paper-field);
+}
+[data-surface] button:disabled {
+  opacity: 1;
+  background: transparent;
+  color: #857f69;
+  border-color: #b3aa8f;
+}
+[data-surface] button:focus-visible,
+[data-surface] input:focus-visible {
+  outline: 3px solid var(--ink-red);
+  outline-offset: 3px;
+}
+[data-surface] #crew-message {
+  color: var(--ink);
+  font-weight: 600;
+  margin: 20px 0 0;
+}
+[data-surface] #crew-message:empty {
+  display: none;
+}
+
+.plate-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  border: 2px solid var(--ink);
+}
+.plate-figure {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  column-gap: 0;
+  margin: 0;
+  padding: 28px 32px 32px;
+  border: 0;
+  min-width: 0;
+}
+.plate-figure > legend {
+  float: left;
+  grid-column: 1 / -1;
+  width: 100%;
+}
+.hull-plate {
+  margin: 0;
+}
+.hull-plate svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.hull-lines,
+.track-links {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.track-links,
+.leaders {
+  stroke-width: 1;
+}
+.leaders {
+  fill: none;
+  stroke: var(--ink);
+}
+.hull-lines .dash {
+  stroke-dasharray: 5 4;
+  stroke-width: 1.2;
+}
+.seat circle {
+  stroke: var(--ink);
+  stroke-width: 2;
+  fill: var(--paper);
+}
+.seat text {
+  font-family: var(--plate-serif);
+  font-weight: 900;
+  font-size: 17px;
+  text-anchor: middle;
+  fill: var(--ink);
+}
+.seat-taken circle {
+  fill: var(--ink);
+}
+.seat-taken text {
+  fill: var(--paper);
+}
+.seat-mine circle {
+  fill: var(--ink-red);
+  stroke: var(--ink-red);
+}
+.seat-mine text {
+  fill: var(--paper);
+}
+.hull-plate figcaption {
+  text-wrap: balance;
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+.plate-legend {
+  list-style: none;
+  counter-reset: seat;
+  margin: 0;
+  padding: 0;
+  align-self: start;
+  display: grid;
+  grid-template-rows: repeat(3, 1fr);
+  height: 442px;
+}
+.plate-legend li {
+  counter-increment: seat;
+  position: relative;
+  padding: 0 12px 0 52px;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+.plate-legend li + li {
+  border-top: 1px solid var(--rule);
+  padding-top: 0;
+}
+.plate-legend li::before {
+  content: counter(seat);
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: var(--plate-serif);
+  font-weight: 900;
+  font-size: 17px;
+  color: var(--ink);
+}
+.plate-legend li > strong {
+  display: block;
+  font-family: var(--plate-serif);
+  font-size: 22px;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.plate-legend .role-option {
+  display: block;
+  transition: background-color 160ms ease-out;
+}
+.plate-legend .role-option:has(button:hover:not(:disabled)) {
+  background: var(--paper-field);
+}
+.plate-legend .role-option p {
+  margin: 8px 0 0;
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+.plate-legend .role-option .seat-owner {
+  margin-top: 4px;
+  font-weight: 700;
+  color: var(--ink);
+}
+[data-surface="manual"] .plate-legend .role-option button {
+  font-family: var(--plate-serif);
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.3;
+  padding: 2px 0 3px;
+  background: transparent;
+  color: var(--ink);
+  border: 0;
+  border-bottom: 2px solid var(--ink);
+}
+[data-surface="manual"] .plate-legend .role-option button:hover:not(:disabled) {
+  background: transparent;
+}
+[data-surface="manual"] .plate-legend .role-option button:disabled {
+  color: var(--ink);
+  border-bottom-color: transparent;
+}
+.plate-legend .role-option[data-state="taken"]::before {
+  background: var(--ink);
+  color: var(--paper);
+}
+.plate-legend .role-option[data-state="mine"]::before {
+  background: var(--ink-red);
+  border-color: var(--ink-red);
+  color: var(--paper);
+}
+[data-surface="manual"] .plate-legend .role-option button[aria-pressed="true"] {
+  color: var(--ink-red);
+  border-bottom-color: var(--ink-red);
+}
+.plate-legend .role-option[data-state="mine"] .seat-owner {
+  color: var(--ink-red);
+}
+
+.plate-panel {
+  background: var(--paper-deep);
+  border-left: 2px solid var(--ink);
+  padding: 28px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.plate-panel form {
+  margin-bottom: 20px;
+}
+[data-surface="manual"] .plate-panel #crew-create {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.plate-or {
+  margin: 4px 0 16px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+[data-surface="manual"] .plate-panel .join-line {
+  gap: 10px;
+}
+[data-surface="manual"] #crew-code {
+  font-family: var(--plate-serif);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+.plate-panel > .note {
+  margin: auto 0 0;
+}
+[data-surface="manual"] .room-heading {
+  display: block;
+  margin-bottom: 10px;
+}
+[data-surface="manual"] .room-heading p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+[data-surface="manual"] [data-testid="room-code"] {
+  display: block;
+  margin: 2px 0 0;
+  font-family: var(--plate-serif);
+  font-weight: 900;
+  font-size: 44px;
+  line-height: 1.2;
+  letter-spacing: 0.16em;
+  color: var(--ink-red);
+}
+.crew-count {
+  margin: 8px 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+[data-surface="manual"] .crew-list {
+  margin: 0;
+}
+[data-surface="manual"] .crew-list li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+  align-items: baseline;
+}
+[data-surface="manual"] .crew-list li.is-me strong {
+  color: var(--ink-red);
+}
+[data-surface="manual"] .crew-list span {
+  color: var(--ink-soft);
+  font-size: 15px;
+  white-space: nowrap;
+}
+.crew-list .is-ready {
+  color: var(--ink);
+  font-weight: 700;
+}
+.crew-list .not-ready {
+  color: var(--ink-soft);
+  font-weight: 400;
+}
+.crew-head,
+[data-surface="manual"] .crew-list li {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto 56px;
+  column-gap: 12px;
+  align-items: baseline;
+}
+.crew-head {
+  font-size: 13px;
+  color: var(--ink-soft);
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--ink);
+}
+.crew-head span:last-child,
+.crew-list b {
+  text-align: right;
+}
+.crew-seat {
+  font-family: var(--plate-serif);
+  font-weight: 900;
+  font-size: 18px;
+  color: var(--ink);
+}
+[data-surface="manual"] .crew-list .is-me .crew-seat {
+  color: var(--ink-red);
+}
+.crew-open {
+  margin: 0;
+  padding: 12px 0 12px 48px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+[data-surface="manual"] .room-actions {
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+[data-surface="manual"] .room-actions #crew-ready {
+  grid-column: 1 / -1;
+  font-size: 18px;
+}
+[data-surface="manual"] .room-actions p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  align-self: center;
+}
+[data-surface="manual"] .room-actions + p[role="status"],
+[data-surface="manual"] .plate-panel > .note:last-child {
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+[data-surface="manual"] .plate-panel > p[role="status"] {
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  padding: 10px 12px;
+}
+
+@media (max-width: 1000px) {
+  .plate-layout {
+    grid-template-columns: 1fr;
+  }
+  .plate-panel {
+    border-left: 0;
+    border-top: 2px solid var(--ink);
+  }
+  /* On the entry menu the forms lead; the unclaimed plate follows as reference. */
+  .plate-layout:has(#crew-create) .plate-panel {
+    order: -1;
+    border-top: 0;
+    border-bottom: 2px solid var(--ink);
+  }
+}
+@media (max-width: 600px) {
+  [data-surface="manual"] .crew-shell {
+    padding: 20px 16px 32px;
+  }
+  [data-surface="manual"] header {
+    grid-template-columns: 1fr;
+  }
+  [data-surface="manual"] header .setting {
+    justify-self: start;
+    margin-top: 6px;
+  }
+  .plate-figure {
+    grid-template-columns: 1fr;
+    padding: 20px 18px;
+  }
+  .hull-plate {
+    margin: 0 0 20px;
+  }
+  .hull-plate svg {
+    width: 220px;
+    margin: 0 auto;
+  }
+  .leaders {
+    display: none;
+  }
+  .plate-legend {
+    height: auto;
+    grid-template-rows: none;
+  }
+  .plate-legend li {
+    padding: 14px 0 14px 52px;
+  }
+  .plate-legend li::before {
+    top: 16px;
+  }
+  .plate-panel {
+    padding: 20px 18px;
+  }
+  .crew-head,
+  [data-surface="manual"] .crew-list li {
+    grid-template-columns: 32px minmax(0, 1fr) auto auto;
+    column-gap: 8px;
+  }
+  [data-surface="manual"] [data-testid="room-code"] {
+    font-size: 36px;
+  }
+}
+/* Battle surface: each workstation is a plate; the live scene is its figure. Red ink marks danger now. */
+[data-surface="battle"] .crew-shell {
+  color: var(--ink);
+}
+[data-surface="battle"] .workstation {
+  background: transparent;
+  border: 2px solid var(--ink);
+  border-radius: 0;
+}
+[data-surface="battle"] .battle-station > h2:first-child {
+  font-family: var(--plate-serif);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+[data-surface="battle"] .battle-station strong {
+  font-family: var(--plate-serif);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+[data-surface="battle"] .crew-health strong {
+  font-weight: 900;
+  font-size: 1.15em;
+}
+[data-surface="battle"] .battle-viewport,
+[data-surface="battle"] .interior-viewport {
+  background: var(--paper-deep);
+  outline: 2px solid var(--ink);
+  outline-offset: 0;
+}
+[data-surface="battle"] .smoke-status,
+[data-surface="battle"] .battle-viewport [data-testid="enemy-activity"],
+[data-surface="battle"] .mg-hud {
+  background: var(--paper);
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  border-radius: 0;
+}
+[data-surface="battle"] .battle-viewport [data-testid="enemy-warning"],
+[data-surface="battle"] .battle-station > [data-testid="enemy-warning"] {
+  background: var(--paper);
+  color: var(--ink-red);
+  border: 2px solid var(--ink-red);
+  font-weight: 700;
+}
+[data-surface="battle"] [data-testid="damage-warning"],
+[data-surface="battle"] .ejection-warning,
+[data-surface="battle"] .stun-timer,
+[data-surface="battle"] [data-testid="battle-result"] {
+  color: var(--ink-red);
+}
+[data-surface="battle"] .battle-station.under-fire {
+  outline: 3px solid var(--ink-red);
+  outline-offset: 4px;
+}
+[data-surface="battle"] .loader-workspace[data-posture="stunned"] .interior-viewport {
+  outline: 4px solid var(--ink-red);
+  outline-offset: 0;
+}
+[data-surface="battle"] .weapon-status {
+  border-block: 1px solid var(--rule);
+}
+[data-surface="battle"] .battle-station[data-role="gunner"] > .weapon-status {
+  border-block: 1px solid var(--ink);
+}
+[data-surface="battle"] .battle-station progress {
+  appearance: none;
+  border: 1.5px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper-field);
+}
+[data-surface="battle"] .battle-station progress::-webkit-progress-bar {
+  background: var(--paper-field);
+}
+[data-surface="battle"] .battle-station progress::-webkit-progress-value {
+  background: var(--ink);
+}
+[data-surface="battle"] .battle-station progress::-moz-progress-bar {
+  background: var(--ink);
+}
+[data-surface="battle"] .battle-station[data-role="loader"] .jam-game {
+  background: var(--paper-field);
+  border: 2px solid var(--ink);
+}
+[data-surface="battle"] .jam-game h3 {
+  font-family: var(--plate-serif);
+  font-weight: 700;
+  color: var(--ink-red);
+}
+[data-surface="battle"] .jam-track {
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+}
+[data-surface="battle"] .jam-zone {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--ink) 0 1.5px,
+    var(--paper-field) 1.5px 7px
+  );
+  color: var(--ink);
+  border: 2px solid var(--ink);
+}
+[data-surface="battle"] .jam-zone::first-line {
+  background: var(--paper-field);
+}
+[data-surface="battle"] .jam-needle {
+  background: var(--ink-red);
+  border: 1px solid var(--paper);
+}
+[data-surface="battle"] .battle-pause {
+  background: var(--paper-field);
+  color: var(--ink);
+  border: 4px double var(--ink);
+  padding: 0.6rem 1rem;
+}
+[data-surface="battle"] .battle-station[data-role="loader"]
+  > [data-testid="battle-result"]:not([hidden]) {
+  background: var(--paper);
+  border: 2px solid var(--ink);
+}
+[data-surface="battle"] [data-testid="battle-result"] {
+  font-family: var(--plate-serif);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+[data-surface="battle"] .battle-station[data-role="loader"] #station-sound[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+}
+[data-surface="battle"] .battle-station[data-role="gunner"] .sight::before,
+[data-surface="battle"] .battle-station[data-role="gunner"] .sight::after {
+  background: var(--paper-field);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
+/* Red ink is for danger now: past damage, a won battle and normal MG heat stay in ink. */
+[data-surface="battle"] .battle-station:not(.under-fire) [data-testid="damage-warning"] {
+  color: var(--ink-soft);
+}
+[data-surface="battle"] [data-testid="battle-result"][data-outcome="won"] {
+  color: var(--ink);
+}
+[data-surface="battle"] .mg-hud progress::-webkit-progress-value {
+  background: var(--ink);
+}
+[data-surface="battle"] .mg-hud progress::-moz-progress-bar {
+  background: var(--ink);
+}
+[data-surface="battle"] .mg-hud[data-overheated] {
+  border-color: var(--ink-red);
+  color: var(--ink-red);
+}
+[data-surface="battle"] .mg-hud[data-overheated] progress::-webkit-progress-value {
+  background: var(--ink-red);
+}
+[data-surface="battle"] .mg-hud[data-overheated] progress::-moz-progress-bar {
+  background: var(--ink-red);
+}
+[data-surface="battle"] .battle-station[data-role="gunner"] > h2:first-child,
+[data-surface="battle"] .battle-station[data-role="loader"] > h2 {
+  font-size: 20px;
+  line-height: 1.3;
+}
+/* Driver: no scene, so the plate is the speed readout and its ruled status lines. */
+[data-surface="battle"] .crew-shell:has(.battle-station[data-role="driver"]) {
+  max-width: 760px;
+  padding-top: 36px;
+}
+[data-surface="battle"] .battle-station[data-role="driver"] {
+  padding: 28px 32px 32px;
+}
+[data-surface="battle"] .battle-station[data-role="driver"] > h2 {
+  font-size: 28px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--ink);
+}
+[data-surface="battle"] .battle-station[data-role="driver"] .driver-instruments {
+  max-width: none;
+  margin: 8px 0 16px;
+  padding: 16px 0 8px;
+  border-block: 1px solid var(--ink);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 32px;
+  align-items: baseline;
+}
+[data-surface="battle"] .driver-instruments .instrument-label {
+  grid-column: 1 / -1;
+  color: var(--ink-soft);
+  margin: 0;
+}
+[data-surface="battle"] .driver-instruments .speed-readout {
+  grid-row: span 2;
+  margin: 0;
+}
+[data-surface="battle"] .driver-instruments .speed-readout strong {
+  font-size: 96px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+[data-surface="battle"] .battle-station[data-role="driver"] .driver-instruments p:not(.instrument-label):not(.speed-readout) {
+  font-family: var(--plate-serif);
+  font-weight: 700;
+  font-size: 22px;
+  margin: 0;
+}
+[data-surface="battle"] .battle-station[data-role="driver"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px;
+  column-gap: 32px;
+}
+[data-surface="battle"] .battle-station[data-role="driver"] > * {
+  grid-column: 1 / -1;
+}
+[data-surface="battle"] .battle-station[data-role="driver"] > .driver-instruments {
+  grid-column: 1;
+}
+[data-surface="battle"] .battle-station[data-role="driver"] > .hull-plate {
+  grid-column: 2;
+  margin: 8px 0 16px;
+  align-self: start;
+}
+[data-surface="battle"] .battle-station[data-role="driver"] > .hull-plate figcaption {
+  font-size: 12px;
+}
+[data-surface="battle"] .battle-station[data-role="driver"] > #station-leave {
+  justify-self: start;
+}
+[data-surface="battle"] .battle-station[data-role="driver"] .leaders {
+  display: none;
+}
+@media (max-width: 600px) {
+  [data-surface="battle"] .battle-station[data-role="driver"] .driver-instruments {
+    grid-template-columns: 1fr;
+  }
+  [data-surface="battle"] .battle-station[data-role="driver"] {
+    grid-template-columns: 1fr;
+  }
+  [data-surface="battle"] .battle-station[data-role="driver"] > .hull-plate {
+    grid-column: 1;
+    width: 160px;
+  }
+  [data-surface="battle"] .driver-instruments .speed-readout strong {
+    font-size: 72px;
+  }
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
