@@ -10,6 +10,10 @@ import { TankScene } from "./tank-scene";
 import { TankInteriorScene } from "./tank-interior-scene";
 import { TankMechanicalAudio } from "./tank-mechanical-audio";
 import {
+  mountBattleNavigation,
+  presentBattleNavigation,
+} from "./tank-navigation";
+import {
   LOAD,
   MODE,
   FIRE,
@@ -307,6 +311,7 @@ function station(room: Room) {
   soundedStun = 0;
   soundedDamage = -100;
   content.innerHTML = stationMarkup(role, soundEnabled);
+  mountBattleNavigation(content.querySelector(".battle-station")!);
   if (role === "loader") {
     const interiorViewport =
       content.querySelector<HTMLElement>(".interior-viewport")!;
@@ -378,6 +383,7 @@ function station(room: Room) {
 }
 core.present = (state) => {
   if (!stationRole) return;
+  presentBattleNavigation(content, state);
   const wave = content.querySelector('[data-testid="wave-status"]');
   if (wave)
     wave.textContent = `第 ${state.battle.wave} / ${TANK_RULES.waves} 波 · 存活敵車 ${state.weapon.targets.filter((e) => e.hp > 0).length}`;
