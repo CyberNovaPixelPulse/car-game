@@ -77,6 +77,26 @@
       "interior-background": {
         "role": "neutral",
         "displayName": "封閉車內暗部"
+      },
+      "hud-background": {
+        "role": "neutral",
+        "displayName": "半透明戰鬥底襯"
+      },
+      "hud-foreground": {
+        "role": "neutral",
+        "displayName": "戰鬥主文字"
+      },
+      "hud-muted": {
+        "role": "neutral",
+        "displayName": "戰鬥次文字"
+      },
+      "hud-rule": {
+        "role": "neutral",
+        "displayName": "戰鬥規線"
+      },
+      "hud-danger": {
+        "role": "neutral",
+        "displayName": "戰鬥危險"
       }
     },
     "typographyMeta": {
@@ -153,15 +173,11 @@
     ],
     "breakpoints": [
       {
-        "name": "plate-stack",
+        "name": "plate-stack-hud-compact",
         "value": "1000px"
       },
       {
-        "name": "gunner-single-column",
-        "value": "700px"
-      },
-      {
-        "name": "room-loader-driver",
+        "name": "room-hud-narrow",
         "value": "600px"
       }
     ],
@@ -169,38 +185,43 @@
       {
         "name": "plate-focus",
         "value": "outline: 3px solid #a3352b; outline-offset: 3px",
-        "purpose": "兩個表面的按鈕與輸入鍵盤焦點。"
+        "purpose": "手冊大廳的按鈕與輸入焦點。"
+      },
+      {
+        "name": "battle-focus",
+        "value": "outline: 3px solid #ffba9f; outline-offset: 3px",
+        "purpose": "戰鬥操作按鈕鍵盤焦點。"
       }
     ],
     "strokes": [
       {
-        "name": "structure",
+        "name": "manual-structure",
         "value": "2px solid #1c1c18",
-        "purpose": "圖版、工作站、場景外框、卡彈區。"
+        "purpose": "手冊大廳結構框。"
       },
       {
-        "name": "label",
+        "name": "manual-field",
         "value": "1.5px solid #1c1c18",
-        "purpose": "輸入、覆蓋標籤、進度條、卡彈軌。"
+        "purpose": "大廳輸入框。"
       },
       {
-        "name": "row",
-        "value": "1px solid #b3aa8f",
-        "purpose": "列規線。"
+        "name": "hud-rule",
+        "value": "1px solid #858b79",
+        "purpose": "半透明戰鬥 HUD 邊線。"
       },
       {
         "name": "under-fire",
-        "value": "outline: 3px solid #a3352b; outline-offset: 4px",
-        "purpose": "受擊一秒內工作站外框。"
+        "value": "3px solid #ffba9f",
+        "purpose": "頁面內側受擊框。"
       },
       {
         "name": "stunned",
-        "value": "outline: 4px solid #a3352b",
-        "purpose": "裝填手暈眩車內框。"
+        "value": "outline: 4px solid #ffba9f; outline-offset: -4px",
+        "purpose": "暈眩車內框。"
       },
       {
         "name": "pause",
-        "value": "4px double #1c1c18",
+        "value": "4px double #d2cbb4",
         "purpose": "等待重連框。"
       }
     ],
@@ -271,58 +292,58 @@
       "name": "工作站圖版",
       "kind": "card",
       "refersTo": "station-plate",
-      "description": "戰鬥工作站：2px 墨框、透明紙底、明體 900 標題、明體 700 表格讀數，3D 場景以 2px 墨線框成圖。",
-      "html": "<section class=\"ds-station\"><h2>砲手工作站</h2><p class=\"ds-hp\">共用坦克血量 <strong>100/100</strong></p><div class=\"ds-scene\"><span class=\"ds-sight\" aria-hidden=\"true\"></span><p class=\"ds-label\">視線清晰</p></div><div class=\"ds-weapon\"><p>膛內：<strong>高爆彈</strong></p><p>裝填進度 <strong>60</strong>%</p><progress max=\"100\" value=\"60\" aria-label=\"裝填進度\"></progress></div></section>",
-      "css": ".ds-station{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:transparent;color:#1c1c18;border:2px solid #1c1c18;border-radius:0;padding:14px 16px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 20px}.ds-station h2{margin:0;font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:22px;letter-spacing:.06em}.ds-station p{margin:0;font-size:14px;line-height:1.5}.ds-station strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:700;font-variant-numeric:tabular-nums}.ds-hp strong{font-weight:900;font-size:1.15em}.ds-scene{grid-column:1/-1;position:relative;height:180px;background:#e2dbc4;outline:2px solid #1c1c18}.ds-sight{position:absolute;left:50%;top:50%;width:28px;height:28px;transform:translate(-50%,-50%)}.ds-sight::before,.ds-sight::after{content:\"\";position:absolute;background:#f5f1e4;box-shadow:0 0 0 1px #1c1c18}.ds-sight::before{width:28px;height:1px;left:0;top:14px}.ds-sight::after{width:1px;height:28px;left:14px;top:0}.ds-label{position:absolute;right:1rem;bottom:.75rem;padding:.3rem .6rem;background:#ebe5d2;color:#1c1c18;border:1.5px solid #1c1c18}.ds-weapon{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:6px 20px;padding:8px 0;border-block:1px solid #1c1c18}.ds-weapon progress{appearance:none;width:130px;height:10px;border:1.5px solid #1c1c18;border-radius:0;background:#f5f1e4}.ds-weapon progress::-webkit-progress-bar{background:#f5f1e4}.ds-weapon progress::-webkit-progress-value{background:#1c1c18}.ds-weapon progress::-moz-progress-bar{background:#1c1c18}"
+      "description": "戰鬥以半透明深底與亮字呈現；完整頁面及角落位置依 tank.css。",
+      "html": "<section class=\"ds-hud\"><h2>駕駛工作站</h2><p>共用坦克血量 <strong>100/100</strong></p><p>第 1 / 3 波 · 存活敵車 2</p><p>速度 <strong>0.0</strong> m/s · 靜止</p><p>車身朝向 <strong>0°</strong><br>砲管朝向 <strong>0.0°</strong></p></section>",
+      "css": ".ds-hud{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;font-size:14px;line-height:1.5;color:#f5f1e4;background:#171e1ce8;border:1px solid #858b79;border-radius:0;padding:12px 14px;}.ds-hud p{margin:0 0 8px}.ds-hud h2{margin:0 0 8px;font:900 20px/1.3 \"Noto Serif TC\",\"Songti TC\",serif;letter-spacing:.06em}.ds-hud strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-variant-numeric:tabular-nums}.ds-hud .danger{color:#ffba9f}.ds-hud progress{appearance:none;display:block;width:100%;height:10px;border:1px solid #d2cbb4;background:#171e1c}.ds-hud progress::-webkit-progress-bar{background:#171e1c}.ds-hud progress::-webkit-progress-value{background:#f5f1e4}.ds-hud button{font:700 14px/1.5 \"PingFang TC\",\"Noto Sans TC\",sans-serif;min-height:40px;padding:8px 14px;color:#f5f1e4;background:#171e1ce8;border:1px solid #d2cbb4;border-radius:0}.ds-hud button:focus-visible{outline:3px solid #ffba9f;outline-offset:3px}"
     },
     {
       "name": "危險警示",
       "kind": "custom",
       "refersTo": "enemy-warning",
-      "description": "敵方瞄準預告：紙底朱紅字、2px 朱紅框；受擊一秒內的 3px 朱紅外框示意。",
-      "html": "<div class=\"ds-fire\"><p class=\"ds-warn\">四號戰車正在瞄準我們，約 2 秒後開火</p><p class=\"ds-dmg\">受到攻擊：血量 -12</p></div>",
-      "css": ".ds-fire{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;color:#1c1c18;border:2px solid #1c1c18;outline:3px solid #a3352b;outline-offset:4px;padding:14px 16px;background:#ebe5d2}.ds-warn{margin:0 0 8px;padding:.3rem .6rem;background:#ebe5d2;color:#a3352b;border:2px solid #a3352b;font-weight:700;font-size:14px;line-height:1.5}.ds-dmg{margin:0;color:#a3352b;font-size:14px}"
+      "description": "戰鬥以半透明深底與亮字呈現；完整頁面及角落位置依 tank.css。",
+      "html": "<section class=\"ds-hud\"><p class=\"danger\">敵車正在瞄準，即將開火！移動或尋找掩護</p></section>",
+      "css": ".ds-hud{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;font-size:14px;line-height:1.5;color:#f5f1e4;background:#171e1ce8;border:1px solid #858b79;border-radius:0;padding:12px 14px;}.ds-hud p{margin:0 0 8px}.ds-hud h2{margin:0 0 8px;font:900 20px/1.3 \"Noto Serif TC\",\"Songti TC\",serif;letter-spacing:.06em}.ds-hud strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-variant-numeric:tabular-nums}.ds-hud .danger{color:#ffba9f}.ds-hud progress{appearance:none;display:block;width:100%;height:10px;border:1px solid #d2cbb4;background:#171e1c}.ds-hud progress::-webkit-progress-bar{background:#171e1c}.ds-hud progress::-webkit-progress-value{background:#f5f1e4}.ds-hud button{font:700 14px/1.5 \"PingFang TC\",\"Noto Sans TC\",sans-serif;min-height:40px;padding:8px 14px;color:#f5f1e4;background:#171e1ce8;border:1px solid #d2cbb4;border-radius:0}.ds-hud button:focus-visible{outline:3px solid #ffba9f;outline-offset:3px}"
     },
     {
       "name": "機槍熱量 HUD",
       "kind": "custom",
       "refersTo": "mg-hud",
-      "description": "機槍場景左下的紙標籤；平常墨色，data-overheated 時框、字與熱量條轉朱紅。",
-      "html": "<div class=\"ds-mg\"><p>機槍熱度 <strong>40</strong>% · 可以射擊</p><progress max=\"100\" value=\"40\" aria-label=\"機槍熱度\"></progress></div> <div class=\"ds-mg\" data-overheated><p>機槍熱度 <strong>100</strong>% · 過熱冷卻中 <strong>2.4</strong></p><progress max=\"100\" value=\"100\" aria-label=\"機槍熱度\"></progress></div>",
-      "css": ".ds-mg{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;display:inline-block;vertical-align:top;margin:4px;padding:8px 12px;background:#ebe5d2;color:#1c1c18;border:1.5px solid #1c1c18;border-radius:0;font-size:14px;line-height:1.45;font-variant-numeric:tabular-nums}.ds-mg p{margin:0 0 5px}.ds-mg strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:700}.ds-mg progress{appearance:none;display:block;width:220px;height:12px;border:1.5px solid #1c1c18;border-radius:0;background:#f5f1e4}.ds-mg progress::-webkit-progress-bar{background:#f5f1e4}.ds-mg progress::-webkit-progress-value{background:#1c1c18}.ds-mg progress::-moz-progress-bar{background:#1c1c18}.ds-mg[data-overheated]{border-color:#a3352b;color:#a3352b}.ds-mg[data-overheated] progress::-webkit-progress-value{background:#a3352b}.ds-mg[data-overheated] progress::-moz-progress-bar{background:#a3352b}"
+      "description": "戰鬥以半透明深底與亮字呈現；完整頁面及角落位置依 tank.css。",
+      "html": "<section class=\"ds-hud\"><p>機槍熱度 <strong>100</strong>%</p><p class=\"danger\">過熱・強制冷卻 <strong>2.0 秒</strong></p><progress max=\"100\" value=\"100\"></progress></section>",
+      "css": ".ds-hud{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;font-size:14px;line-height:1.5;color:#f5f1e4;background:#171e1ce8;border:1px solid #858b79;border-radius:0;padding:12px 14px;}.ds-hud p{margin:0 0 8px}.ds-hud h2{margin:0 0 8px;font:900 20px/1.3 \"Noto Serif TC\",\"Songti TC\",serif;letter-spacing:.06em}.ds-hud strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-variant-numeric:tabular-nums}.ds-hud .danger{color:#ffba9f}.ds-hud progress{appearance:none;display:block;width:100%;height:10px;border:1px solid #d2cbb4;background:#171e1c}.ds-hud progress::-webkit-progress-bar{background:#171e1c}.ds-hud progress::-webkit-progress-value{background:#f5f1e4}.ds-hud button{font:700 14px/1.5 \"PingFang TC\",\"Noto Sans TC\",sans-serif;min-height:40px;padding:8px 14px;color:#f5f1e4;background:#171e1ce8;border:1px solid #d2cbb4;border-radius:0}.ds-hud button:focus-visible{outline:3px solid #ffba9f;outline-offset:3px}"
     },
     {
       "name": "卡彈工作軌",
       "kind": "custom",
       "refersTo": "jam-track",
-      "description": "paper-field 卡彈區、明體朱紅標題、墨斜線目標區與朱紅指針；示例不執行卡彈規則。",
-      "html": "<section class=\"ds-jam\"><h3>卡彈：停在目標區</h3><div class=\"ds-track\"><span class=\"ds-zone\" style=\"left:40%;width:22%\">目標</span><span class=\"ds-needle\" style=\"left:50%\"></span></div><p>按空白鍵停針</p></section>",
-      "css": ".ds-jam{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;padding:12px 16px;background:#f5f1e4;color:#1c1c18;border:2px solid #1c1c18}.ds-jam h3{margin:0 0 16px;font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:700;font-size:18px;color:#a3352b}.ds-track{position:relative;height:38px;background:#ebe5d2;border:1.5px solid #1c1c18}.ds-zone{position:absolute;top:0;bottom:0;text-align:center;line-height:34px;font-weight:700;color:#1c1c18;border:2px solid #1c1c18;background:repeating-linear-gradient(-45deg,#1c1c18 0 1.5px,#f5f1e4 1.5px 7px)}.ds-zone::first-line{background:#f5f1e4}.ds-needle{position:absolute;top:-7px;bottom:-7px;width:4px;transform:translateX(-2px);background:#a3352b;border:1px solid #ebe5d2}.ds-jam p{margin:14px 0 0;font-weight:600}"
+      "description": "戰鬥以半透明深底與亮字呈現；完整頁面及角落位置依 tank.css。",
+      "html": "<section class=\"ds-hud\"><p class=\"danger\">卡彈：停在目標區</p><div class=\"ds-track\"><span class=\"ds-zone\">目標</span><span class=\"ds-needle\"></span></div><p>按空白鍵停針</p></section>",
+      "css": ".ds-hud{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;font-size:14px;line-height:1.5;color:#f5f1e4;background:#171e1ce8;border:1px solid #858b79;border-radius:0;padding:12px 14px;}.ds-hud p{margin:0 0 8px}.ds-hud h2{margin:0 0 8px;font:900 20px/1.3 \"Noto Serif TC\",\"Songti TC\",serif;letter-spacing:.06em}.ds-hud strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-variant-numeric:tabular-nums}.ds-hud .danger{color:#ffba9f}.ds-hud progress{appearance:none;display:block;width:100%;height:10px;border:1px solid #d2cbb4;background:#171e1c}.ds-hud progress::-webkit-progress-bar{background:#171e1c}.ds-hud progress::-webkit-progress-value{background:#f5f1e4}.ds-hud button{font:700 14px/1.5 \"PingFang TC\",\"Noto Sans TC\",sans-serif;min-height:40px;padding:8px 14px;color:#f5f1e4;background:#171e1ce8;border:1px solid #d2cbb4;border-radius:0}.ds-hud button:focus-visible{outline:3px solid #ffba9f;outline-offset:3px} .ds-track{position:relative;height:38px;border:1px solid #d2cbb4;background:#171e1c}.ds-zone{position:absolute;left:35%;width:25%;height:100%;background:#f5f1e4;color:#171e1c;text-align:center;line-height:36px}.ds-needle{position:absolute;left:45%;top:-7px;bottom:-7px;width:4px;background:#ffba9f;border:1px solid #171e1c}"
     },
     {
       "name": "等待重連",
       "kind": "custom",
       "refersTo": "battle-pause",
-      "description": "paper-field 底、4px 雙墨線框，完整凍結與重連文字。",
-      "html": "<p class=\"ds-pause\">戰鬥暫停・等待砲手重新連線，剩餘 30 秒。所有操作與戰況已凍結。</p>",
-      "css": ".ds-pause{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;margin:0;padding:1rem;background:#f5f1e4;color:#1c1c18;border:4px double #1c1c18;font-weight:700;line-height:1.7;max-width:70ch}"
+      "description": "戰鬥以半透明深底與亮字呈現；完整頁面及角落位置依 tank.css。",
+      "html": "<section class=\"ds-hud\" style=\"border:4px double #d2cbb4\">戰鬥暫停・等待駕駛重新連線，剩餘 56 秒。所有操作與戰況已凍結。</section>",
+      "css": ".ds-hud{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;font-size:14px;line-height:1.5;color:#f5f1e4;background:#171e1ce8;border:1px solid #858b79;border-radius:0;padding:12px 14px;}.ds-hud p{margin:0 0 8px}.ds-hud h2{margin:0 0 8px;font:900 20px/1.3 \"Noto Serif TC\",\"Songti TC\",serif;letter-spacing:.06em}.ds-hud strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-variant-numeric:tabular-nums}.ds-hud .danger{color:#ffba9f}.ds-hud progress{appearance:none;display:block;width:100%;height:10px;border:1px solid #d2cbb4;background:#171e1c}.ds-hud progress::-webkit-progress-bar{background:#171e1c}.ds-hud progress::-webkit-progress-value{background:#f5f1e4}.ds-hud button{font:700 14px/1.5 \"PingFang TC\",\"Noto Sans TC\",sans-serif;min-height:40px;padding:8px 14px;color:#f5f1e4;background:#171e1ce8;border:1px solid #d2cbb4;border-radius:0}.ds-hud button:focus-visible{outline:3px solid #ffba9f;outline-offset:3px}"
     },
     {
       "name": "駕駛儀表",
       "kind": "custom",
       "refersTo": "driver-speed",
-      "description": "裝甲前窗下方的緊湊速度與車況讀數；真正 3D 開口由 TankScene 呈現，樣例只示讀數。",
-      "html": "<div class=\"ds-driver-instruments\"><p>速度</p><p class=\"ds-driver-speed\"><strong>4.2</strong> m/s</p><p>前進</p><p>車體正常</p></div>",
-      "css": ".ds-driver-instruments{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;font-size:14px;display:flex;align-items:baseline;flex-wrap:wrap;gap:12px 24px;padding:8px 0;color:var(--ink,#1c1c18);border-block:1px solid var(--rule,#b3aa8f)}.ds-driver-instruments p{margin:0}.ds-driver-instruments p:first-child{color:var(--ink-soft,#4d4a3c)}.ds-driver-speed{font-variant-numeric:tabular-nums}.ds-driver-speed strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-size:32px;font-weight:900;line-height:1}"
+      "description": "戰鬥以半透明深底與亮字呈現；完整頁面及角落位置依 tank.css。",
+      "html": "<section class=\"ds-hud\"><h2>駕駛工作站</h2><p>共用坦克血量 <strong>100/100</strong></p><p>第 1 / 3 波 · 存活敵車 2</p><p>速度 <strong>0.0</strong> m/s · 靜止</p><p>車身朝向 <strong>0°</strong><br>砲管朝向 <strong>0.0°</strong></p></section>",
+      "css": ".ds-hud{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;font-size:14px;line-height:1.5;color:#f5f1e4;background:#171e1ce8;border:1px solid #858b79;border-radius:0;padding:12px 14px;}.ds-hud p{margin:0 0 8px}.ds-hud h2{margin:0 0 8px;font:900 20px/1.3 \"Noto Serif TC\",\"Songti TC\",serif;letter-spacing:.06em}.ds-hud strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-variant-numeric:tabular-nums}.ds-hud .danger{color:#ffba9f}.ds-hud progress{appearance:none;display:block;width:100%;height:10px;border:1px solid #d2cbb4;background:#171e1c}.ds-hud progress::-webkit-progress-bar{background:#171e1c}.ds-hud progress::-webkit-progress-value{background:#f5f1e4}.ds-hud button{font:700 14px/1.5 \"PingFang TC\",\"Noto Sans TC\",sans-serif;min-height:40px;padding:8px 14px;color:#f5f1e4;background:#171e1ce8;border:1px solid #d2cbb4;border-radius:0}.ds-hud button:focus-visible{outline:3px solid #ffba9f;outline-offset:3px}"
     }
   ],
   "narrative": {
     "northStar": "三人共乘一台重型戰車",
-    "overview": "三位乘員共用一台重型戰車，以各自受限的視野與清楚的工作狀態協作。整個 HTML 介面是同一張戰時技術手冊的雙色凸版圖版：手冊紙為底、單一墨色負責線圖、規線、文字與實心主按鈕，第二色朱紅保留給極少數必須立刻注意的東西。`html[data-surface]` 仍分 manual（主選單與大廳）與 battle（三個戰鬥工作站），但兩者共用 `:root[data-surface]` 上的同一組紙／墨 token；切換只改版面與朱紅的語意，不換世界。\n\n**入口與大廳。** 認領職位就是在 Sherman 俯視圖版上認領一個有編號的乘員座位。車體線圖上的三個座位記號即時反映權威房間狀態（空位留白、他人墨色、自己朱紅），以 1px 引線連到編號圖例；右側面板有朱紅大字房間代碼、編號乘員表與準備／開始／離開。\n\n**戰鬥工作站。** 每個工作站是一張圖版：2px 墨框、透明紙底、明體 900 標題。即時 3D 外景或車內是這張圖版的「圖」，以 2px 墨線框起；場景上的覆蓋層是紙底墨線的標籤。朱紅只標示現在需要行動的危險。#30／#31 將駕駛圖版改為有厚度的受限裝甲前窗，下方保留緊湊速度與車況讀數。3D 世界本身仍是 1944 年卡昂周邊的石造農村、土路及自然日光，車輛、田行與葉叢保留使用者接受的簡化程序外觀；圖版語言只屬於 HTML 介面，不把 3D 場景畫成紙。",
+    "overview": "三位乘員共用一台重型戰車，以受限視野與清楚的工作狀態協作。入口與大廳保留雙色戰時手冊；#30／#33 將戰鬥改為鋪滿頁面的真實 3D 場景與半透明角落 HUD。兩者保留方角、明體名稱／數字、清楚中文與危險狀態的強調色。\n\n**入口與大廳。** 認領職位就是在 Sherman 俯視圖版上認領一個有編號的乘員座位。車體線圖上的三個座位記號即時反映權威房間狀態（空位留白、他人墨色、自己朱紅），以 1px 引線連到編號圖例；右側面板有朱紅大字房間代碼、編號乘員表與準備／開始／離開。\n\n**戰鬥工作站。** 車外或車內視野覆蓋整個頁面，移除 HTML 紙框、場景外長條與額外留白。HUD 是清晰 DOM 文字與深色半透明底襯，不使用模糊。駕駛仍透過真正有厚度的裝甲前窗觀察，實際開口水平 60°、垂直 16°；周圍裝甲是 3D 世界的一部分。坦克與諾曼第村落保留使用者接受的簡化外觀。",
     "keyCharacteristics": [
-      "兩個表面共用紙／墨／朱紅三種墨水角色、方角與 1–2px 墨線；沒有陰影、沒有圓角卡片。",
+      "大廳使用紙／墨／朱紅，戰鬥使用深色半透明底、亮字與危險暖色；共用方角、明體與清晰規線。",
       "大廳：車體俯視圖的座位記號、圖例與乘員表永遠是三個座位，鏡射權威房間狀態。",
-      "戰鬥：工作站是圖版、3D 場景是圖、覆蓋層是紙標籤；朱紅只在危險當下出現。",
+      "戰鬥：3D 場景鋪滿頁面，工作資訊及操作在角落，中央準星或車內工作面保持可見。",
       "接受的簡化程序外觀，保留 Sherman／四號 H／虎式 I 辨識。",
       "自然日光外景與封閉工作燈車內，分開處理照明。",
       "場景優先、工作資訊緊湊；駕駛只從固定車頭的狹長前窗觀察，側後方由隊友協助。",
@@ -331,12 +352,12 @@
     "rules": [
       {
         "name": "The Second Ink Rule",
-        "body": "朱紅在大廳只標示屬於你的東西與要念給隊友的房間代碼，在戰鬥只標示現在需要行動的危險；兩處共用朱紅焦點框。其他狀態一律用墨、淡墨與留白。",
+        "body": "大廳朱紅只標示你的座位、選擇及房間代碼。戰鬥危險暖色只標示現在需要行動的狀態，並配合中文與數字；一般工作保持亮字。",
         "section": "colors"
       },
       {
         "name": "The Danger Is Now Rule",
-        "body": "戰鬥朱紅跟著狀態亮起、跟著狀態熄滅：受傷文字只在 `.under-fire`（受擊一秒內）為朱紅，之後回淡墨；機槍熱量平常是墨色，只有 `data-overheated` 轉朱紅；結算只有 `data-outcome=\"failed\"` 為朱紅，勝利用墨。",
+        "body": "受傷文字只在 `.under-fire` 受擊一秒內使用 hud-danger，之後回 hud-muted；機槍只有 `data-overheated` 使用危險色；失敗使用危險色，勝利用一般前景色。",
         "section": "colors"
       },
       {
@@ -356,7 +377,7 @@
       },
       {
         "name": "The Ruled, Not Raised Rule",
-        "body": "以規線和紙色分層，不用陰影、模糊或浮起；需要更強調時加粗墨線或改雙線。",
+        "body": "大廳以紙色分層，戰鬥以半透明深底與亮字分層；不用陰影或模糊，強調使用規線與明確文字。",
         "section": "elevation"
       },
       {
@@ -366,11 +387,11 @@
       }
     ],
     "dos": [
-      "Do 讓新介面元素待在 `data-surface` 範圍內，只用 paper／paper-deep／paper-field、ink／ink-soft／rule 與 ink-red 這些墨水角色。",
+      "Do 讓新介面元素待在 `data-surface` 範圍內，大廳用紙／墨 token，戰鬥用 hud token。",
       "Do 讓座位記號、圖例與乘員表從同一份權威房間狀態產生，並永遠呈現三個座位。",
-      "Do 以 2px 墨線框結構、1.5px 墨線框標籤與欄位、1px 規線分隔列；名稱、標題與讀數數字用 Noto Serif TC，說明用系統黑體。",
-      "Do 讓戰鬥朱紅跟著危險狀態出現與消失（受擊窗口、過熱、失敗），過去的狀態回到墨或淡墨。",
-      "Do 把 3D 場景框成圖版的圖，覆蓋資訊做成紙底墨線標籤，不用整片面板蓋住場景。",
+      "Do 在大廳以墨線框結構與欄位，在戰鬥以 1px HUD 規線分隔；名稱與數字用 Noto Serif TC，說明用系統黑體。",
+      "Do 讓戰鬥危險色跟著即時狀態出現與消失，過去狀態回到一般或次要文字。",
+      "Do 讓戰鬥場景鋪滿頁面，把工作資訊與控制留在角落；中央只放當前車內工作或結算。",
       "Do 在明體位置新增中文字串時，依字型 README 重新產生 Noto Serif TC 子集並更新雜湊。",
       "Do 保留六個 Sherman 路輪、三組 VVSS 及三種車型的不同輪組、炮塔與炮長。",
       "Do 讓實際貼圖、shader 編譯與首個 GPU draw 完成後才送出準備票，保留可見準備中與取消狀態。",
@@ -379,7 +400,7 @@
       "Do 讓低草保持裝飾，石造掩體對齊權威碰撞盒，動畫只讀權威快照。"
     ],
     "donts": [
-      "Don't 在大廳用朱紅表示「你」以外的一般狀態，或在戰鬥用朱紅表示一般狀態、已過去的傷害或勝利。",
+      "Don't 在大廳用朱紅表示一般狀態，或在戰鬥用危險色表示過去的傷害與勝利。",
       "Don't 加入陰影、模糊、玻璃、圓角卡片、英雄插圖或角色卡；強調用更粗或雙墨線。",
       "Don't 加入軍徽、部隊標誌或旗幟。",
       "Don't 重新引入外部字型服務或系統內建的替代展示字體來取代自託管明體。",
