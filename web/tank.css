@@ -1608,3 +1608,82 @@ legend {
   font: inherit;
   font-weight: 700;
 }
+
+/* Shared navigation stays outside every station's interchangeable work region. */
+[data-surface="battle"] .battle-navigation {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 4;
+  width: 192px;
+  background: var(--hud-background, #171e1ce8);
+  color: var(--hud-foreground, #f5f1e4);
+  pointer-events: none;
+  font: 400 12px/1.4 "PingFang TC", "Noto Sans TC", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.navigation-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+}
+[data-surface="battle"] .battle-navigation .navigation-heading strong {
+  font: inherit;
+  font-weight: 700;
+}
+.navigation-heading span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.navigation-heading svg {
+  width: 8px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.navigation-map {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--hud-rule, #858d7d);
+}
+.navigation-ground { fill: #60694e; }
+.navigation-plough { fill: #55472f; }
+.navigation-stubble { fill: #817348; }
+.navigation-pasture { fill: #556342; }
+.navigation-lane {
+  fill: none;
+  stroke: #a18e6b;
+  stroke-width: 5;
+  stroke-linejoin: round;
+}
+.navigation-cover {
+  fill: #d2cbb4;
+  stroke: #252a24;
+  stroke-width: 0.6;
+}
+.navigation-hull {
+  fill: #f5f1e4;
+  stroke: #171e1c;
+  stroke-width: 0.7;
+  stroke-linejoin: round;
+}
+.navigation-gun {
+  fill: none;
+  stroke: #ffe4a3;
+  stroke-width: 0.85;
+  stroke-linecap: round;
+}
+.battle-navigation .navigation-legend,
+.battle-navigation .navigation-scale {
+  margin: 0;
+  padding: 3px 8px 0;
+  font: inherit;
+}
+.battle-navigation .navigation-scale {
+  padding-bottom: 6px;
+  color: var(--hud-muted, #d3d9c7);
+}
