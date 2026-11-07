@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-07T06:23:40.214311+00:00",
+  "generatedAt": "2026-11-08T00:00:00Z",
   "title": "Design System: 三人坦克合作戰鬥",
   "extensions": {
     "colorMeta": {
@@ -106,7 +106,7 @@
       },
       "station-title-driver": {
         "displayName": "駕駛工作站標題",
-        "purpose": "28px，帶 2px 墨線底線。"
+        "purpose": "20px，與共用血量並列的緊湊工作站標題。"
       },
       "station-readout": {
         "displayName": "工作讀數",
@@ -114,11 +114,11 @@
       },
       "driver-speed": {
         "displayName": "駕駛速度",
-        "purpose": "盲開駕駛主要數字；600px 以下 72px。"
+        "purpose": "裝甲觀察窗下方的 32px 速度讀數。"
       },
       "driver-status": {
         "displayName": "駕駛狀態行",
-        "purpose": "速度旁的動態與車體狀態。"
+        "purpose": "速度旁的動態與車體受阻文字，14px 系統黑體。"
       },
       "plate-caption": {
         "displayName": "圖說",
@@ -308,24 +308,24 @@
       "css": ".ds-pause{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;margin:0;padding:1rem;background:#f5f1e4;color:#1c1c18;border:4px double #1c1c18;font-weight:700;line-height:1.7;max-width:70ch}"
     },
     {
-      "name": "駕駛圖版",
+      "name": "駕駛儀表",
       "kind": "custom",
       "refersTo": "driver-speed",
-      "description": "沒有外景：96px 明體速度、規線狀態列與座位 1 朱紅的座位圖例欄。",
-      "html": "<section class=\"ds-driver\"><h2>駕駛工作站</h2><div class=\"ds-inst\"><p class=\"ds-il\">速度</p><p class=\"ds-speed\"><strong>4.2</strong> m/s</p><p class=\"ds-st\">前進</p><p class=\"ds-st\">車體正常</p></div><svg class=\"ds-key\" viewBox=\"0 0 120 120\" role=\"img\" aria-label=\"座位圖例\"><g class=\"ds-s ds-me\"><circle cx=\"30\" cy=\"30\" r=\"15\"/><text x=\"30\" y=\"36\">1</text></g><g class=\"ds-s\"><circle cx=\"80\" cy=\"80\" r=\"15\"/><text x=\"80\" y=\"86\">2</text></g><g class=\"ds-s\"><circle cx=\"30\" cy=\"80\" r=\"15\"/><text x=\"30\" y=\"86\">3</text></g></svg></section>",
-      "css": ".ds-driver{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;display:grid;grid-template-columns:minmax(0,1fr) 120px;column-gap:32px;padding:28px 32px 32px;background:#ebe5d2;color:#1c1c18;border:2px solid #1c1c18}.ds-driver h2{grid-column:1/-1;margin:0 0 12px;padding-bottom:12px;border-bottom:2px solid #1c1c18;font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:28px;letter-spacing:.06em}.ds-inst{display:grid;grid-template-columns:auto 1fr;column-gap:32px;align-items:baseline;padding:16px 0 8px;border-block:1px solid #1c1c18}.ds-inst p{margin:0}.ds-il{grid-column:1/-1;color:#4d4a3c;font-size:14px}.ds-speed{grid-row:span 2;font-variant-numeric:tabular-nums}.ds-speed strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:96px;line-height:1.1}.ds-st{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:700;font-size:22px}.ds-key{width:120px;align-self:start;margin-top:8px}.ds-s circle{fill:#1c1c18;stroke:#1c1c18;stroke-width:2}.ds-s text{fill:#ebe5d2;font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:17px;text-anchor:middle}.ds-me circle{fill:#a3352b;stroke:#a3352b}"
+      "description": "裝甲前窗下方的緊湊速度與車況讀數；真正 3D 開口由 TankScene 呈現，樣例只示讀數。",
+      "html": "<div class=\"ds-driver-instruments\"><p>速度</p><p class=\"ds-driver-speed\"><strong>4.2</strong> m/s</p><p>前進</p><p>車體正常</p></div>",
+      "css": ".ds-driver-instruments{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;font-size:14px;display:flex;align-items:baseline;flex-wrap:wrap;gap:12px 24px;padding:8px 0;color:var(--ink,#1c1c18);border-block:1px solid var(--rule,#b3aa8f)}.ds-driver-instruments p{margin:0}.ds-driver-instruments p:first-child{color:var(--ink-soft,#4d4a3c)}.ds-driver-speed{font-variant-numeric:tabular-nums}.ds-driver-speed strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-size:32px;font-weight:900;line-height:1}"
     }
   ],
   "narrative": {
     "northStar": "三人共乘一台重型戰車",
-    "overview": "三位乘員共用一台重型戰車，以各自受限的視野與清楚的工作狀態協作。整個 HTML 介面是同一張戰時技術手冊的雙色凸版圖版：手冊紙為底、單一墨色負責線圖、規線、文字與實心主按鈕，第二色朱紅保留給極少數必須立刻注意的東西。`html[data-surface]` 仍分 manual（主選單與大廳）與 battle（三個戰鬥工作站），但兩者共用 `:root[data-surface]` 上的同一組紙／墨 token；切換只改版面與朱紅的語意，不換世界。\n\n**入口與大廳。** 認領職位就是在 Sherman 俯視圖版上認領一個有編號的乘員座位。車體線圖上的三個座位記號即時反映權威房間狀態（空位留白、他人墨色、自己朱紅），以 1px 引線連到編號圖例；右側面板有朱紅大字房間代碼、編號乘員表與準備／開始／離開。\n\n**戰鬥工作站。** 每個工作站是一張圖版：2px 墨框、透明紙底、明體 900 標題。即時 3D 外景或車內是這張圖版的「圖」，以 2px 墨線框起；場景上的覆蓋層是紙底墨線的標籤。朱紅只標示現在需要行動的危險。駕駛沒有外景，他的圖版就是巨大的明體速度讀數、規線狀態列與車體座位圖例（座位 1 朱紅）。3D 世界本身仍是 1944 年卡昂周邊的石造農村、土路及自然日光，車輛、田行與葉叢保留使用者接受的簡化程序外觀；圖版語言只屬於 HTML 介面，不把 3D 場景畫成紙。",
+    "overview": "三位乘員共用一台重型戰車，以各自受限的視野與清楚的工作狀態協作。整個 HTML 介面是同一張戰時技術手冊的雙色凸版圖版：手冊紙為底、單一墨色負責線圖、規線、文字與實心主按鈕，第二色朱紅保留給極少數必須立刻注意的東西。`html[data-surface]` 仍分 manual（主選單與大廳）與 battle（三個戰鬥工作站），但兩者共用 `:root[data-surface]` 上的同一組紙／墨 token；切換只改版面與朱紅的語意，不換世界。\n\n**入口與大廳。** 認領職位就是在 Sherman 俯視圖版上認領一個有編號的乘員座位。車體線圖上的三個座位記號即時反映權威房間狀態（空位留白、他人墨色、自己朱紅），以 1px 引線連到編號圖例；右側面板有朱紅大字房間代碼、編號乘員表與準備／開始／離開。\n\n**戰鬥工作站。** 每個工作站是一張圖版：2px 墨框、透明紙底、明體 900 標題。即時 3D 外景或車內是這張圖版的「圖」，以 2px 墨線框起；場景上的覆蓋層是紙底墨線的標籤。朱紅只標示現在需要行動的危險。#30／#31 將駕駛圖版改為有厚度的受限裝甲前窗，下方保留緊湊速度與車況讀數。3D 世界本身仍是 1944 年卡昂周邊的石造農村、土路及自然日光，車輛、田行與葉叢保留使用者接受的簡化程序外觀；圖版語言只屬於 HTML 介面，不把 3D 場景畫成紙。",
     "keyCharacteristics": [
       "兩個表面共用紙／墨／朱紅三種墨水角色、方角與 1–2px 墨線；沒有陰影、沒有圓角卡片。",
       "大廳：車體俯視圖的座位記號、圖例與乘員表永遠是三個座位，鏡射權威房間狀態。",
       "戰鬥：工作站是圖版、3D 場景是圖、覆蓋層是紙標籤；朱紅只在危險當下出現。",
       "接受的簡化程序外觀，保留 Sherman／四號 H／虎式 I 辨識。",
       "自然日光外景與封閉工作燈車內，分開處理照明。",
-      "場景優先、工作資訊緊湊，駕駛維持沒有外景的資訊限制。",
+      "場景優先、工作資訊緊湊；駕駛只從固定車頭的狹長前窗觀察，側後方由隊友協助。",
       "明確中文、數字、焦點與可見危險提示，支援桌機實體鍵盤。"
     ],
     "rules": [
@@ -341,7 +341,7 @@
       },
       {
         "name": "The Role Truth Rule",
-        "body": "視覺只呈現職位獲准知道的資訊；駕駛不建立外部 renderer。",
+        "body": "視覺只呈現職位獲准知道的資訊；駕駛實際開口限制為水平 60°、垂直 16°，不自由轉頭。",
         "section": "colors"
       },
       {
@@ -384,7 +384,7 @@
       "Don't 加入軍徽、部隊標誌或旗幟。",
       "Don't 重新引入外部字型服務或系統內建的替代展示字體來取代自託管明體。",
       "Don't 把接受的簡化外觀改述為原先偏寫實標準已通過，或新增未經要求的寫實重建義務。",
-      "Don't 給駕駛外景、把機槍視角綁到主炮，或用美術改變碰撞、傷害與權威時鐘。",
+      "Don't 讓駕駛裝甲窗口外洩漏視野、把機槍視角綁到主炮，或用美術改變碰撞、傷害與權威時鐘。",
       "Don't 把博物館研究影像、材質色或光照資產說成掃描模型、歷史軍漆色號或諾曼第實景照片。",
       "Don't 宣稱窄螢幕已有觸控玩法，或把此設計紀錄當作 FPS、音效聆聽、未截圖戰鬥狀態或完整 #27 驗證證書。"
     ]

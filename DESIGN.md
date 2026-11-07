@@ -59,7 +59,7 @@ typography:
     letterSpacing: "0.06em"
   station-title-driver:
     fontFamily: '"Noto Serif TC", "Songti TC", serif'
-    fontSize: "28px"
+    fontSize: "20px"
     fontWeight: 900
     letterSpacing: "0.06em"
   station-readout:
@@ -68,14 +68,14 @@ typography:
     fontFeature: "tnum"
   driver-speed:
     fontFamily: '"Noto Serif TC", "Songti TC", serif'
-    fontSize: "96px"
+    fontSize: "32px"
     fontWeight: 900
     lineHeight: 1.1
     fontFeature: "tnum"
   driver-status:
-    fontFamily: '"Noto Serif TC", "Songti TC", serif'
-    fontSize: "22px"
-    fontWeight: 700
+    fontFamily: '"PingFang TC", "Noto Sans TC", sans-serif'
+    fontSize: "14px"
+    fontWeight: 400
   plate-body:
     fontFamily: '"PingFang TC", "Noto Sans TC", sans-serif'
     fontSize: "15px"
@@ -110,7 +110,7 @@ spacing:
   work-gap: "8px"
   station-edge: "12px"
   station-column: "20px"
-  driver-column: "32px"
+  driver-column: "20px"
 components:
   plate-button-primary:
     backgroundColor: "{colors.ink}"
@@ -176,7 +176,7 @@ components:
     backgroundColor: "transparent"
     textColor: "{colors.ink}"
     rounded: "{rounded.plate}"
-    padding: "28px 32px 32px"
+    padding: "14px 16px"
   scene-figure:
     backgroundColor: "{colors.paper-deep}"
     rounded: "{rounded.plate}"
@@ -235,7 +235,7 @@ components:
 
 **入口與大廳。** 認領職位就是在 Sherman 俯視圖版上認領一個有編號的乘員座位。車體線圖上的三個座位記號即時反映權威房間狀態（空位留白、他人墨色、自己朱紅），以 1px 引線連到編號圖例；右側面板有朱紅大字房間代碼、編號乘員表與準備／開始／離開。
 
-**戰鬥工作站。** 每個工作站是一張圖版：2px 墨框、透明紙底、明體 900 標題。即時 3D 外景或車內是這張圖版的「圖」，以 2px 墨線框起；場景上的覆蓋層是紙底墨線的標籤。朱紅只標示現在需要行動的危險。駕駛沒有外景，他的圖版就是巨大的明體速度讀數、規線狀態列與車體座位圖例（座位 1 朱紅）。3D 世界本身仍是 1944 年卡昂周邊的石造農村、土路及自然日光，車輛、田行與葉叢保留使用者接受的簡化程序外觀；圖版語言只屬於 HTML 介面，不把 3D 場景畫成紙。
+**戰鬥工作站。** 每個工作站是一張圖版：2px 墨框、透明紙底、明體 900 標題。即時 3D 外景或車內是這張圖版的「圖」，以 2px 墨線框起；場景上的覆蓋層是紙底墨線的標籤。朱紅只標示現在需要行動的危險。#30／#31 將駕駛圖版改為有厚度的受限裝甲前窗，下方保留緊湊速度與車況讀數。3D 世界本身仍是 1944 年卡昂周邊的石造農村、土路及自然日光，車輛、田行與葉叢保留使用者接受的簡化程序外觀；圖版語言只屬於 HTML 介面，不把 3D 場景畫成紙。
 
 **Key Characteristics:**
 
@@ -244,7 +244,7 @@ components:
 - 戰鬥：工作站是圖版、3D 場景是圖、覆蓋層是紙標籤；朱紅只在危險當下出現。
 - 接受的簡化程序外觀，保留 Sherman／四號 H／虎式 I 辨識。
 - 自然日光外景與封閉工作燈車內，分開處理照明。
-- 場景優先、工作資訊緊湊，駕駛維持沒有外景的資訊限制。
+- 場景優先、工作資訊緊湊；駕駛只從固定車頭的狹長前窗觀察，側後方由隊友協助。
 - 明確中文、數字、焦點與可見危險提示，支援桌機實體鍵盤。
 
 紙／墨 token 以 [tank.css](web/tank.css) 的 `:root[data-surface]` 區塊為準；大廳規則在 `[data-surface="manual"]`，戰鬥規則從「Battle surface: each workstation is a plate」註解開始，後接「Red ink is for danger now」與「Driver: no scene」兩段。戰鬥的格線、場景高度與覆蓋層位置仍由同檔較前段的工作站版面規則決定。方向依 [surface brief](.impeccable/surfaces/web-tank-main-ts.md)；3D 世界依 [PRODUCT.md](PRODUCT.md)、[外景 brief](.impeccable/briefs/tank-exterior.md)、[外景](web/tank-scene.ts)、[車模](web/tank-vehicle-model.ts)、[地景](web/tank-environment.ts) 與 [車內](web/tank-interior-scene.ts)。使用者於 2026-11-07 接受「接受目前簡化外觀，修正浮空零件後完成整合」；此文件記錄已修正附著的當前實作，沒有宣稱先前寫實標準通過。
@@ -273,7 +273,7 @@ components:
 
 **The Danger Is Now Rule.** 戰鬥朱紅跟著狀態亮起、跟著狀態熄滅：受傷文字只在 `.under-fire`（受擊一秒內）為朱紅，之後回淡墨；機槍熱量平常是墨色，只有 `data-overheated` 轉朱紅；結算只有 `data-outcome="failed"` 為朱紅，勝利用墨。
 
-**The Role Truth Rule.** 視覺只呈現職位獲准知道的資訊；駕駛不建立外部 renderer。
+**The Role Truth Rule.** 視覺只呈現職位獲准知道的資訊；駕駛實際開口限制為水平 60°、垂直 16°，不自由轉頭。
 
 ## Typography
 
@@ -289,9 +289,9 @@ components:
 - **Plate role**：大廳可認領職位按鈕，下方 2px 墨線；主選單圖例職位名稱同明體 22px。
 - **Plate room code**：朱紅大字房間代碼；600px 以下 36px。
 - **Plate numeral**：座位記號與圖例圓圈內的 1／2／3；乘員表座位欄 18px。
-- **Station title**：砲手與裝填手工作站標題，明體 900、0.06em；駕駛為 28px 並帶 2px 墨線底線（station-title-driver）。戰鬥結算 h2 同為明體 900、0.06em。
+- **Station title**：砲手與裝填手工作站標題，明體 900、0.06em；駕駛為 20px（station-title-driver）。戰鬥結算 h2 同為明體 900、0.06em。
 - **Station readout**：工作站內所有 strong 讀數（朝向、轉速、彈種、裝填進度、發射數、機槍熱度、暈眩倒數等）為明體 700、表格數字，字級沿用所在行；共用血量為 900、1.15em。
-- **Driver speed**：駕駛速度數字 96px／900、行高 1.1，600px 以下 72px；其下動態與車體狀態行為明體 700 22px（driver-status）。
+- **Driver speed**：駕駛速度數字 32px／900、行高 1；其旁動態與車體狀態行為 14px 系統黑體（driver-status）。
 - **Plate body／label／caption**：大廳說明 15px、標籤與狀態 14px、圖說與欄位標頭 13px，皆系統黑體；表單 label 600。
 - **Work line**：砲手工作站直屬行與武器狀態列 14px、行高 1.5；機槍 HUD 14px、行高 1.45。退殼警示在裝填工作區為 18px／700 黑體。
 - **Work readout**：砲手朝向讀數行 16px。
