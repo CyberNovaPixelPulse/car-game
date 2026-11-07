@@ -1,5 +1,9 @@
-import { MG_RULES } from "./tank-settings";
-import { boxHit, loaderCanWork, type WeaponState } from "./tank-weapons";
+import { MG_RULES, FIRING_FEEDBACK } from "./tank-settings";
+import {
+  nearestHostileHit,
+  loaderCanWork,
+  type WeaponState,
+} from "./tank-weapons";
 
 export const MG_FIRE = 64;
 export { MG_RULES } from "./tank-settings";
@@ -40,26 +44,20 @@ export function stepMachineGun(
   if (now >= mg.nextShot) {
     mg.nextShot = now + MG_RULES.interval;
     mg.shots++;
+    mg.flashUntil = now + FIRING_FEEDBACK.machineGun;
     const from = [pose.x, 3.1, pose.z];
     const to = [
       pose.x + Math.sin(pose.yaw) * Math.cos(pose.pitch) * MG_RULES.range,
       3.1 + Math.sin(pose.pitch) * MG_RULES.range,
       pose.z - Math.cos(pose.yaw) * Math.cos(pose.pitch) * MG_RULES.range,
     ];
-    let nearest = to[1] <= 0 ? from[1] / (from[1] - to[1]) : 1;
-    let target: WeaponState["targets"][number] | undefined;
-    for (const c of [...cover, ...w.targets.filter((t) => t.hp > 0)]) {
-      const hit = boxHit(
-        from,
-        to,
-        [c.x - c.width / 2, 0, c.z - c.depth / 2],
-        [c.x + c.width / 2, c.height, c.z + c.depth / 2],
-      );
-      if (hit !== undefined && hit < nearest) {
-        nearest = hit;
-        target = "hp" in c ? (c as WeaponState["targets"][number]) : undefined;
-      }
-    }
+    const { fraction: nearest, target } = nearestHostileHit(
+      from,
+      to,
+      cover,
+      w.targets,
+      to[1] <= 0 ? from[1] / (from[1] - to[1]) : 1,
+    );
     if (target) target.hp = Math.max(0, target.hp - MG_RULES.damage);
     mg.tracers.push({
       id: mg.shots,

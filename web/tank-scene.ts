@@ -6,6 +6,8 @@ import { buildNormandy } from "./tank-environment";
 import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import { disposeArt } from "./tank-art-materials";
 import { SmokeScene } from "./tank-smoke-scene";
+import { MuzzleFlash } from "./tank-muzzle-flash";
+import { FIRING_FEEDBACK } from "./tank-settings";
 
 /** The gunner's real 3D view; no renderer is created for the blind driver. */
 export class TankScene {
@@ -17,6 +19,10 @@ export class TankScene {
   private lastDraw = -Infinity;
   private scene = new THREE.Scene();
   private smoke = new SmokeScene(this.scene);
+  private cannonFlash = new MuzzleFlash(this.scene, 0.6);
+  private mgFlash = new MuzzleFlash(this.scene, 0.22);
+  private mgMuzzle = new THREE.Group();
+  private enemyFlashes = new Map<number, MuzzleFlash>();
   private camera = new THREE.PerspectiveCamera(65, 1, 0.1, 180);
   private assets = new ArtPreparation();
   private player = new VehicleModel("sherman", this.assets.manager);
@@ -95,6 +101,8 @@ export class TankScene {
         -0.35,
         this.assets.manager,
       );
+      this.mgMuzzle.position.z = -1.68;
+      mount.add(this.mgMuzzle);
       mount.traverse((object) => {
         if (object instanceof THREE.Mesh) object.castShadow = false;
       });
@@ -153,7 +161,10 @@ export class TankScene {
     ].join(":");
     const animated =
       state.weapon.smoke.some((c) => state.time < c.until) ||
-      state.weapon.impacts.length > 0;
+      state.weapon.impacts.length > 0 ||
+      state.time < state.weapon.flashUntil ||
+      state.time < state.weapon.mg.flashUntil ||
+      state.weapon.targets.some((e) => state.time < e.flashUntil);
     const aimState =
       this.view === "machine-gun" ? state.weapon.mg : state.turret;
     const visual = [
@@ -199,6 +210,8 @@ export class TankScene {
       if (!state.weapon.targets.some((target) => target.id === id)) {
         this.scene.remove(mesh);
         this.enemyModels.get(id)?.dispose();
+        this.enemyFlashes.get(id)?.dispose();
+        this.enemyFlashes.delete(id);
         this.targetMeshes.delete(id);
         this.enemyModels.delete(id);
       }
@@ -208,6 +221,7 @@ export class TankScene {
       if (!model) {
         model = new VehicleModel(target.kind, this.assets.manager);
         this.enemyModels.set(target.id, model);
+        this.enemyFlashes.set(target.id, new MuzzleFlash(this.scene, 0.85));
         this.targetMeshes.set(target.id, model.root);
         this.scene.add(model.root);
       }
@@ -219,6 +233,14 @@ export class TankScene {
       model.setCondition(target.hp > 0, target.phase === "warning");
       // A disabled vehicle stays a recognisable wreck rather than flattening into a toy.
       model.elevation.rotation.x = target.hp > 0 ? 0 : -0.12;
+      this.enemyFlashes
+        .get(target.id)!
+        .present(
+          model.muzzle,
+          target.flashUntil,
+          state.time,
+          FIRING_FEEDBACK.cannon,
+        );
     }
     for (const [id, mesh] of this.enemyProjectiles)
       if (!state.battle.projectiles.some((p) => p.id === id)) {
@@ -237,6 +259,19 @@ export class TankScene {
       }
       mesh.position.set(p.x, p.y, p.z);
     }
+    this.cannonFlash.present(
+      this.player.muzzle,
+      state.weapon.flashUntil,
+      state.time,
+      FIRING_FEEDBACK.cannon,
+    );
+    if (this.view === "machine-gun")
+      this.mgFlash.present(
+        this.mgMuzzle,
+        state.weapon.mg.flashUntil,
+        state.time,
+        FIRING_FEEDBACK.machineGun,
+      );
     this.smoke.render(state.weapon.smoke, state.time);
     this.renderEffects(state);
     this.renderer.render(this.scene, this.camera);
@@ -316,6 +351,10 @@ export class TankScene {
   dispose() {
     this.disposed = true;
     this.sky?.dispose();
+    this.cannonFlash.dispose();
+    this.mgFlash.dispose();
+    for (const flash of this.enemyFlashes.values()) flash.dispose();
+    this.enemyFlashes.clear();
     this.observer.disconnect();
     this.scene.remove(this.player.root);
     this.player.dispose();

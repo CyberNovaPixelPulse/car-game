@@ -226,13 +226,12 @@ export class Session {
     )
       return;
     this.onError("正在重新連回原本的比賽…");
+    const attemptCredentials = saved as unknown as Credentials;
     try {
-      await this.connect(
-        saved.code,
-        saved.name,
-        saved as unknown as Credentials,
-      );
+      await this.connect(saved.code, saved.name, attemptCredentials);
     } catch (error) {
+      // A newer join/resume owns its own credentials and must not be torn down here.
+      if (this.credentials !== attemptCredentials) return;
       if (this.credentials) {
         this.leave(false);
         this.onRetryAvailable();
@@ -709,7 +708,11 @@ export class Session {
     this.room.reconnectDeadline = undefined;
     this.room.notice = undefined;
     this.latestState = "";
-    for (const member of this.members.values()) {
+    for (const [slot, member] of this.members) {
+      if (!member.connected) {
+        this.members.delete(slot);
+        continue;
+      }
       member.role = null;
       member.ready = false;
     }

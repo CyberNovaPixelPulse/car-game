@@ -24,6 +24,7 @@ export class VehicleModel {
   readonly root = new THREE.Group();
   readonly turret = new THREE.Group();
   readonly elevation = new THREE.Group();
+  readonly muzzle = new THREE.Group();
   private gear: RunningGear[] = [];
   private paint: THREE.MeshStandardMaterial;
   private lastPose?: { x: number; z: number; yaw: number };
@@ -460,6 +461,8 @@ export class VehicleModel {
     );
     sleeve.rotation.x = Math.PI / 2;
     const tip = -1.14 - barrelLength;
+    this.muzzle.position.z = tip;
+    this.elevation.add(this.muzzle);
     const bore = part(
       this.elevation,
       new THREE.CircleGeometry(barrelRadius * 0.78, 16),

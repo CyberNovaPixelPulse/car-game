@@ -674,7 +674,9 @@ session.onError = (text) => {
   message.textContent = text;
 };
 session.onEnded = (text) => {
-  menu();
+  retryButton.hidden = true;
+  // A rejected automatic resume must not erase an already usable join form.
+  if (!content.querySelector("#crew-join")) menu();
   message.textContent = text;
 };
 function updatePause() {

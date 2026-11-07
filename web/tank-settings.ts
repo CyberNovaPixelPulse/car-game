@@ -78,3 +78,6 @@ export const TRANSPORT = {
   stale: 6_500,
   snapshot: 50,
 } as const;
+
+/** Presentation lifetime on the shared gameplay clock; these cues do not affect damage. */
+export const FIRING_FEEDBACK = { cannon: 0.18, machineGun: 0.07 } as const;
