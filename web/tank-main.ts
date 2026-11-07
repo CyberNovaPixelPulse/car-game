@@ -171,14 +171,36 @@ const escape = (text: string) => {
 const error = (e: unknown) => {
   message.textContent = e instanceof Error ? e.message : String(e);
 };
+type SeatState = "free" | "taken" | "mine";
+// Seat markers sit where each crew member works in an M4 seen from above, front up.
+const SEAT_POINTS: Record<CrewRole, [number, number]> = {
+  driver: [92, 74],
+  gunner: [150, 176],
+  loader: [90, 176],
+};
+const LEADER_ENDS = [17, 147, 277];
+function hullPlate(states: Record<CrewRole, SeatState>) {
+  const seats = CREW_ROLES.map((role, i) => {
+    const [x, y] = SEAT_POINTS[role];
+    return `<g class="seat seat-${states[role]}"><circle cx="${x}" cy="${y}" r="15"/><text x="${x}" y="${y + 6}">${i + 1}</text></g>`;
+  }).join("");
+  // Leader lines run from each seat to its numbered entry in the key beside the figure.
+  const leaders = CREW_ROLES.map((role, i) => {
+    const [x, y] = SEAT_POINTS[role];
+    const end = LEADER_ENDS[i];
+    return `<path d="M${x + 15} ${y} L232 ${end} H300"/>`;
+  }).join("");
+  return `<figure class="hull-plate"><svg viewBox="0 0 300 340" role="img" aria-label="乘員位置示意：1 駕駛在車體左前，2 砲手在砲塔右側，3 裝填手在砲塔左側"><g class="hull-lines"><rect x="34" y="20" width="16" height="290"/><rect x="190" y="20" width="16" height="290"/><path d="M50 40 Q50 22 70 22 H170 Q190 22 190 40 V300 H50Z"/><circle cx="120" cy="176" r="62"/><rect x="113" y="0" width="14" height="116"/><path d="M60 110 H180" class="dash"/><rect x="70" y="56" width="44" height="36"/><rect x="126" y="56" width="44" height="36" class="dash"/></g><g class="leaders">${leaders}</g><g class="track-links">${Array.from({ length: 14 }, (_, i) => `<path d="M34 ${36 + i * 20}h16M190 ${36 + i * 20}h16"/>`).join("")}</g>${seats}</svg><figcaption>圖 1　M4 中型戰車乘員位置，前方朝上（示意，未依比例）</figcaption></figure>`;
+}
 function menu() {
+  document.documentElement.dataset.surface = "manual";
   retryButton.hidden = true;
   runtime.mode = "idle";
   runtime.clearInput();
   held = 0;
   clearViews();
   stationRole = undefined;
-  content.innerHTML = `<h2>與隊友集合</h2><form id="crew-create"><label for="crew-name">乘員名稱</label><input id="crew-name" maxlength="16" autocomplete="nickname" required><button type="submit">建立房間</button></form><form id="crew-join"><label for="crew-code">房間代碼</label><div class="join-line"><input id="crew-code" maxlength="6" autocomplete="off" autocapitalize="characters" required><button type="submit">加入房間</button></div></form><p class="note">需要三位玩家、三台電腦與實體鍵盤。</p>`;
+  content.innerHTML = `<div class="plate-layout"><div class="plate-figure">${hullPlate({ driver: "free", gunner: "free", loader: "free" })}<ol class="plate-legend">${CREW_ROLES.map((role) => `<li><strong>${ROLE_LABELS[role]}</strong>${ROLE_TASKS[role]}</li>`).join("")}</ol></div><div class="plate-panel"><h2>與隊友集合</h2><form id="crew-create"><label for="crew-name">乘員名稱</label><input id="crew-name" maxlength="16" autocomplete="nickname" required><button type="submit">建立房間</button></form><p class="plate-or">或加入隊友的房間</p><form id="crew-join"><label for="crew-code">房間代碼</label><div class="join-line"><input id="crew-code" maxlength="6" autocomplete="off" autocapitalize="characters" required><button type="submit" class="secondary">加入房間</button></div></form><p class="note">需要三位玩家、三台電腦與實體鍵盤。</p></div></div>`;
   window.scrollTo(0, 0);
   const name = () => {
     const value = document
@@ -216,18 +238,29 @@ function menu() {
   };
 }
 function lobby(room: Room) {
+  document.documentElement.dataset.surface = "manual";
   const me = room.members.find((m) => m.slot === session.slot);
   const complete =
     room.members.length === 3 &&
     room.members.every((m) => m.connected && m.role && m.ready);
-  content.innerHTML = `<div class="room-heading"><h2>乘員集合</h2><p>房間代碼 <strong data-testid="room-code">${room.code}</strong></p></div><ul class="crew-list" data-testid="crew-list">${room.members.map((m) => `<li><strong>${escape(m.name)}${m.slot === 0 ? "（房主）" : ""}${m.slot === session.slot ? "（你）" : ""}</strong><span>${m.role ? ROLE_LABELS[m.role] : "尚未選擇職位"} · ${m.ready ? "已準備" : "未準備"}</span></li>`).join("")}</ul><fieldset><legend>選擇你的職位</legend>${CREW_ROLES.map(
+  const seatStates = Object.fromEntries(
+    CREW_ROLES.map((role) => {
+      const owner = room.members.find((m) => m.role === role);
+      return [
+        role,
+        !owner ? "free" : owner.slot === session.slot ? "mine" : "taken",
+      ];
+    }),
+  ) as Record<CrewRole, SeatState>;
+  content.innerHTML = `<div class="plate-layout"><fieldset class="plate-figure"><legend>選擇你的職位</legend>${hullPlate(seatStates)}<ol class="plate-legend">${CREW_ROLES.map(
     (role) => {
       const owner = room.members.find((m) => m.role === role);
-      return `<div class="role-option"><button type="button" data-role="${role}" aria-pressed="${me?.role === role}" ${owner && owner.slot !== session.slot ? "disabled" : ""}>擔任${ROLE_LABELS[role]}</button><p>${ROLE_TASKS[role]}${owner && owner.slot !== session.slot ? ` 目前由 ${escape(owner.name)} 擔任。` : ""}</p></div>`;
+      const state = seatStates[role];
+      return `<li class="role-option" data-state="${state}"><button type="button" data-role="${role}" aria-pressed="${me?.role === role}" ${state === "taken" ? "disabled" : ""}>擔任${ROLE_LABELS[role]}</button><p>${ROLE_TASKS[role]}</p><p class="seat-owner">${state === "mine" ? "你已擔任" : owner ? `目前由 ${escape(owner.name)} 擔任。` : "空位"}</p></li>`;
     },
   ).join(
     "",
-  )}</fieldset><div class="room-actions"><button id="crew-ready" ${!me?.role ? "disabled" : ""}>${me?.ready || preparing ? "取消準備" : "準備"}</button>${session.isHost ? `<button id="crew-start" ${complete ? "" : "disabled"}>開始戰鬥</button>` : "<p>全員準備後，由房主開始戰鬥。</p>"}<button class="secondary" id="crew-leave">離開房間</button></div>${preparing ? '<p role="status">正在準備工作畫面，完成後才會標示已準備；可取消或改選職位。</p>' : ""}<p class="note">${
+  )}</ol></fieldset><div class="plate-panel"><div class="room-heading"><h2>乘員集合</h2><p>房間代碼・念給隊友 <strong data-testid="room-code">${room.code}</strong></p></div><p class="crew-count">${room.members.length}／3 就位・${room.members.filter((m) => m.ready).length} 人已準備</p><div class="crew-head" aria-hidden="true"><span>位置</span><span>乘員</span><span>職位</span><span>狀態</span></div><ul class="crew-list" data-testid="crew-list">${room.members.map((m) => `<li${m.slot === session.slot ? ' class="is-me"' : ""}><span class="crew-seat">${m.role ? CREW_ROLES.indexOf(m.role) + 1 : "—"}</span><strong>${escape(m.name)}${m.slot === 0 ? "（房主）" : ""}${m.slot === session.slot ? "（你）" : ""}</strong><span>${m.role ? ROLE_LABELS[m.role] : "尚未選擇職位"}<span class="visually-hidden"> · </span></span><b class="${m.ready ? "is-ready" : "not-ready"}">${m.ready ? "已準備" : "未準備"}</b></li>`).join("")}</ul>${Array.from({ length: Math.max(0, 3 - room.members.length) }, () => '<p class="crew-open">空位・等待隊友加入</p>').join("")}<div class="room-actions"><button id="crew-ready" ${!me?.role ? "disabled" : ""}>${me?.ready || preparing ? "取消準備" : "準備"}</button>${session.isHost ? `<button id="crew-start" ${complete ? "" : "disabled"}>開始戰鬥</button>` : "<p>全員準備後，由房主開始戰鬥。</p>"}<button class="secondary" id="crew-leave">離開房間</button></div>${preparing ? '<p role="status">正在準備工作畫面，完成後才會標示已準備；可取消或改選職位。</p>' : ""}<p class="note">${
     complete
       ? "三個職位已就緒。"
       : `等待 ${
@@ -235,7 +268,7 @@ function lobby(room: Room) {
             .map((r) => ROLE_LABELS[r])
             .join("、") || "所有乘員準備"
         }。`
-  }</p>`;
+  }</p></div></div>`;
   content
     .querySelectorAll<HTMLButtonElement>("[data-role]")
     .forEach((button) => {
@@ -262,6 +295,7 @@ function lobby(room: Room) {
 function station(room: Room) {
   const role = room.members.find((m) => m.slot === session.slot)?.role;
   if (!role || stationRole === role) return;
+  document.documentElement.dataset.surface = "battle";
   const ready = prepared?.role === role && prepared.code === room.code;
   if (!ready) clearViews();
   stationRole = role;
@@ -269,7 +303,7 @@ function station(room: Room) {
   soundedShot = 0;
   soundedStun = 0;
   soundedDamage = -100;
-  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><div class="battle-pause" data-testid="battle-pause" role="status" hidden></div><p class="station-task">${ROLE_TASKS[role]}</p><p class="crew-health">共用坦克血量 <strong data-testid="tank-health">${TANK_RULES.maxHp}/${TANK_RULES.maxHp}</strong></p><p data-testid="wave-status"></p><p data-testid="damage-warning" role="status"></p><h2 data-testid="battle-result" hidden>戰鬥失敗</h2><button id="battle-return" hidden>回到房間</button>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong> · 砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p><p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note">連點 A／D 左右、W／S 上下；反方向連點可煞停。按住只推動一次。</p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p><strong data-testid="loader-mode">裝填模式</strong> · Tab 切換工作</p><p class="ejection-warning" data-testid="ejection-warning" role="status"></p><p><span data-testid="loader-status">站立・可以工作</span> <strong class="stun-timer" data-testid="stun-remaining"></strong></p><div class="mg-workspace" hidden><div class="battle-viewport"><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p>機槍朝向 <strong data-testid="mg-heading">0.0°</strong> · 仰角 <strong data-testid="mg-pitch">0.0°</strong></p><p class="note">按住 WASD 瞄準，放開即停止。空白鍵按住連射，備彈無限。Tab 返回裝填。</p><div class="mg-hud"><p>機槍熱度 <strong data-testid="mg-heat">0</strong>% · <span data-testid="mg-status">可以射擊</span> <strong data-testid="mg-cooldown"></strong></p><progress aria-label="機槍熱度" max="100" value="0"></progress></div><p>機槍已射擊 <strong data-testid="mg-shot-count">0</strong> 發</p><p data-testid="mg-target-status"></p></div><div class="loading-workspace"><div class="interior-viewport"><canvas role="img" aria-label="車內炮膛與彈藥架"></canvas></div><section class="jam-game" aria-label="卡彈排除" hidden><h3>卡彈：停在目標區</h3><div class="jam-track"><span class="jam-zone" data-testid="jam-zone">目標</span><span class="jam-needle" data-testid="jam-needle"></span></div><p data-testid="jam-result">按空白鍵停針</p></section><p class="note">按 1 選高爆彈、2 選穿甲彈、3 選煙霧彈。按住 R 裝填，放開可暫停；開始裝填後鎖定該發彈種。等待砲手開火、退殼後再裝下一發。按住 C 蹲下避開彈殼，放開起身；蹲下時無法工作。</p></div></div>'}${role !== "driver" ? '<div class="weapon-status"><p>選擇：<strong data-testid="selected-shell">高爆彈</strong> · 高爆／穿甲／煙霧備彈無限</p><p>膛內：<strong data-testid="chamber-shell">無</strong></p><p data-testid="chamber-state">空膛</p><p>裝填進度 <strong data-testid="load-progress">0</strong>%</p><progress aria-label="裝填進度" max="100" value="0"></progress><p>已發射 <strong data-testid="shot-count">0</strong> 發</p></div>' : ""}${role === "gunner" ? '<p data-testid="enemy-warning" role="status"></p><p data-testid="enemy-activity" role="status"></p><p data-testid="target-status">敵車接近中</p><p data-testid="flight-status"></p><p class="note">主炮就緒後，按空白鍵開火。</p>' : ""}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}${role === "loader" ? `<button type="button" class="secondary" id="station-sound" aria-pressed="${soundEnabled}">音效：${soundEnabled ? "開" : "關"}</button>` : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
+  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><div class="battle-pause" data-testid="battle-pause" role="status" hidden></div><p class="station-task">${ROLE_TASKS[role]}</p><p class="crew-health">共用坦克血量 <strong data-testid="tank-health">${TANK_RULES.maxHp}/${TANK_RULES.maxHp}</strong></p><p data-testid="wave-status"></p><p data-testid="damage-warning" role="status"></p><h2 data-testid="battle-result" hidden>戰鬥失敗</h2><button id="battle-return" hidden>回到房間</button>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong> · 砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p><p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note">連點 A／D 左右、W／S 上下；反方向連點可煞停。按住只推動一次。</p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div>' + hullPlate({ driver: "mine", gunner: "taken", loader: "taken" }) + '<p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p><strong data-testid="loader-mode">裝填模式</strong> · Tab 切換工作</p><p class="ejection-warning" data-testid="ejection-warning" role="status"></p><p><span data-testid="loader-status">站立・可以工作</span> <strong class="stun-timer" data-testid="stun-remaining"></strong></p><div class="mg-workspace" hidden><div class="battle-viewport"><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p>機槍朝向 <strong data-testid="mg-heading">0.0°</strong> · 仰角 <strong data-testid="mg-pitch">0.0°</strong></p><p class="note">按住 WASD 瞄準，放開即停止。空白鍵按住連射，備彈無限。Tab 返回裝填。</p><div class="mg-hud"><p>機槍熱度 <strong data-testid="mg-heat">0</strong>% · <span data-testid="mg-status">可以射擊</span> <strong data-testid="mg-cooldown"></strong></p><progress aria-label="機槍熱度" max="100" value="0"></progress></div><p>機槍已射擊 <strong data-testid="mg-shot-count">0</strong> 發</p><p data-testid="mg-target-status"></p></div><div class="loading-workspace"><div class="interior-viewport"><canvas role="img" aria-label="車內炮膛與彈藥架"></canvas></div><section class="jam-game" aria-label="卡彈排除" hidden><h3>卡彈：停在目標區</h3><div class="jam-track"><span class="jam-zone" data-testid="jam-zone">目標</span><span class="jam-needle" data-testid="jam-needle"></span></div><p data-testid="jam-result">按空白鍵停針</p></section><p class="note">按 1 選高爆彈、2 選穿甲彈、3 選煙霧彈。按住 R 裝填，放開可暫停；開始裝填後鎖定該發彈種。等待砲手開火、退殼後再裝下一發。按住 C 蹲下避開彈殼，放開起身；蹲下時無法工作。</p></div></div>'}${role !== "driver" ? '<div class="weapon-status"><p>選擇：<strong data-testid="selected-shell">高爆彈</strong> · 高爆／穿甲／煙霧備彈無限</p><p>膛內：<strong data-testid="chamber-shell">無</strong></p><p data-testid="chamber-state">空膛</p><p>裝填進度 <strong data-testid="load-progress">0</strong>%</p><progress aria-label="裝填進度" max="100" value="0"></progress><p>已發射 <strong data-testid="shot-count">0</strong> 發</p></div>' : ""}${role === "gunner" ? '<p data-testid="enemy-warning" role="status"></p><p data-testid="enemy-activity" role="status"></p><p data-testid="target-status">敵車接近中</p><p data-testid="flight-status"></p><p class="note">主炮就緒後，按空白鍵開火。</p>' : ""}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}${role === "loader" ? `<button type="button" class="secondary" id="station-sound" aria-pressed="${soundEnabled}">音效：${soundEnabled ? "開" : "關"}</button>` : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
   if (role === "loader") {
     const jamPanel = content.querySelector(".jam-game");
     if (jamPanel)
@@ -376,6 +410,7 @@ core.present = (state) => {
       result.hidden && (state.battle.failed || state.battle.won);
     result.hidden = !state.battle.failed && !state.battle.won;
     result.textContent = state.battle.failed ? "戰鬥失敗" : "戰鬥勝利";
+    result.dataset.outcome = state.battle.failed ? "failed" : "won";
     if (enteringResult) window.scrollTo(0, 0);
   }
   const returnButton =
@@ -463,6 +498,9 @@ core.present = (state) => {
       mgCanvas?.remove();
     }
     const overheated = state.time < weapon.mg.coolUntil;
+    content
+      .querySelector<HTMLElement>(".mg-hud")!
+      .toggleAttribute("data-overheated", overheated);
     content.querySelector('[data-testid="mg-heat"]')!.textContent = String(
       Math.round(weapon.mg.heat * 100),
     );
