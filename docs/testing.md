@@ -19,10 +19,10 @@ WEB_PORT=5054 PEER_PORT=5055 TANK_NATIVE_BROWSER=1 npm test
 一般功能測試以同一 Browser 的三個隔離 context 扮演玩家；不可描述為三台電腦或三個程序。最終波次驗證可明確使用三次獨立 `Browser.launch()`，每個瀏覽器各自 context、真正 WebRTC 及鍵盤：
 
 ```sh
-WEB_PORT=5054 PEER_PORT=5055 TANK_NATIVE_BROWSER=1 TANK_THREE_BROWSERS=1 TANK_EVIDENCE_DIR=/tmp/car-game-to-spec/visual27-final npx playwright test tests/tank-waves.spec.ts
+WEB_PORT=5054 PEER_PORT=5055 TANK_NATIVE_BROWSER=1 TANK_THREE_BROWSERS=1 TANK_RECORD_CREW_VIDEO=1 TANK_EVIDENCE_DIR=/tmp/car-game-to-spec/visual27-final npx playwright test tests/tank-waves.spec.ts
 ```
 
-`TANK_EVIDENCE_DIR` 開啟實際勝利錄影。外部音訊輸出觀察器僅在明確設定 `TANK_AUDIO_COLLECTOR` 時於新頁載入，記錄真實 WebAudio 輸出與時間，不呼叫遊戲音效、不自動 resume；原始音訊留在工作樹外。捕獲訊號不證明實際喇叭播放或人耳辨識；最終報告須分開記錄人工聆聽限制。
+`TANK_EVIDENCE_DIR` 指定本次證據目錄；可選的三路全程乘員錄影預設關閉，需另設 `TANK_RECORD_CREW_VIDEO=1` 才開啟實際勝利錄影。火光、機槍及車內三個真正使用影片的案例以 `recordVideoRequired` 保留必要錄影與影片檢查，不受此旗標關閉影響。外部音訊輸出觀察器僅在明確設定 `TANK_AUDIO_COLLECTOR` 時於新頁載入，記錄真實 WebAudio 輸出與時間，不呼叫遊戲音效、不自動 resume；原始音訊留在工作樹外。捕獲訊號不證明實際喇叭播放或人耳辨識；最終報告須分開記錄人工聆聽限制。
 
 ## 覆蓋與移除對照
 

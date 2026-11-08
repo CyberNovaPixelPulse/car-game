@@ -73,6 +73,15 @@ test("每位乘員自行以可信按鈕進出完整工作站全螢幕，鍵盤�
         .getByRole("button", { name: "進入全螢幕", exact: true })
         .click();
       await fullscreen(page, true);
+      // Recovery must remain owned by the active fullscreen surface, including
+      // the normally hidden retry control that a failed resume exposes.
+      expect(
+        await page.evaluate(() =>
+          ["crew-message", "crew-retry"].every((id) =>
+            document.fullscreenElement?.contains(document.getElementById(id)),
+          ),
+        ),
+      ).toBe(true);
       await visibleBattle(page, view);
       if (page === c.gunner) {
         const before = await page.getByTestId("turret-heading").textContent();
