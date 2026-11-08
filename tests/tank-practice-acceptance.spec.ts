@@ -56,6 +56,38 @@ async function practice(page: Page, role: string, seed = 1000) {
   await expect(page.getByTestId("practice-status")).toContainText("等待交戰");
 }
 
+test("換職素材載入失敗後能回原職位，保留戰況並重試準備", async ({ page }) => {
+  await practice(page, "駕駛");
+  await page.locator("canvas").click();
+  await page.keyboard.down("s");
+  await expect(page.getByTestId("tank-speed")).toHaveText("10.8");
+  await page.keyboard.up("s");
+  await expect(page.getByTestId("tank-speed")).toHaveText("0.0");
+  await page.route("**/assets/interior/green_metal_rust_diff_1k.jpg", (route) =>
+    route.fulfill({ status: 503, body: "intentional asset-failure test" }),
+  );
+  await page.getByRole("button", { name: "暫停練習", exact: true }).click();
+  const position = await page
+    .locator(".navigation-player")
+    .getAttribute("transform");
+  await page.getByRole("button", { name: "切換為裝填手", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "工作畫面準備失敗" }),
+  ).toBeVisible();
+  await capture(page, "role-preparation-failed");
+  await page
+    .getByRole("button", { name: "返回原職位並重試準備", exact: true })
+    .click();
+  await expect(page.getByRole("dialog", { name: "練習暫停" })).toBeVisible();
+  await expect(page.locator(".navigation-player")).toHaveAttribute(
+    "transform",
+    position!,
+  );
+  await expect(page.locator(".battle-overview h2")).toHaveText("駕駛工作站");
+  await page.getByRole("button", { name: "繼續練習", exact: true }).click();
+  await expect(page.getByTestId("tank-health")).toHaveText("100/100");
+});
+
 test("真人靠牆停車後換職，AI 駕駛能離開保守導航邊界", async ({ page }) => {
   await practice(page, "駕駛");
   await page.getByRole("button", { name: "暫停 AI 開火", exact: true }).click();

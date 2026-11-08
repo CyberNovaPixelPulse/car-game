@@ -395,6 +395,7 @@ async function enterPractice(role: CrewRole, preserve = false) {
   } catch (e) {
     if (version !== preparationVersion) return;
     if (preserve && previousRole) {
+      clearViews();
       content.innerHTML = `<div class="plate-panel"><h2>工作畫面準備失敗</h2><p role="status"></p><button id="practice-retry-role">返回原職位並重試準備</button><button id="practice-exit-error">離開練習</button></div>`;
       content.querySelector('[role="status"]')!.textContent =
         e instanceof Error ? e.message : String(e);
