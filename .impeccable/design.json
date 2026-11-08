@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-07T16:54:27.372337+00:00",
+  "generatedAt": "2026-11-07T23:17:21.848992+00:00",
   "title": "Design System: 三人坦克合作戰鬥",
   "extensions": {
     "colorMeta": {
@@ -20,11 +20,11 @@
       },
       "paper-deep": {
         "role": "neutral",
-        "displayName": "深紙（面板與場景底）"
+        "displayName": "深紙（大廳面板）"
       },
       "paper-field": {
         "role": "neutral",
-        "displayName": "亮紙（輸入、槽、暫停與準星）"
+        "displayName": "亮紙（大廳輸入與 hover）"
       },
       "ink": {
         "role": "primary",
@@ -70,10 +70,6 @@
         "role": "neutral",
         "displayName": "停用墨"
       },
-      "mg-reticle": {
-        "role": "neutral",
-        "displayName": "機槍準星線色"
-      },
       "interior-background": {
         "role": "neutral",
         "displayName": "封閉車內暗部"
@@ -95,8 +91,148 @@
         "displayName": "戰鬥規線"
       },
       "hud-danger": {
+        "role": "secondary",
+        "displayName": "敵情與危險暖色"
+      },
+      "navigation-ground": {
         "role": "neutral",
-        "displayName": "戰鬥危險"
+        "displayName": "導航底地",
+        "tonalRamp": [
+          "oklch(0.15 0.0159 122.89)",
+          "oklch(0.26 0.0276 122.89)",
+          "oklch(0.38 0.0404 122.89)",
+          "oklch(0.50 0.0425 122.89)",
+          "oklch(0.62 0.0425 122.89)",
+          "oklch(0.74 0.0425 122.89)",
+          "oklch(0.85 0.0319 122.89)",
+          "oklch(0.95 0.0106 122.89)"
+        ]
+      },
+      "navigation-plough": {
+        "role": "neutral",
+        "displayName": "導航耕地",
+        "tonalRamp": [
+          "oklch(0.15 0.0156 80.59)",
+          "oklch(0.26 0.0271 80.59)",
+          "oklch(0.38 0.0395 80.59)",
+          "oklch(0.50 0.0416 80.59)",
+          "oklch(0.62 0.0416 80.59)",
+          "oklch(0.74 0.0416 80.59)",
+          "oklch(0.85 0.0312 80.59)",
+          "oklch(0.95 0.0104 80.59)"
+        ]
+      },
+      "navigation-stubble": {
+        "role": "neutral",
+        "displayName": "導航收割田",
+        "tonalRamp": [
+          "oklch(0.15 0.0236 92.07)",
+          "oklch(0.26 0.0409 92.07)",
+          "oklch(0.38 0.0597 92.07)",
+          "oklch(0.50 0.0629 92.07)",
+          "oklch(0.62 0.0629 92.07)",
+          "oklch(0.74 0.0629 92.07)",
+          "oklch(0.85 0.0472 92.07)",
+          "oklch(0.95 0.0157 92.07)"
+        ]
+      },
+      "navigation-pasture": {
+        "role": "neutral",
+        "displayName": "導航牧地",
+        "tonalRamp": [
+          "oklch(0.15 0.0200 126.99)",
+          "oklch(0.26 0.0347 126.99)",
+          "oklch(0.38 0.0507 126.99)",
+          "oklch(0.50 0.0534 126.99)",
+          "oklch(0.62 0.0534 126.99)",
+          "oklch(0.74 0.0534 126.99)",
+          "oklch(0.85 0.0400 126.99)",
+          "oklch(0.95 0.0133 126.99)"
+        ]
+      },
+      "navigation-lane": {
+        "role": "neutral",
+        "displayName": "導航道路",
+        "tonalRamp": [
+          "oklch(0.15 0.0202 82.57)",
+          "oklch(0.26 0.0351 82.57)",
+          "oklch(0.38 0.0512 82.57)",
+          "oklch(0.50 0.0539 82.57)",
+          "oklch(0.62 0.0539 82.57)",
+          "oklch(0.74 0.0539 82.57)",
+          "oklch(0.85 0.0405 82.57)",
+          "oklch(0.95 0.0135 82.57)"
+        ]
+      },
+      "navigation-cover-outline": {
+        "role": "neutral",
+        "displayName": "導航掩體描邊",
+        "tonalRamp": [
+          "oklch(0.15 0.0049 140.46)",
+          "oklch(0.26 0.0084 140.46)",
+          "oklch(0.38 0.0123 140.46)",
+          "oklch(0.50 0.0130 140.46)",
+          "oklch(0.62 0.0130 140.46)",
+          "oklch(0.74 0.0130 140.46)",
+          "oklch(0.85 0.0097 140.46)",
+          "oklch(0.95 0.0032 140.46)"
+        ]
+      },
+      "navigation-gun": {
+        "role": "secondary",
+        "displayName": "導航主炮方向",
+        "tonalRamp": [
+          "oklch(0.15 0.0328 87.99)",
+          "oklch(0.26 0.0568 87.99)",
+          "oklch(0.38 0.0830 87.99)",
+          "oklch(0.50 0.0874 87.99)",
+          "oklch(0.62 0.0874 87.99)",
+          "oklch(0.74 0.0874 87.99)",
+          "oklch(0.85 0.0655 87.99)",
+          "oklch(0.95 0.0218 87.99)"
+        ]
+      },
+      "calibration-track": {
+        "role": "neutral",
+        "displayName": "校準灰綠軌",
+        "tonalRamp": [
+          "oklch(0.15 0.0068 148.23)",
+          "oklch(0.26 0.0118 148.23)",
+          "oklch(0.38 0.0172 148.23)",
+          "oklch(0.50 0.0181 148.23)",
+          "oklch(0.62 0.0181 148.23)",
+          "oklch(0.74 0.0181 148.23)",
+          "oklch(0.85 0.0136 148.23)",
+          "oklch(0.95 0.0045 148.23)"
+        ]
+      },
+      "calibration-zone": {
+        "role": "secondary",
+        "displayName": "校準一般區",
+        "tonalRamp": [
+          "oklch(0.15 0.0337 98.85)",
+          "oklch(0.26 0.0584 98.85)",
+          "oklch(0.38 0.0853 98.85)",
+          "oklch(0.50 0.0898 98.85)",
+          "oklch(0.62 0.0898 98.85)",
+          "oklch(0.74 0.0898 98.85)",
+          "oklch(0.85 0.0674 98.85)",
+          "oklch(0.95 0.0225 98.85)"
+        ]
+      },
+      "calibration-perfect": {
+        "role": "secondary",
+        "displayName": "校準完美區",
+        "tonalRamp": [
+          "oklch(0.15 0.0144 95.84)",
+          "oklch(0.26 0.0250 95.84)",
+          "oklch(0.38 0.0366 95.84)",
+          "oklch(0.50 0.0385 95.84)",
+          "oklch(0.62 0.0385 95.84)",
+          "oklch(0.74 0.0385 95.84)",
+          "oklch(0.85 0.0289 95.84)",
+          "oklch(0.95 0.0096 95.84)"
+        ]
       }
     },
     "typographyMeta": {
@@ -106,7 +242,7 @@
       },
       "plate-headline": {
         "displayName": "圖版標題",
-        "purpose": "兩個表面的 h2 基礎與大廳 legend。"
+        "purpose": "大廳 h2 與 legend。"
       },
       "plate-role": {
         "displayName": "職位名稱",
@@ -122,19 +258,15 @@
       },
       "station-title": {
         "displayName": "工作站標題",
-        "purpose": "砲手與裝填手工作站 h2；結算 h2 同為明體 900。"
-      },
-      "station-title-driver": {
-        "displayName": "駕駛工作站標題",
-        "purpose": "20px，與共用血量並列的緊湊工作站標題。"
+        "purpose": "三個職位的左上 h2，20px/1.3、明體 900；結算另用 battle-outcome。"
       },
       "station-readout": {
         "displayName": "工作讀數",
-        "purpose": "工作站內 strong 讀數；字級沿用所在行，共用血量 900、1.15em。"
+        "purpose": "工作站 strong 讀數，明體 700／表格數字；HP 另為 station-health。"
       },
       "driver-speed": {
         "displayName": "駕駛速度",
-        "purpose": "裝甲觀察窗下方的 32px 速度讀數。"
+        "purpose": "左上速度讀數，32px/1.1、明體 700。"
       },
       "driver-status": {
         "displayName": "駕駛狀態行",
@@ -150,11 +282,47 @@
       },
       "work-readout": {
         "displayName": "朝向讀數行",
-        "purpose": "砲手 heading-readout。"
+        "purpose": "14px 朝向行；strong 保留明體。"
       },
       "compact-control": {
-        "displayName": "裝填工作站小型控制",
-        "purpose": "只用於音效與離開按鈕。"
+        "displayName": "戰鬥操作按鈕",
+        "purpose": "全螢幕、音效、離開，14px／700、最小高 40px；原生畫質 select 保持一般字重。"
+      },
+      "plate-compact-code": {
+        "displayName": "窄版房間代碼",
+        "purpose": "600px 以下房間代碼 36px。"
+      },
+      "plate-action": {
+        "displayName": "準備按鈕",
+        "purpose": "手冊大廳準備操作 18px。"
+      },
+      "crew-seat": {
+        "displayName": "乘員表座位",
+        "purpose": "乘員表的明體 900 座位數字。"
+      },
+      "station-speed": {
+        "displayName": "共用速度讀數",
+        "purpose": "砲手／裝填手的左上速度，22px/1.2、明體 700。"
+      },
+      "station-health": {
+        "displayName": "共用血量",
+        "purpose": "左上 HP，明體 900、20px。"
+      },
+      "battle-outcome": {
+        "displayName": "戰鬥結算",
+        "purpose": "中央結果標題，明體 900、28px/1.3。"
+      },
+      "work-heading": {
+        "displayName": "維修標題",
+        "purpose": "中央車內維修標題，系統黑體 700、22px/1.3。"
+      },
+      "work-emphasis": {
+        "displayName": "工作狀態強調",
+        "purpose": "修復狀態及卡彈標題共用 18px／700，分別沿用 1.6／1.5 行高。"
+      },
+      "battle-small": {
+        "displayName": "導航與精確校準",
+        "purpose": "12px 系統黑體；地圖行高 1.4，精確角度沿用 1.6。"
       }
     },
     "shadows": [
@@ -174,11 +342,24 @@
     "breakpoints": [
       {
         "name": "plate-stack-hud-compact",
-        "value": "1000px"
+        "value": "1000px",
+        "axis": "width",
+        "query": "(max-width: 1000px)",
+        "purpose": "Manual single column. The #33 battle compact variables lose specificity to scoped defaults; this existing out-of-reviewed-width fallback limitation is not a normative layout rule."
       },
       {
         "name": "room-hud-narrow",
-        "value": "600px"
+        "value": "600px",
+        "axis": "width",
+        "query": "(max-width: 600px)",
+        "purpose": "Narrow lobby; effective battle padding/type/alert/intel fallbacks. #33 compact battle variables lose specificity to scoped defaults. Not touch gameplay support."
+      },
+      {
+        "name": "short-desktop-workspace",
+        "value": "800px",
+        "axis": "height",
+        "query": "(max-height: 800px)",
+        "purpose": "160px driver map; active calibration shifts down 32px, uses 160px dial and compact copy."
       }
     ],
     "focus": [
@@ -191,6 +372,11 @@
         "name": "battle-focus",
         "value": "outline: 3px solid #ffba9f; outline-offset: 3px",
         "purpose": "戰鬥操作按鈕鍵盤焦點。"
+      },
+      {
+        "name": "battle-quality-focus",
+        "value": "outline: 3px solid #ffba9f; outline-offset: 2px",
+        "purpose": "Native local-quality select; battle buttons retain 3px offset."
       }
     ],
     "strokes": [
@@ -237,6 +423,83 @@
       "fontDisplay": "swap",
       "fallback": "Songti TC, serif",
       "maintenance": "明體位置新增字元時需依 README 重新產生子集。"
+    },
+    "colorFallbacks": [
+      {
+        "name": "navigation-scale-muted-fallback",
+        "value": "#d3d9c7",
+        "source": "web/tank.css: .battle-navigation .navigation-scale",
+        "effectiveToken": "hud-muted",
+        "purpose": "Only the CSS var fallback when --hud-muted is absent; normal battle resolves to hud-muted. Not a new frontmatter primitive."
+      }
+    ],
+    "rampPolicy": "Existing preview ramps retained; newly added semantic ramps are synthesized OKLCH previews, not implemented application states or substitutes for frontmatter colors.",
+    "layout": {
+      "battle": {
+        "height": "100dvh",
+        "inset": "16px",
+        "overviewWidth": "300px",
+        "workWidth": "340px",
+        "navigationWidth": "192px",
+        "alertGap": "8px",
+        "source": "web/tank.css: battle surface, navigation and short-desktop sections"
+      },
+      "centralWork": {
+        "width": "min(420px, calc(100% - 32px))",
+        "repairPadding": "22px 24px",
+        "resultPadding": "24px",
+        "resultZIndex": 2,
+        "purpose": "Results hide repair/jam work beneath them."
+      },
+      "driver": {
+        "horizontalOpening": "60deg",
+        "verticalOpening": "16deg",
+        "openingDistance": "0.62m",
+        "armourDepth": "0.28m",
+        "cameraHorizontal": "74deg with aspect adaptation",
+        "source": "web/tank-driver-view.ts and web/tank-driver-armour.ts",
+        "purpose": "Actual opaque scene geometry defines scouting and the clear aperture; camera FOV is not the opening FOV."
+      }
+    },
+    "stateSemantics": [
+      {
+        "name": "current-contact",
+        "value": "filled warm square",
+        "purpose": "Shared living contact currently observed; shape and text accompany color."
+      },
+      {
+        "name": "last-known-contact",
+        "value": "hollow warm square; opacity = 1 - age / 5",
+        "purpose": "Frozen observed position, five shared game seconds; age and current/old counts remain visible. No interior scouting."
+      },
+      {
+        "name": "calibration",
+        "value": "normal 90deg; centered perfect 21.6deg; 2s rotation",
+        "purpose": "SVG needle/sectors and exact angle text consume the same authoritative snapshot. Feedback: +1, +3 or failure wait."
+      },
+      {
+        "name": "pause-and-result",
+        "value": "pause freezes shared-game presentation; result owns center",
+        "purpose": "Reconnect includes real countdown and visible freeze wording; result/return suppresses active central work."
+      }
+    ],
+    "quality": {
+      "default": "medium",
+      "pixelBudgets": {
+        "low": 921600,
+        "medium": 2073600,
+        "high": 3686400
+      },
+      "maxCssPixelRatio": 2,
+      "source": "web/tank-scene-quality.ts",
+      "purpose": "Local scene framebuffer budgets; DOM/SVG HUD remains independent. No FPS guarantee."
+    },
+    "provenance": {
+      "sourceSha": "fc945735e4a072db64de39a6813932c0e0b427de",
+      "approvedScope": "Existing Operate extension under #30; inherited manual lobby and Claude tank/Normandy art, no new world or image comp.",
+      "inheritedFormSeed": "seed:0712ef5e71ead07d",
+      "historicalRollStatus": "Unavailable old machine record; FORM line unchanged from accepted 2e2a621. No new seed was run.",
+      "visualReview": "Independent SHIP for the 64 required valid manifest images; runtime authority remains #41/PR #42."
     }
   },
   "components": [
@@ -246,7 +509,7 @@
       "refersTo": "plate-button-primary",
       "description": "大廳建立房間、準備、開始戰鬥。",
       "html": "<button class=\"ds-plate-btn\">建立房間</button>",
-      "css": ".ds-plate-btn{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:#1c1c18;color:#ebe5d2;border:2px solid #1c1c18;border-radius:0;font-weight:700;font-size:16px;padding:12px 22px;cursor:pointer;white-space:nowrap}.ds-plate-btn:hover:not(:disabled){background:#36352d}.ds-plate-btn:focus-visible{outline:3px solid #a3352b;outline-offset:3px}.ds-plate-btn:disabled{background:transparent;color:#857f69;border-color:#b3aa8f;cursor:not-allowed}.ds-plate-btn.ds-secondary{background:transparent;color:#1c1c18}.ds-plate-btn.ds-secondary:hover:not(:disabled){background:#f5f1e4}"
+      "css": ".ds-plate-btn{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:var(--ink,#1c1c18);color:var(--paper,#ebe5d2);border:2px solid var(--ink,#1c1c18);border-radius:0;font-weight:700;font-size:16px;padding:12px 22px;cursor:pointer;white-space:nowrap}.ds-plate-btn:hover:not(:disabled){background:#36352d}.ds-plate-btn:focus-visible{outline:3px solid var(--ink-red,#a3352b);outline-offset:3px}.ds-plate-btn:disabled{background:transparent;color:#857f69;border-color:var(--rule,#b3aa8f);cursor:not-allowed}.ds-plate-btn.ds-secondary{background:transparent;color:var(--ink,#1c1c18)}.ds-plate-btn.ds-secondary:hover:not(:disabled){background:var(--paper-field,#f5f1e4)}"
     },
     {
       "name": "圖版次要按鈕",
@@ -254,7 +517,7 @@
       "refersTo": "plate-button-secondary",
       "description": "加入房間、離開房間；停用時不降透明度。",
       "html": "<button class=\"ds-plate-btn ds-secondary\">離開房間</button> <button class=\"ds-plate-btn\" disabled>開始戰鬥</button>",
-      "css": ".ds-plate-btn{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:#1c1c18;color:#ebe5d2;border:2px solid #1c1c18;border-radius:0;font-weight:700;font-size:16px;padding:12px 22px;cursor:pointer;white-space:nowrap}.ds-plate-btn:hover:not(:disabled){background:#36352d}.ds-plate-btn:focus-visible{outline:3px solid #a3352b;outline-offset:3px}.ds-plate-btn:disabled{background:transparent;color:#857f69;border-color:#b3aa8f;cursor:not-allowed}.ds-plate-btn.ds-secondary{background:transparent;color:#1c1c18}.ds-plate-btn.ds-secondary:hover:not(:disabled){background:#f5f1e4}"
+      "css": ".ds-plate-btn{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:var(--ink,#1c1c18);color:var(--paper,#ebe5d2);border:2px solid var(--ink,#1c1c18);border-radius:0;font-weight:700;font-size:16px;padding:12px 22px;cursor:pointer;white-space:nowrap}.ds-plate-btn:hover:not(:disabled){background:#36352d}.ds-plate-btn:focus-visible{outline:3px solid var(--ink-red,#a3352b);outline-offset:3px}.ds-plate-btn:disabled{background:transparent;color:#857f69;border-color:var(--rule,#b3aa8f);cursor:not-allowed}.ds-plate-btn.ds-secondary{background:transparent;color:var(--ink,#1c1c18)}.ds-plate-btn.ds-secondary:hover:not(:disabled){background:var(--paper-field,#f5f1e4)}"
     },
     {
       "name": "圖版輸入",
@@ -262,7 +525,7 @@
       "refersTo": "plate-input",
       "description": "乘員名稱與房間代碼。",
       "html": "<input class=\"ds-plate-input\" aria-label=\"乘員名稱\" placeholder=\"乘員名稱\">",
-      "css": ".ds-plate-input{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:#f5f1e4;color:#1c1c18;border:1.5px solid #1c1c18;border-radius:0;padding:12px 14px;width:100%;font-size:16px;caret-color:#a3352b}.ds-plate-input::placeholder{color:#4d4a3c}.ds-plate-input:focus-visible{outline:3px solid #a3352b;outline-offset:3px}"
+      "css": ".ds-plate-input{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:var(--paper-field,#f5f1e4);color:var(--ink,#1c1c18);border:1.5px solid var(--ink,#1c1c18);border-radius:0;padding:12px 14px;width:100%;font-size:16px;caret-color:var(--ink-red,#a3352b)}.ds-plate-input::placeholder{color:var(--ink-soft,#4d4a3c)}.ds-plate-input:focus-visible{outline:3px solid var(--ink-red,#a3352b);outline-offset:3px}"
     },
     {
       "name": "職位認領列",
@@ -270,7 +533,7 @@
       "refersTo": "plate-role-claim",
       "description": "圖例列：編號圓圈、明體職位按鈕、任務與擔任者；你的職位為朱紅。",
       "html": "<ol class=\"ds-legend\"><li data-state=\"mine\"><button aria-pressed=\"true\">擔任砲手</button><p>瞄準並開火。</p><p class=\"ds-owner\">你已擔任</p></li><li data-state=\"free\"><button aria-pressed=\"false\">擔任裝填手</button><p>裝填主炮並操作機槍。</p><p class=\"ds-owner\">空位</p></li></ol>",
-      "css": ".ds-legend{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;list-style:none;margin:0;padding:0;counter-reset:seat 1;background:#ebe5d2;color:#4d4a3c}.ds-legend li{counter-increment:seat;position:relative;padding:12px 12px 12px 52px;font-size:15px;line-height:1.7;transition:background-color 160ms ease-out}.ds-legend li+li{border-top:1px solid #b3aa8f}.ds-legend li:has(button:hover){background:#f5f1e4}.ds-legend li::before{content:counter(seat);position:absolute;left:0;top:14px;width:34px;height:34px;border:2px solid #1c1c18;border-radius:50%;display:grid;place-items:center;font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:17px;color:#1c1c18}.ds-legend li[data-state=\"mine\"]::before{background:#a3352b;border-color:#a3352b;color:#ebe5d2}.ds-legend button{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-size:23px;font-weight:700;line-height:1.3;padding:2px 0 3px;background:transparent;color:#1c1c18;border:0;border-bottom:2px solid #1c1c18;border-radius:0;cursor:pointer}.ds-legend button[aria-pressed=\"true\"]{color:#a3352b;border-bottom-color:#a3352b}.ds-legend button:focus-visible{outline:3px solid #a3352b;outline-offset:3px}.ds-legend p{margin:8px 0 0}.ds-legend .ds-owner{margin-top:4px;font-weight:700;color:#1c1c18}.ds-legend li[data-state=\"mine\"] .ds-owner{color:#a3352b}"
+      "css": ".ds-legend{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;list-style:none;margin:0;padding:0;counter-reset:seat 1;background:var(--paper,#ebe5d2);color:var(--ink-soft,#4d4a3c)}.ds-legend li{counter-increment:seat;position:relative;padding:12px 12px 12px 52px;font-size:15px;line-height:1.7;transition:background-color 160ms ease-out}.ds-legend li+li{border-top:1px solid var(--rule,#b3aa8f)}.ds-legend li:has(button:hover){background:var(--paper-field,#f5f1e4)}.ds-legend li::before{content:counter(seat);position:absolute;left:0;top:14px;width:34px;height:34px;border:2px solid var(--ink,#1c1c18);border-radius:50%;display:grid;place-items:center;font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:17px;color:var(--ink,#1c1c18)}.ds-legend li[data-state=\"mine\"]::before{background:var(--ink-red,#a3352b);border-color:var(--ink-red,#a3352b);color:var(--paper,#ebe5d2)}.ds-legend button{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-size:23px;font-weight:700;line-height:1.3;padding:2px 0 3px;background:transparent;color:var(--ink,#1c1c18);border:0;border-bottom:2px solid var(--ink,#1c1c18);border-radius:0;cursor:pointer}.ds-legend button[aria-pressed=\"true\"]{color:var(--ink-red,#a3352b);border-bottom-color:var(--ink-red,#a3352b)}.ds-legend button:focus-visible{outline:3px solid var(--ink-red,#a3352b);outline-offset:3px}.ds-legend p{margin:8px 0 0}.ds-legend .ds-owner{margin-top:4px;font-weight:700;color:var(--ink,#1c1c18)}.ds-legend li[data-state=\"mine\"] .ds-owner{color:var(--ink-red,#a3352b)}"
     },
     {
       "name": "車體座位圖",
@@ -278,7 +541,7 @@
       "refersTo": "plate-seat-mine",
       "description": "Sherman 俯視線圖；座位記號空位紙色、他人墨色、自己朱紅，引線連到圖例。",
       "html": "<figure class=\"ds-plate\"><svg viewBox=\"0 0 300 340\" width=\"240\" role=\"img\" aria-label=\"乘員位置示意\"><g class=\"ds-hull\"><rect x=\"34\" y=\"20\" width=\"16\" height=\"290\"/><rect x=\"190\" y=\"20\" width=\"16\" height=\"290\"/><path d=\"M50 40 Q50 22 70 22 H170 Q190 22 190 40 V300 H50Z\"/><circle cx=\"120\" cy=\"176\" r=\"62\"/><rect x=\"113\" y=\"0\" width=\"14\" height=\"116\"/><path d=\"M60 110 H180\" class=\"ds-dash\"/><rect x=\"70\" y=\"56\" width=\"44\" height=\"36\"/><rect x=\"126\" y=\"56\" width=\"44\" height=\"36\" class=\"ds-dash\"/></g><g class=\"ds-leaders\"><path d=\"M107 74 L232 17 H300\"/><path d=\"M165 176 L232 147 H300\"/><path d=\"M105 176 L232 277 H300\"/></g><g class=\"ds-seat ds-taken\"><circle cx=\"92\" cy=\"74\" r=\"15\"/><text x=\"92\" y=\"80\">1</text></g><g class=\"ds-seat ds-mine\"><circle cx=\"150\" cy=\"176\" r=\"15\"/><text x=\"150\" y=\"182\">2</text></g><g class=\"ds-seat\"><circle cx=\"90\" cy=\"176\" r=\"15\"/><text x=\"90\" y=\"182\">3</text></g></svg><figcaption>圖 1　M4 中型戰車乘員位置，前方朝上（示意，未依比例）</figcaption></figure>",
-      "css": ".ds-plate{margin:0;background:#ebe5d2;padding:16px;font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;}.ds-hull{fill:none;stroke:#1c1c18;stroke-width:2}.ds-hull .ds-dash{stroke-dasharray:5 4;stroke-width:1.2}.ds-leaders{fill:none;stroke:#1c1c18;stroke-width:1}.ds-seat circle{stroke:#1c1c18;stroke-width:2;fill:#ebe5d2}.ds-seat text{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:17px;text-anchor:middle;fill:#1c1c18}.ds-taken circle{fill:#1c1c18}.ds-taken text,.ds-mine text{fill:#ebe5d2}.ds-mine circle{fill:#a3352b;stroke:#a3352b}.ds-plate figcaption{margin-top:10px;font-size:13px;line-height:1.6;color:#4d4a3c}"
+      "css": ".ds-plate{margin:0;background:var(--paper,#ebe5d2);padding:16px;font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;}.ds-hull{fill:none;stroke:var(--ink,#1c1c18);stroke-width:2}.ds-hull .ds-dash{stroke-dasharray:5 4;stroke-width:1.2}.ds-leaders{fill:none;stroke:var(--ink,#1c1c18);stroke-width:1}.ds-seat circle{stroke:var(--ink,#1c1c18);stroke-width:2;fill:var(--paper,#ebe5d2)}.ds-seat text{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:17px;text-anchor:middle;fill:var(--ink,#1c1c18)}.ds-taken circle{fill:var(--ink,#1c1c18)}.ds-taken text,.ds-mine text{fill:var(--paper,#ebe5d2)}.ds-mine circle{fill:var(--ink-red,#a3352b);stroke:var(--ink-red,#a3352b)}.ds-plate figcaption{margin-top:10px;font-size:13px;line-height:1.6;color:var(--ink-soft,#4d4a3c)}"
     },
     {
       "name": "房間面板與乘員表",
@@ -286,55 +549,39 @@
       "refersTo": "plate-panel",
       "description": "深紙面板：朱紅房間代碼、人數列、編號乘員表，空位列補齊三席。",
       "html": "<div class=\"ds-panel\"><p class=\"ds-code-label\">房間代碼・念給隊友 <strong>K7Q2MA</strong></p><p class=\"ds-count\">2／3 就位・1 人已準備</p><div class=\"ds-row ds-head\"><span>位置</span><span>乘員</span><span>職位</span><span>狀態</span></div><div class=\"ds-row ds-me\"><span class=\"ds-seatno\">2</span><strong>阿明（你）</strong><span>砲手</span><b>已準備</b></div><div class=\"ds-row\"><span class=\"ds-seatno\">1</span><strong>小華（房主）</strong><span>駕駛</span><b class=\"ds-not\">未準備</b></div><p class=\"ds-open\">空位・等待隊友加入</p></div>",
-      "css": ".ds-panel{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:#e2dbc4;color:#1c1c18;padding:28px 32px 32px;border:2px solid #1c1c18}.ds-code-label{margin:0;font-size:14px;color:#4d4a3c}.ds-code-label strong{display:block;margin-top:2px;font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:44px;line-height:1.2;letter-spacing:.16em;color:#a3352b;font-variant-numeric:tabular-nums}.ds-count{margin:8px 0 6px;font-size:14px;font-weight:600;color:#4d4a3c}.ds-row{display:grid;grid-template-columns:36px minmax(0,1fr) auto 56px;column-gap:12px;align-items:baseline;padding:12px 0;border-bottom:1px solid #b3aa8f}.ds-row span{color:#4d4a3c;font-size:15px}.ds-row b{text-align:right;font-weight:700}.ds-row b.ds-not{color:#4d4a3c;font-weight:400}.ds-head{font-size:13px;padding:0 0 6px;border-bottom:2px solid #1c1c18}.ds-head span{font-size:13px}.ds-head span:last-child{text-align:right}.ds-row .ds-seatno{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:18px;color:#1c1c18}.ds-me strong,.ds-me .ds-seatno{color:#a3352b}.ds-open{margin:0;padding:12px 0 12px 48px;border-bottom:1px solid #b3aa8f;font-size:15px;color:#4d4a3c}"
+      "css": ".ds-panel{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;background:var(--paper-deep,#e2dbc4);color:var(--ink,#1c1c18);padding:28px 32px 32px;border:2px solid var(--ink,#1c1c18)}.ds-code-label{margin:0;font-size:14px;color:var(--ink-soft,#4d4a3c)}.ds-code-label strong{display:block;margin-top:2px;font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:44px;line-height:1.2;letter-spacing:.16em;color:var(--ink-red,#a3352b);font-variant-numeric:tabular-nums}.ds-count{margin:8px 0 6px;font-size:14px;font-weight:600;color:var(--ink-soft,#4d4a3c)}.ds-row{display:grid;grid-template-columns:36px minmax(0,1fr) auto 56px;column-gap:12px;align-items:baseline;padding:12px 0;border-bottom:1px solid var(--rule,#b3aa8f)}.ds-row span{color:var(--ink-soft,#4d4a3c);font-size:15px}.ds-row b{text-align:right;font-weight:700}.ds-row b.ds-not{color:var(--ink-soft,#4d4a3c);font-weight:400}.ds-head{font-size:13px;padding:0 0 6px;border-bottom:2px solid var(--ink,#1c1c18)}.ds-head span{font-size:13px}.ds-head span:last-child{text-align:right}.ds-row .ds-seatno{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-weight:900;font-size:18px;color:var(--ink,#1c1c18)}.ds-me strong,.ds-me .ds-seatno{color:var(--ink-red,#a3352b)}.ds-open{margin:0;padding:12px 0 12px 48px;border-bottom:1px solid var(--rule,#b3aa8f);font-size:15px;color:var(--ink-soft,#4d4a3c)}"
     },
     {
-      "name": "工作站圖版",
+      "name": "戰鬥操作與本機畫質",
+      "kind": "button",
+      "refersTo": "battle-button",
+      "description": "全螢幕、音效、離開及原生低／中／高畫質；按下、停用及焦點清楚。畫質只改本機場景。",
+      "html": "<div class=\"ds-battle-actions\"><button>進入全螢幕</button><button aria-pressed=\"true\">音效：開</button><button disabled>離開房間</button><label class=\"ds-quality\">畫質 <select aria-label=\"畫質\"><option>低</option><option selected>中</option><option>高</option></select></label></div>",
+      "css": ".ds-battle-actions{display:flex;flex-wrap:wrap;gap:8px}.ds-battle-actions button{font:700 14px \"PingFang TC\",\"Noto Sans TC\",sans-serif;padding:8px 14px;min-height:40px;border:1px solid var(--hud-muted,#d2cbb4);border-radius:0;color:var(--hud-foreground,#f5f1e4);background:var(--hud-background,#171e1ce8);cursor:pointer;white-space:nowrap}.ds-battle-actions button:hover:not(:disabled){background:#39473c}.ds-battle-actions button[aria-pressed=\"true\"],.ds-battle-actions button[aria-pressed=\"true\"]:hover:not(:disabled){background:var(--hud-foreground,#f5f1e4);color:#171e1c}.ds-battle-actions button:disabled{color:var(--hud-muted,#d2cbb4);border-color:var(--hud-rule,#858b79);background:#171e1c;cursor:not-allowed}.ds-battle-actions button:focus-visible{outline:3px solid var(--hud-danger,#ffba9f);outline-offset:3px}.ds-quality{display:inline-flex;align-items:center;gap:6px;padding-left:8px;border:1px solid var(--hud-muted,#d2cbb4);background:var(--hud-background,#171e1ce8);color:var(--hud-foreground,#f5f1e4);font:400 14px \"PingFang TC\",\"Noto Sans TC\",sans-serif}.ds-quality select{min-height:38px;padding:8px;border:0;border-left:1px solid var(--hud-muted,#d2cbb4);border-radius:0;color:var(--hud-foreground,#f5f1e4);background:var(--hud-background,#171e1ce8);font:inherit;cursor:pointer}.ds-quality select:hover{background:#39473c}.ds-quality select:focus-visible{outline:3px solid var(--hud-danger,#ffba9f);outline-offset:2px}"
+    },
+    {
+      "name": "角落 HUD 與可見警示",
       "kind": "card",
-      "refersTo": "station-plate",
-      "description": "戰鬥以半透明深底與亮字呈現；完整頁面及角落位置依 tank.css。",
-      "html": "<section class=\"ds-hud\"><h2>駕駛工作站</h2><p>共用坦克血量 <strong>100/100</strong></p><p>第 1 / 3 波 · 存活敵車 2</p><p>速度 <strong>0.0</strong> m/s · 靜止</p><p>車身朝向 <strong>0°</strong><br>砲管朝向 <strong>0.0°</strong></p></section>",
-      "css": ".ds-hud{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;font-size:14px;line-height:1.5;color:#f5f1e4;background:#171e1ce8;border:1px solid #858b79;border-radius:0;padding:12px 14px;}.ds-hud p{margin:0 0 8px}.ds-hud h2{margin:0 0 8px;font:900 20px/1.3 \"Noto Serif TC\",\"Songti TC\",serif;letter-spacing:.06em}.ds-hud strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-variant-numeric:tabular-nums}.ds-hud .danger{color:#ffba9f}.ds-hud progress{appearance:none;display:block;width:100%;height:10px;border:1px solid #d2cbb4;background:#171e1c}.ds-hud progress::-webkit-progress-bar{background:#171e1c}.ds-hud progress::-webkit-progress-value{background:#f5f1e4}.ds-hud button{font:700 14px/1.5 \"PingFang TC\",\"Noto Sans TC\",sans-serif;min-height:40px;padding:8px 14px;color:#f5f1e4;background:#171e1ce8;border:1px solid #d2cbb4;border-radius:0}.ds-hud button:focus-visible{outline:3px solid #ffba9f;outline-offset:3px}"
+      "refersTo": "hud-panel",
+      "description": "深底、明體名稱／讀數、黑體狀態；過熱與重連用文字及不同框線輔助。",
+      "html": "<section class=\"ds-hud\"><h2>裝填手工作站</h2><p>共用坦克血量 <strong class=\"ds-hp\">84.1/100</strong></p><p>維修模式 · Tab 切換工作</p><p class=\"ds-note\">停車並停止轉向後才能維修</p></section><section class=\"ds-hud ds-overheated\"><p>機槍過熱 · 冷卻 2.4 秒</p><progress aria-label=\"機槍熱度\" max=\"100\" value=\"81\"></progress></section><p class=\"ds-hud ds-paused\">戰鬥暫停・等待隊友重新連線・所有操作與戰況已凍結。</p>",
+      "css": ".ds-hud{padding:12px 14px;color:var(--hud-foreground,#f5f1e4);background:var(--hud-background,#171e1ce8);border:1px solid var(--hud-rule,#858b79);border-radius:0;font:400 14px/1.5 \"PingFang TC\",\"Noto Sans TC\",sans-serif;font-variant-numeric:tabular-nums}.ds-hud h2{margin:0 0 8px;font:900 20px/1.3 var(--plate-serif,\"Noto Serif TC\",\"Songti TC\",serif);letter-spacing:.06em}.ds-hud p{margin:0}.ds-hud strong{font-family:var(--plate-serif,\"Noto Serif TC\",\"Songti TC\",serif);font-weight:700}.ds-hud .ds-hp{font-size:20px;font-weight:900}.ds-hud .ds-note{font-size:13px;color:var(--hud-muted,#d2cbb4)}.ds-hud progress{display:block;appearance:none;width:100%;height:10px;margin-top:8px;border:1px solid var(--hud-muted,#d2cbb4);border-radius:0;background:#171e1c}.ds-hud progress::-webkit-progress-bar{background:#171e1c}.ds-hud progress::-webkit-progress-value{background:var(--hud-foreground,#f5f1e4)}.ds-hud progress::-moz-progress-bar{background:var(--hud-foreground,#f5f1e4)}.ds-overheated{color:var(--hud-danger,#ffba9f);border-color:var(--hud-danger,#ffba9f)}.ds-overheated progress::-webkit-progress-value{background:var(--hud-danger,#ffba9f)}.ds-overheated progress::-moz-progress-bar{background:var(--hud-danger,#ffba9f)}.ds-paused{padding:8px 12px;border:4px double var(--hud-muted,#d2cbb4);font-weight:700}"
     },
     {
-      "name": "危險警示",
-      "kind": "custom",
-      "refersTo": "enemy-warning",
-      "description": "戰鬥以半透明深底與亮字呈現；完整頁面及角落位置依 tank.css。",
-      "html": "<section class=\"ds-hud\"><p class=\"danger\">敵車正在瞄準，即將開火！移動或尋找掩護</p></section>",
-      "css": ".ds-hud{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;font-size:14px;line-height:1.5;color:#f5f1e4;background:#171e1ce8;border:1px solid #858b79;border-radius:0;padding:12px 14px;}.ds-hud p{margin:0 0 8px}.ds-hud h2{margin:0 0 8px;font:900 20px/1.3 \"Noto Serif TC\",\"Songti TC\",serif;letter-spacing:.06em}.ds-hud strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-variant-numeric:tabular-nums}.ds-hud .danger{color:#ffba9f}.ds-hud progress{appearance:none;display:block;width:100%;height:10px;border:1px solid #d2cbb4;background:#171e1c}.ds-hud progress::-webkit-progress-bar{background:#171e1c}.ds-hud progress::-webkit-progress-value{background:#f5f1e4}.ds-hud button{font:700 14px/1.5 \"PingFang TC\",\"Noto Sans TC\",sans-serif;min-height:40px;padding:8px 14px;color:#f5f1e4;background:#171e1ce8;border:1px solid #d2cbb4;border-radius:0}.ds-hud button:focus-visible{outline:3px solid #ffba9f;outline-offset:3px}"
+      "name": "共享北向導航",
+      "kind": "nav",
+      "refersTo": "battle-navigation",
+      "description": "完整地形示意、分離的車頭／主炮；實心目前觀測及空心最後已知。示例點位僅為元件預覽。",
+      "html": "<aside class=\"ds-navigation\" aria-label=\"共用戰場導航\"><div class=\"ds-navigation-heading\"><strong>戰場導航</strong><span><svg class=\"ds-north\" aria-hidden=\"true\" viewBox=\"0 0 10 14\"><path d=\"M5 13V2M1 6l4-4 4 4\"/></svg>北</span></div><svg class=\"ds-map\" viewBox=\"-42 -42 84 84\" role=\"img\" aria-label=\"北向固定的地形示意\"><rect class=\"ds-ground\" x=\"-42\" y=\"-42\" width=\"84\" height=\"84\"/><rect class=\"ds-plough\" x=\"-39.5\" y=\"-42\" width=\"25\" height=\"36\"/><rect class=\"ds-stubble\" x=\"16\" y=\"-13\" width=\"24\" height=\"42\"/><rect class=\"ds-pasture\" x=\"-39\" y=\"14\" width=\"26\" height=\"20\"/><path class=\"ds-lane\" d=\"M0 46V2L5 -7L10 -15L10.5 -34L8 -46\"/><g class=\"ds-cover\"><rect x=\"-16\" y=\"-16\" width=\"2\" height=\"14\"/><rect x=\"-6\" y=\"-18.7\" width=\"12\" height=\"1.4\"/><rect x=\"10\" y=\"15\" width=\"8\" height=\"2\"/><rect x=\"13.5\" y=\"-28\" width=\"9\" height=\"8\"/></g><path class=\"ds-hull\" d=\"M0 -3.8L2.7 3L0 1.7L-2.7 3Z\"/><path class=\"ds-gun\" d=\"M0 0V-9\" transform=\"rotate(40)\"/><rect class=\"ds-contact\" x=\"4\" y=\"-15\" width=\"2.8\" height=\"2.8\"/><rect class=\"ds-contact ds-stale\" x=\"-8\" y=\"-25\" width=\"2.8\" height=\"2.8\" opacity=\".6\"/></svg><p class=\"ds-navigation-legend\"><span><svg aria-hidden=\"true\" viewBox=\"-4 -4 8 8\"><path class=\"ds-hull\" d=\"M0 -3L2.4 3L0 1.5L-2.4 3Z\"/></svg>車頭</span><span><svg aria-hidden=\"true\" viewBox=\"-4 -4 8 8\"><path class=\"ds-gun\" d=\"M0 3V-3\"/></svg>主炮</span><span><svg aria-hidden=\"true\" viewBox=\"-4 -4 8 8\"><rect class=\"ds-contact\" x=\"-3.5\" y=\"-1.5\" width=\"3\" height=\"3\"/><rect class=\"ds-contact ds-stale\" x=\".5\" y=\"-1.5\" width=\"3\" height=\"3\"/></svg>現／舊</span></p><p class=\"ds-scale\">地形示意 · 84 × 84 m</p></aside>",
+      "css": ".ds-navigation{width:192px;min-height:192px;pointer-events:none;background:var(--hud-background,#171e1ce8);color:var(--hud-foreground,#f5f1e4);font:400 12px/1.4 \"PingFang TC\",\"Noto Sans TC\",sans-serif;font-variant-numeric:tabular-nums}.ds-navigation-heading{display:flex;align-items:center;justify-content:space-between;padding:6px 8px}.ds-navigation-heading strong{font:inherit;font-weight:700}.ds-map{display:block;width:100%;aspect-ratio:1;border:1px solid var(--hud-rule,#858b79)}.ds-ground{fill:#60694e}.ds-plough{fill:#55472f}.ds-stubble{fill:#817348}.ds-pasture{fill:#556342}.ds-lane{fill:none;stroke:#a18e6b;stroke-width:5;stroke-linejoin:round}.ds-cover{fill:#d2cbb4;stroke:#252a24;stroke-width:.6}.ds-hull{fill:#f5f1e4;stroke:#171e1c;stroke-width:.7;stroke-linejoin:round}.ds-gun{fill:none;stroke:#ffe4a3;stroke-width:.85;stroke-linecap:round}.ds-contact{fill:#ffba9f;stroke:#171e1c;stroke-width:.5}.ds-stale{fill:none;stroke:var(--hud-danger,#ffba9f);stroke-width:.65}.ds-navigation .ds-navigation-legend,.ds-navigation .ds-scale{margin:0;padding:3px 8px 0;font:inherit}.ds-navigation-legend{display:flex;justify-content:space-between;gap:4px}.ds-navigation .ds-scale{padding-bottom:6px;color:var(--hud-muted,#d2cbb4)}.ds-navigation-heading span{display:flex;align-items:center;gap:4px}.ds-north{width:8px;height:12px;fill:none;stroke:currentColor;stroke-width:1.5}.ds-navigation-legend span{display:inline-flex;align-items:center;gap:2px;white-space:nowrap}.ds-navigation-legend svg{width:10px;height:10px;flex:none}"
     },
     {
-      "name": "機槍熱量 HUD",
+      "name": "車內圓形維修校準",
       "kind": "custom",
-      "refersTo": "mg-hud",
-      "description": "戰鬥以半透明深底與亮字呈現；完整頁面及角落位置依 tank.css。",
-      "html": "<section class=\"ds-hud\"><p>機槍熱度 <strong>100</strong>%</p><p class=\"danger\">過熱・強制冷卻 <strong>2.0 秒</strong></p><progress max=\"100\" value=\"100\"></progress></section>",
-      "css": ".ds-hud{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;font-size:14px;line-height:1.5;color:#f5f1e4;background:#171e1ce8;border:1px solid #858b79;border-radius:0;padding:12px 14px;}.ds-hud p{margin:0 0 8px}.ds-hud h2{margin:0 0 8px;font:900 20px/1.3 \"Noto Serif TC\",\"Songti TC\",serif;letter-spacing:.06em}.ds-hud strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-variant-numeric:tabular-nums}.ds-hud .danger{color:#ffba9f}.ds-hud progress{appearance:none;display:block;width:100%;height:10px;border:1px solid #d2cbb4;background:#171e1c}.ds-hud progress::-webkit-progress-bar{background:#171e1c}.ds-hud progress::-webkit-progress-value{background:#f5f1e4}.ds-hud button{font:700 14px/1.5 \"PingFang TC\",\"Noto Sans TC\",sans-serif;min-height:40px;padding:8px 14px;color:#f5f1e4;background:#171e1ce8;border:1px solid #d2cbb4;border-radius:0}.ds-hud button:focus-visible{outline:3px solid #ffba9f;outline-offset:3px}"
-    },
-    {
-      "name": "卡彈工作軌",
-      "kind": "custom",
-      "refersTo": "jam-track",
-      "description": "戰鬥以半透明深底與亮字呈現；完整頁面及角落位置依 tank.css。",
-      "html": "<section class=\"ds-hud\"><p class=\"danger\">卡彈：停在目標區</p><div class=\"ds-track\"><span class=\"ds-zone\">目標</span><span class=\"ds-needle\"></span></div><p>按空白鍵停針</p></section>",
-      "css": ".ds-hud{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;font-size:14px;line-height:1.5;color:#f5f1e4;background:#171e1ce8;border:1px solid #858b79;border-radius:0;padding:12px 14px;}.ds-hud p{margin:0 0 8px}.ds-hud h2{margin:0 0 8px;font:900 20px/1.3 \"Noto Serif TC\",\"Songti TC\",serif;letter-spacing:.06em}.ds-hud strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-variant-numeric:tabular-nums}.ds-hud .danger{color:#ffba9f}.ds-hud progress{appearance:none;display:block;width:100%;height:10px;border:1px solid #d2cbb4;background:#171e1c}.ds-hud progress::-webkit-progress-bar{background:#171e1c}.ds-hud progress::-webkit-progress-value{background:#f5f1e4}.ds-hud button{font:700 14px/1.5 \"PingFang TC\",\"Noto Sans TC\",sans-serif;min-height:40px;padding:8px 14px;color:#f5f1e4;background:#171e1ce8;border:1px solid #d2cbb4;border-radius:0}.ds-hud button:focus-visible{outline:3px solid #ffba9f;outline-offset:3px} .ds-track{position:relative;height:38px;border:1px solid #d2cbb4;background:#171e1c}.ds-zone{position:absolute;left:35%;width:25%;height:100%;background:#f5f1e4;color:#171e1c;text-align:center;line-height:36px}.ds-needle{position:absolute;left:45%;top:-7px;bottom:-7px;width:4px;background:#ffba9f;border:1px solid #171e1c}"
-    },
-    {
-      "name": "等待重連",
-      "kind": "custom",
-      "refersTo": "battle-pause",
-      "description": "戰鬥以半透明深底與亮字呈現；完整頁面及角落位置依 tank.css。",
-      "html": "<section class=\"ds-hud\" style=\"border:4px double #d2cbb4\">戰鬥暫停・等待駕駛重新連線，剩餘 56 秒。所有操作與戰況已凍結。</section>",
-      "css": ".ds-hud{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;font-size:14px;line-height:1.5;color:#f5f1e4;background:#171e1ce8;border:1px solid #858b79;border-radius:0;padding:12px 14px;}.ds-hud p{margin:0 0 8px}.ds-hud h2{margin:0 0 8px;font:900 20px/1.3 \"Noto Serif TC\",\"Songti TC\",serif;letter-spacing:.06em}.ds-hud strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-variant-numeric:tabular-nums}.ds-hud .danger{color:#ffba9f}.ds-hud progress{appearance:none;display:block;width:100%;height:10px;border:1px solid #d2cbb4;background:#171e1c}.ds-hud progress::-webkit-progress-bar{background:#171e1c}.ds-hud progress::-webkit-progress-value{background:#f5f1e4}.ds-hud button{font:700 14px/1.5 \"PingFang TC\",\"Noto Sans TC\",sans-serif;min-height:40px;padding:8px 14px;color:#f5f1e4;background:#171e1ce8;border:1px solid #d2cbb4;border-radius:0}.ds-hud button:focus-visible{outline:3px solid #ffba9f;outline-offset:3px}"
-    },
-    {
-      "name": "駕駛儀表",
-      "kind": "custom",
-      "refersTo": "driver-speed",
-      "description": "戰鬥以半透明深底與亮字呈現；完整頁面及角落位置依 tank.css。",
-      "html": "<section class=\"ds-hud\"><h2>駕駛工作站</h2><p>共用坦克血量 <strong>100/100</strong></p><p>第 1 / 3 波 · 存活敵車 2</p><p>速度 <strong>0.0</strong> m/s · 靜止</p><p>車身朝向 <strong>0°</strong><br>砲管朝向 <strong>0.0°</strong></p></section>",
-      "css": ".ds-hud{font-family:\"PingFang TC\",\"Noto Sans TC\",sans-serif;font-size:14px;line-height:1.5;color:#f5f1e4;background:#171e1ce8;border:1px solid #858b79;border-radius:0;padding:12px 14px;}.ds-hud p{margin:0 0 8px}.ds-hud h2{margin:0 0 8px;font:900 20px/1.3 \"Noto Serif TC\",\"Songti TC\",serif;letter-spacing:.06em}.ds-hud strong{font-family:\"Noto Serif TC\",\"Songti TC\",serif;font-variant-numeric:tabular-nums}.ds-hud .danger{color:#ffba9f}.ds-hud progress{appearance:none;display:block;width:100%;height:10px;border:1px solid #d2cbb4;background:#171e1c}.ds-hud progress::-webkit-progress-bar{background:#171e1c}.ds-hud progress::-webkit-progress-value{background:#f5f1e4}.ds-hud button{font:700 14px/1.5 \"PingFang TC\",\"Noto Sans TC\",sans-serif;min-height:40px;padding:8px 14px;color:#f5f1e4;background:#171e1ce8;border:1px solid #d2cbb4;border-radius:0}.ds-hud button:focus-visible{outline:3px solid #ffba9f;outline-offset:3px}"
+      "refersTo": "repair-workspace",
+      "description": "既有車內中央工作面；SVG 目標／完美區與指針均為精確幾何，文字補足顏色。示例角度不是即時狀態。",
+      "html": "<section class=\"ds-repair\"><h3>車體維修</h3><p class=\"ds-repair-readout\">維修中・每秒回復 2 HP</p><svg class=\"ds-calibration\" viewBox=\"0 0 200 200\" aria-label=\"指針 7 度；一般區 40 至 130 度；完美 74 至 95 度\"><circle class=\"ds-calibration-track\" cx=\"100\" cy=\"100\" r=\"76\"/><circle class=\"ds-calibration-zone\" cx=\"100\" cy=\"100\" r=\"76\" pathLength=\"1\" stroke-dasharray=\".25 1\" style=\"transform:rotate(-50deg)\"/><circle class=\"ds-calibration-perfect\" cx=\"100\" cy=\"100\" r=\"76\" pathLength=\"1\" stroke-dasharray=\".06 1\" style=\"transform:rotate(-15.8deg)\"/><line class=\"ds-calibration-needle\" x1=\"100\" y1=\"110\" x2=\"100\" y2=\"16\" style=\"transform:rotate(7deg)\"/><circle class=\"ds-calibration-hub\" cx=\"100\" cy=\"100\" r=\"5\"/></svg><p>按住 <kbd>R</kbd> 維修 · <kbd>空白鍵</kbd> 校準</p><p class=\"ds-calibration-position\">指針 7° · 目標 40°–130° · 完美 74°–95°</p><p>按住 <kbd>C</kbd> 蹲下避殼 · <kbd>Tab</kbd> 返回裝填</p></section>",
+      "css": ".ds-repair{width:min(420px,calc(100% - 32px));padding:22px 24px;color:var(--hud-foreground,#f5f1e4);background:var(--hud-background,#171e1ce8);border:1px solid var(--hud-rule,#858b79);border-radius:0;text-align:center;font:400 14px/1.6 \"PingFang TC\",\"Noto Sans TC\",sans-serif;font-variant-numeric:tabular-nums}.ds-repair h3{margin:0 0 18px;font:700 22px/1.3 \"PingFang TC\",\"Noto Sans TC\",sans-serif}.ds-repair p{margin:8px 0;font-size:14px;line-height:1.6}.ds-repair .ds-repair-readout{font-size:18px;font-weight:700;margin-bottom:18px}.ds-repair kbd{font:inherit;font-weight:700}.ds-calibration{display:block;width:200px;height:200px;margin:0 auto}.ds-calibration circle{fill:none}.ds-calibration-track{stroke:#6f7970;stroke-width:13}.ds-calibration-zone{stroke:#d6c984;stroke-width:17}.ds-calibration-perfect{stroke:#fff8db;stroke-width:9}.ds-calibration-needle{stroke:#f5f1e4;stroke-width:3}.ds-calibration .ds-calibration-hub{fill:#f5f1e4}.ds-calibration>*{transform-origin:100px 100px}.ds-repair .ds-calibration-position{font-size:12px}@media(max-height:800px){.ds-repair{padding:14px 18px}.ds-repair>h3{display:none}.ds-repair p{margin:6px 0;font-size:13px;line-height:1.4}.ds-repair .ds-repair-readout{font-size:16px;margin:0 0 6px}.ds-repair .ds-calibration-position{font-size:13px}.ds-calibration{width:160px;height:160px}}"
     }
   ],
   "narrative": {
@@ -352,7 +599,7 @@
     "rules": [
       {
         "name": "The Second Ink Rule",
-        "body": "大廳朱紅只標示你的座位、選擇及房間代碼。戰鬥危險暖色只標示現在需要行動的狀態，並配合中文與數字；一般工作保持亮字。",
+        "body": "大廳朱紅標示你的座位、選擇與房間代碼，並服務手冊焦點。戰鬥暖色用於危險和敵方聯絡的識別；用實心／空心、文字及數字區分即時與最後已知，不以色相單獨宣告正在受威脅。",
         "section": "colors"
       },
       {
@@ -367,7 +614,7 @@
       },
       {
         "name": "The Serif Is For Names And Numbers Rule",
-        "body": "明體只用在標題、職位名稱、座位與讀數數字、房間代碼、駕駛狀態行與結算；說明、警示句與按鍵提示一律系統黑體。",
+        "body": "明體用於手冊標題、職位名稱、座位、房間代碼與戰鬥 strong 讀數、職位標題及結算。說明、警示、維修標題／狀態與按鍵提示使用系統黑體；導航標題也保持黑體。",
         "section": "typography"
       },
       {
@@ -390,24 +637,25 @@
       "Do 讓新介面元素待在 `data-surface` 範圍內，大廳用紙／墨 token，戰鬥用 hud token。",
       "Do 讓座位記號、圖例與乘員表從同一份權威房間狀態產生，並永遠呈現三個座位。",
       "Do 在大廳以墨線框結構與欄位，在戰鬥以 1px HUD 規線分隔；名稱與數字用 Noto Serif TC，說明用系統黑體。",
-      "Do 讓戰鬥危險色跟著即時狀態出現與消失，過去狀態回到一般或次要文字。",
+      "Do 讓危險警示跟著即時狀態出現與消失；最後已知敵情維持空心點、淡出與時間文字，避免看成當前威脅。",
       "Do 讓戰鬥場景鋪滿頁面，把工作資訊與控制留在角落；中央只放當前車內工作或結算。",
       "Do 在明體位置新增中文字串時，依字型 README 重新產生 Noto Serif TC 子集並更新雜湊。",
       "Do 保留六個 Sherman 路輪、三組 VVSS 及三種車型的不同輪組、炮塔與炮長。",
       "Do 讓實際貼圖、shader 編譯與首個 GPU draw 完成後才送出準備票，保留可見準備中與取消狀態。",
       "Do 讓警示、暫停與結算文字和退出／返回操作保持可讀，並在靜音時保留可見危險提示。",
+      "Do 讓地圖與校準的幾何、文字和顏色共同表達狀態；暫停時讀共同遊戲時鐘，結算接管中央工作面。",
       "Do 延續本機素材出處、授權及雜湊紀錄，模型與地景維持原創程序幾何。",
       "Do 讓低草保持裝飾，石造掩體對齊權威碰撞盒，動畫只讀權威快照。"
     ],
     "donts": [
       "Don't 在大廳用朱紅表示一般狀態，或在戰鬥用危險色表示過去的傷害與勝利。",
-      "Don't 加入陰影、模糊、玻璃、圓角卡片、英雄插圖或角色卡；強調用更粗或雙墨線。",
+      "Don't 為 HTML 面板加入投影、模糊、玻璃、圓角卡片、英雄插圖或角色卡；強調用更粗或雙墨線。保留既有準星描邊與場景內的真實光影。",
       "Don't 加入軍徽、部隊標誌或旗幟。",
       "Don't 重新引入外部字型服務或系統內建的替代展示字體來取代自託管明體。",
       "Don't 把接受的簡化外觀改述為原先偏寫實標準已通過，或新增未經要求的寫實重建義務。",
       "Don't 讓駕駛裝甲窗口外洩漏視野、把機槍視角綁到主炮，或用美術改變碰撞、傷害與權威時鐘。",
       "Don't 把博物館研究影像、材質色或光照資產說成掃描模型、歷史軍漆色號或諾曼第實景照片。",
-      "Don't 宣稱窄螢幕已有觸控玩法，或把此設計紀錄當作 FPS、音效聆聽、未截圖戰鬥狀態或完整 #27 驗證證書。"
+      "Don't 宣稱窄螢幕已有觸控玩法，或把此設計紀錄當作 FPS、音效聆聽、未截圖狀態或完整執行期回歸的驗證證書。"
     ]
   }
 }
