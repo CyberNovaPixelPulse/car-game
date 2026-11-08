@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { tankCrew } from "./tank-helpers";
 import {
   repairWithFreshLastKnown,
-  staleContacts,
+  readKnownContacts,
 } from "./tank-integration-helpers";
 
 const evidence =
@@ -19,7 +19,7 @@ test("活躍校準與最後已知敵情同時缺員凍結，畫質切換與原�
     `${evidence}/combined-pause-videos`,
   );
   try {
-    await repairWithFreshLastKnown(c);
+    const contactId = await repairWithFreshLastKnown(c);
     await c.driver.goto("about:blank");
     await expect(c.loader.getByTestId("battle-pause")).toContainText(
       "等待駕駛",
@@ -27,15 +27,7 @@ test("活躍校準與最後已知敵情同時缺員凍結，畫質切換與原�
     await c.loader.waitForTimeout(300);
     const read = async () => ({
       ...(await c.loader.evaluate(() => {
-        const marker = document.querySelector(
-          '.navigation-enemy[data-observation="stale"]',
-        )!;
         return {
-          contact: [
-            marker.getAttribute("x"),
-            marker.getAttribute("y"),
-            marker.getAttribute("opacity"),
-          ],
           health: document.querySelector('[data-testid="tank-health"]')!
             .textContent!,
           circle: document.querySelector(
@@ -43,9 +35,14 @@ test("活躍校準與最後已知敵情同時缺員凍結，畫質切換與原�
           )!.textContent!,
         };
       })),
+      contacts: await readKnownContacts(c.loader),
       intel: await c.gunner.getByTestId("target-status").textContent(),
     });
     const frozen = await read();
+    const frozenPanzer = frozen.contacts.find(
+      (contact) => contact["data-contact"] === contactId,
+    )!;
+    expect(frozenPanzer["data-observation"]).toBe("stale");
     await expect(
       c.loader.getByTestId("repair-calibration-result"),
     ).toContainText("重新按住 R");
@@ -69,14 +66,14 @@ test("活躍校準與最後已知敵情同時缺員凍結，畫質切換與原�
       path: `${evidence}/combined-calibration-stale-paused-1440.png`,
     });
     const resumed = c.gunner
-      .waitForFunction(() => {
+      .waitForFunction((contactId) => {
         if (
           !document.querySelector<HTMLElement>('[data-testid="battle-pause"]')
             ?.hidden
         )
           return false;
         const marker = document.querySelector(
-          '.navigation-enemy[data-observation="stale"]',
+          `.navigation-enemy[data-observation="stale"][data-contact="${contactId}"]`,
         );
         return (
           marker && [
@@ -85,14 +82,14 @@ test("活躍校準與最後已知敵情同時缺員凍結，畫質切換與原�
             marker.getAttribute("opacity"),
           ]
         );
-      })
+      }, contactId)
       .then((h) => h.jsonValue());
     const returning = c.driver.goto("/");
     const contact = await resumed;
     if (!contact) throw new Error("恢復時未呈現原位舊情報");
-    expect(contact.slice(0, 2)).toEqual(frozen.contact.slice(0, 2));
+    expect(contact.slice(0, 2)).toEqual([frozenPanzer.x, frozenPanzer.y]);
     expect(Number(contact[2])).toBeGreaterThan(
-      Number(frozen.contact[2]) - 0.15,
+      Number(frozenPanzer.opacity) - 0.15,
     );
     await expect(
       c.loader.getByTestId("repair-calibration-position"),

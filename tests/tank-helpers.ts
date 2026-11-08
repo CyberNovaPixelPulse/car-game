@@ -6,6 +6,7 @@ import {
   type CDPSession,
 } from "@playwright/test";
 import { observeBrowser } from "./tank-browser-observations";
+import { createCrewCleanup } from "./tank-crew-cleanup";
 
 const keyboards = new WeakMap<Page, CDPSession>();
 
@@ -198,6 +199,7 @@ export async function tankCrew(
   const pages: Page[] = [];
   const separateBrowsers: Browser[] = [];
   const flushObservations: (() => Promise<void>)[] = [];
+  const flushResources: (() => Promise<void>)[] = [];
   const independent = process.env.TANK_THREE_BROWSERS === "1";
   const evidence = process.env.TANK_EVIDENCE_DIR;
   if (evidence) await mkdir(evidence, { recursive: true });
@@ -264,6 +266,8 @@ export async function tankCrew(
     }
     if (beforeNavigation) await context.addInitScript(beforeNavigation);
     const page = await context.newPage();
+    const index = pages.length;
+    const resourceWrites: Promise<void>[] = [];
     if (evidence)
       flushObservations.push(
         await observeBrowser(page, evidence, pages.length),
@@ -280,11 +284,18 @@ export async function tankCrew(
             ).origin
         ) {
           // Static path only: never retain query, headers, peer IDs or payloads.
-          if (/^\/(favicon[^/]*|(?:art|assets|web)\/[^?]*)$/.test(url.pathname))
-            void writeFile(
-              `${evidence}/missing-resource-${pages.length}.json`,
+          if (
+            /^\/(favicon[^/]*|(?:art|assets|web)\/[^?]*)$/.test(url.pathname)
+          ) {
+            const writing = writeFile(
+              `${evidence}/missing-resource-${index}.json`,
               JSON.stringify({ path: url.pathname, status: 404 }),
             );
+            // Retain rejection for awaited cleanup without an unhandled
+            // rejection while the browser is still running gameplay.
+            writing.catch(() => {});
+            resourceWrites.push(writing);
+          }
         }
       });
     const keyboard = await context.newCDPSession(page);
@@ -304,11 +315,19 @@ export async function tankCrew(
           statuses[url.pathname] = response.status;
       });
       await keyboard.send("Network.enable");
-      page.on("close", () => {
-        void writeFile(
-          `${evidence}/resources-${Date.now()}-${pages.indexOf(page)}.json`,
+      const started = Date.now();
+      flushResources.push(async () => {
+        await writeFile(
+          `${evidence}/resources-${started}-${index}.json`,
           JSON.stringify(statuses, null, 2),
         );
+        const writes = await Promise.allSettled(resourceWrites);
+        const failed = writes.filter((result) => result.status === "rejected");
+        if (failed.length)
+          throw new AggregateError(
+            failed.map((result) => result.reason),
+            "Resource observation writes failed",
+          );
       });
     }
     pages.push(page);
@@ -341,13 +360,28 @@ export async function tankCrew(
   await host.getByRole("button", { name: "開始戰鬥", exact: true }).click();
   for (const page of pages)
     await expect(page.getByRole("heading", { name: /工作站$/ })).toBeVisible();
-  return {
-    code: code!,
-    loader,
-    driver,
-    gunner,
-    close: async () => {
-      for (const [index, page] of pages.entries()) {
+  const initialRoles = [
+    hostRole,
+    "driver",
+    hostRole === "loader" ? "gunner" : "loader",
+  ];
+  const cleanupStarted = Date.now();
+  const close = createCrewCleanup(
+    pages.map((page, index) => ({
+      label: `initial-${initialRoles[index]}-page-${index}`,
+      observe: async () => {
+        const results = await Promise.allSettled([
+          flushObservations[index]?.(),
+          flushResources[index]?.(),
+        ]);
+        const failed = results.filter((result) => result.status === "rejected");
+        if (failed.length)
+          throw new AggregateError(
+            failed.map((result) => result.reason),
+            "Browser observation flush failed",
+          );
+      },
+      beforeClose: async () => {
         if (evidence && process.env.TANK_AUDIO_COLLECTOR) {
           const audio = await page.evaluate(async () => {
             const observer = (window as any).__actualAudioOutputObservation;
@@ -367,16 +401,32 @@ export async function tankCrew(
             );
           }
         }
-        await page.context().close();
-        await flushObservations[index]?.();
+      },
+      close: () => page.context().close(),
+      afterClose: async () => {
         if (evidence && page.video() && recordVideoDir?.includes("win-videos"))
           await page
             .video()!
-            .saveAs(
-              `${evidence}/win-${[hostRole, "driver", hostRole === "loader" ? "gunner" : "loader"][index]}.webm`,
-            );
-      }
-      for (const owner of separateBrowsers) await owner.close();
-    },
+            .saveAs(`${evidence}/win-${initialRoles[index]}.webm`);
+      },
+    })),
+    separateBrowsers.map((owner, index) => ({
+      label: `browser-${index}`,
+      close: () => owner.close(),
+    })),
+    evidence
+      ? (phases) =>
+          writeFile(
+            `${evidence}/crew-cleanup-${cleanupStarted}.json`,
+            JSON.stringify({ initialRoles, phases }, null, 2),
+          )
+      : undefined,
+  );
+  return {
+    code: code!,
+    loader,
+    driver,
+    gunner,
+    close,
   };
 }

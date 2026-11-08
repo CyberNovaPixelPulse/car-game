@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { writeFile } from "node:fs/promises";
 import {
   tankCrew,
   aimAtHeading,
@@ -20,48 +21,86 @@ async function repairDuringReinforcement(
   await c.loader.keyboard.press("Tab");
   await c.loader.keyboard.press("Tab");
   await expect(c.loader.getByTestId("loader-mode")).toHaveText("維修模式");
+  const captureTiming = process.env.TANK_PUBLIC_INPUT_TIMING === "1";
   // Read the first actually painted 8° band locally. Serial browser RPC polls
   // can miss this 44ms stimulus despite requesting a 10ms polling interval.
   const perfectBand = c.loader.evaluate(
-    () =>
-      new Promise<number[]>((resolve, reject) => {
-        const circle = document.querySelector<HTMLElement>(
-          '[data-testid="repair-calibration"]',
-        )!;
-        const readout = document.querySelector(
-          '[data-testid="repair-calibration-position"]',
-        )!;
-        let active = false;
-        let deadline: ReturnType<typeof setTimeout>;
-        const finish = (values?: number[]) => {
-          clearTimeout(deadline);
-          observer.disconnect();
-          values
-            ? resolve(values)
-            : reject(new Error("實際圓針未在原期限內呈現完美操作區"));
-        };
-        const observe = () => {
-          if (circle.hidden) return;
-          if (!active) {
-            active = true;
-            clearTimeout(deadline);
-            deadline = setTimeout(() => finish(), 1800);
+    (captureTiming) =>
+      new Promise<{ values: number[]; observedAt: number }>(
+        (resolve, reject) => {
+          const circle = document.querySelector<HTMLElement>(
+            '[data-testid="repair-calibration"]',
+          )!;
+          const readout = document.querySelector(
+            '[data-testid="repair-calibration-position"]',
+          )!;
+          const timing: { resolvedAt?: number; keys: object[] } = { keys: [] };
+          const key = (event: KeyboardEvent) => {
+            if (event.code !== "Space") return;
+            const target =
+              event.target instanceof HTMLElement ? event.target : null;
+            timing.keys.push({
+              at: performance.timeOrigin + performance.now(),
+              type: event.type,
+              trusted: event.isTrusted,
+              targetTag: target?.tagName,
+              targetTestId: target?.dataset.testid,
+              focused: document.hasFocus(),
+              visibility: document.visibilityState,
+              readout: readout.textContent,
+              health: document.querySelector('[data-testid="tank-health"]')
+                ?.textContent,
+              result: document.querySelector(
+                '[data-testid="repair-calibration-result"]',
+              )?.textContent,
+            });
+          };
+          if (captureTiming) {
+            document.addEventListener("keydown", key, true);
+            document.addEventListener("keyup", key, true);
+            (window as any).__repairPublicInputTiming = {
+              timing,
+              dispose: () => {
+                document.removeEventListener("keydown", key, true);
+                document.removeEventListener("keyup", key, true);
+              },
+            };
           }
-          const values = readout.textContent!.match(/[\d.]+/g)!.map(Number);
-          const [needle, , , start, end] = values;
-          if (needle >= (start + end) / 2 - 8 && needle <= (start + end) / 2)
-            finish(values);
-        };
-        const observer = new MutationObserver(observe);
-        deadline = setTimeout(() => finish(), 10000);
-        observer.observe(document.querySelector(".battle-station")!, {
-          childList: true,
-          characterData: true,
-          attributes: true,
-          subtree: true,
-        });
-        observe();
-      }),
+          let active = false;
+          let deadline: ReturnType<typeof setTimeout>;
+          const finish = (values?: number[]) => {
+            clearTimeout(deadline);
+            observer.disconnect();
+            const observedAt = performance.timeOrigin + performance.now();
+            timing.resolvedAt = observedAt;
+            values
+              ? resolve({ values, observedAt })
+              : reject(new Error("實際圓針未在原期限內呈現完美操作區"));
+          };
+          const observe = () => {
+            if (circle.hidden) return;
+            if (!active) {
+              active = true;
+              clearTimeout(deadline);
+              deadline = setTimeout(() => finish(), 1800);
+            }
+            const values = readout.textContent!.match(/[\d.]+/g)!.map(Number);
+            const [needle, , , start, end] = values;
+            if (needle >= (start + end) / 2 - 8 && needle <= (start + end) / 2)
+              finish(values);
+          };
+          const observer = new MutationObserver(observe);
+          deadline = setTimeout(() => finish(), 10000);
+          observer.observe(document.querySelector(".battle-station")!, {
+            childList: true,
+            characterData: true,
+            attributes: true,
+            subtree: true,
+          });
+          observe();
+        },
+      ),
+    captureTiming,
   );
   const onset = c.loader.waitForFunction(
     () => {
@@ -78,9 +117,36 @@ async function repairDuringReinforcement(
   await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
     timeout: 10000,
   });
-  const [needle, , , start, end] = await perfectBand;
+  const {
+    values: [needle, , , start, end],
+    observedAt,
+  } = await perfectBand;
+  const responseAt = Date.now();
   // No async matcher between the observed timing band and the real work key.
   await c.loader.keyboard.press("Space");
+  const inputReturnedAt = Date.now();
+  if (captureTiming) {
+    const timing = await c.loader.evaluate(() => {
+      const observation = (window as any).__repairPublicInputTiming;
+      observation.dispose();
+      delete (window as any).__repairPublicInputTiming;
+      return observation.timing;
+    });
+    await writeFile(
+      `${evidence}/perfect-public-input-${responseAt}.json`,
+      JSON.stringify(
+        {
+          observedAt,
+          responseAt,
+          inputReturnedAt,
+          values: [needle, start, end],
+          ...timing,
+        },
+        null,
+        2,
+      ),
+    );
+  }
   expect(needle >= (start + end) / 2 - 8 && needle <= (start + end) / 2).toBe(
     true,
   );
@@ -312,18 +378,33 @@ test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ br
   }
 });
 
-test("血量歸零一致失敗且停止操作，同房回廳換職準備並重設新戰鬥", async ({
-  browser,
-}) => {
-  test.setTimeout(180000);
-  const c = await tankCrew(
-    browser,
-    "loader",
-    0,
-    1000,
-    `${evidence}/replay-videos`,
-  );
-  try {
+const replayTest = test.extend<{ crewCleanup: (() => Promise<void>)[] }>({
+  crewCleanup: async ({}, use) => {
+    await use([]);
+  },
+});
+replayTest.afterEach(async ({ crewCleanup }) => {
+  const results = await Promise.allSettled(crewCleanup.map((close) => close()));
+  const failed = results.filter((result) => result.status === "rejected");
+  if (failed.length)
+    throw new AggregateError(
+      failed.map((result) => result.reason),
+      "Replay crew cleanup failed",
+    );
+});
+
+replayTest(
+  "血量歸零一致失敗且停止操作，同房回廳換職準備並重設新戰鬥",
+  async ({ browser, crewCleanup }) => {
+    test.setTimeout(180000);
+    const c = await tankCrew(
+      browser,
+      "loader",
+      0,
+      1000,
+      `${evidence}/replay-videos`,
+    );
+    crewCleanup.push(c.close);
     await c.loader.keyboard.press("2");
     await c.loader.keyboard.down("r");
     await expect(c.loader.getByTestId("chamber-state")).toHaveText("主炮就緒");
@@ -480,7 +561,5 @@ test("血量歸零一致失敗且停止操作，同房回廳換職準備並重�
       "四號 H 型 100/200",
     );
     await newLoader.keyboard.up("c");
-  } finally {
-    await c.close();
-  }
-});
+  },
+);

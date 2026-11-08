@@ -3,6 +3,7 @@ import { tankCrew } from "./tank-helpers";
 import {
   repairWithFreshLastKnown,
   staleContacts,
+  knownContact,
 } from "./tank-integration-helpers";
 
 const evidence =
@@ -269,7 +270,7 @@ test("維修模式血量歸零立即失敗，不能復活；同房換職新局�
     `${evidence}/dirty-repair-replay-videos`,
   );
   try {
-    await repairWithFreshLastKnown(c);
+    const contactId = await repairWithFreshLastKnown(c);
     await c.loader.keyboard.up("r");
     await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
       "校準失敗・停修兩秒",
@@ -277,7 +278,10 @@ test("維修模式血量歸零立即失敗，不能復活；同房換職新局�
     await expect(c.loader.getByTestId("repair-status")).toContainText(
       "校準失敗等待",
     );
-    await expect(staleContacts(c.loader)).toHaveCount(1);
+    await expect(knownContact(c.loader, contactId)).toHaveAttribute(
+      "data-observation",
+      "stale",
+    );
     // Capture the deliberately failed work after the real release and its
     // public wait acknowledgment; screenshot latency must not defer the action.
     await c.loader.screenshot({

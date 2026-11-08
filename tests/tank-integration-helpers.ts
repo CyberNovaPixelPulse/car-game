@@ -4,6 +4,32 @@ import { aimAtHeading, tankCrew } from "./tank-helpers";
 export const staleContacts = (page: Page) =>
   page.locator('.navigation-enemy[data-observation="stale"]');
 
+export const knownContact = (page: Page, id: string) =>
+  page.locator(`.navigation-enemy[data-contact="${id}"]`);
+
+/** The entire painted collection, including independently observed enemies. */
+export const readKnownContacts = (page: Page) =>
+  page
+    .locator(".navigation-enemy")
+    .evaluateAll((markers) =>
+      markers
+        .map((marker) =>
+          Object.fromEntries(
+            [
+              "data-contact",
+              "data-observation",
+              "aria-label",
+              "x",
+              "y",
+              "width",
+              "height",
+              "opacity",
+            ].map((name) => [name, marker.getAttribute(name)]),
+          ),
+        )
+        .sort((a, b) => a["data-contact"]!.localeCompare(b["data-contact"]!)),
+    );
+
 /** Real crew arrangement: the driver and main gun face away; the loader's
  * visible MG canvas is the only observer until ordinary Tab enters repair. */
 export async function repairWithFreshLastKnown(
@@ -28,11 +54,11 @@ export async function repairWithFreshLastKnown(
   await c.loader.keyboard.press("Tab");
   await expect(c.loader.getByTestId("loader-mode")).toHaveText("機槍模式");
   await c.loader.keyboard.down("a");
-  await expect(
-    c.loader.locator(
-      '.navigation-enemy[data-observation="current"][aria-label="觀測敵車 四號 H 型"]',
-    ),
-  ).toHaveCount(1);
+  const panzer = c.loader.locator(
+    '.navigation-enemy[data-observation="current"][aria-label="觀測敵車 四號 H 型"]',
+  );
+  await expect(panzer).toHaveCount(1);
+  const contactId = (await panzer.getAttribute("data-contact"))!;
   await c.loader.keyboard.up("a");
   await expect
     .poll(
@@ -79,7 +105,10 @@ export async function repairWithFreshLastKnown(
   );
   await c.loader.keyboard.press("Tab");
   await expect(c.loader.getByTestId("loader-mode")).toHaveText("維修模式");
-  await expect(staleContacts(c.loader)).toHaveCount(1);
+  await expect(knownContact(c.loader, contactId)).toHaveAttribute(
+    "data-observation",
+    "stale",
+  );
   // Observe the first public onset at frame cadence. A visibility matcher's
   // retry backoff can miss an actually displayed circle before the next hit.
   const onset = c.loader.waitForFunction(
@@ -97,5 +126,9 @@ export async function repairWithFreshLastKnown(
   await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
     timeout: 4500,
   });
-  await expect(staleContacts(c.loader)).toHaveCount(1);
+  await expect(knownContact(c.loader, contactId)).toHaveAttribute(
+    "data-observation",
+    "stale",
+  );
+  return contactId;
 }

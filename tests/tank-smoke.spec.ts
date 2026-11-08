@@ -235,22 +235,39 @@ test("敵車已預告時放煙，仍射向最後已見點，側移後不再精�
       .toBeGreaterThanOrEqual(75);
     await c.driver.keyboard.up("d");
     await expect(c.gunner.getByTestId("turret-yaw-rate")).toHaveText("0.0°/s");
-    let previousHeading = "",
-      stableReadings = 0;
-    await expect
-      .poll(
-        async () => {
-          const heading = (await c.gunner
-            .getByTestId("hull-heading")
-            .textContent())!;
-          stableReadings = heading === previousHeading ? stableReadings + 1 : 0;
-          previousHeading = heading;
-          return stableReadings;
-        },
-        { intervals: [100] },
-      )
-      .toBeGreaterThanOrEqual(3);
-    const actualHull = Number(previousHeading.replace("°", ""));
+    const settledHull = async () => {
+      let previousHeading = "",
+        stableReadings = 0;
+      await expect
+        .poll(
+          async () => {
+            const heading = (await c.gunner
+              .getByTestId("hull-heading")
+              .textContent())!;
+            stableReadings =
+              heading === previousHeading ? stableReadings + 1 : 0;
+            previousHeading = heading;
+            return stableReadings;
+          },
+          { intervals: [100] },
+        )
+        .toBeGreaterThanOrEqual(3);
+      return Number(previousHeading.replace("°", ""));
+    };
+    let actualHull = await settledHull();
+    // The real driver corrects an observed coast/transport overshoot before
+    // choosing the smoke shot; keep the original 85–100° setup requirement.
+    for (
+      let correction = 0;
+      correction < 8 && (actualHull < 85 || actualHull > 100);
+      correction++
+    ) {
+      const error = ((90 - actualHull + 540) % 360) - 180;
+      await c.driver.keyboard.press(error > 0 ? "d" : "a", {
+        delay: Math.min(500, Math.sqrt(Math.abs(error) / 80) * 1000),
+      });
+      actualHull = await settledHull();
+    }
     expect(actualHull).toBeGreaterThanOrEqual(85);
     expect(actualHull).toBeLessThanOrEqual(100);
     await aimAtHeading(c.gunner, 0);

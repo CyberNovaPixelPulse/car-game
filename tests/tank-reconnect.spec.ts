@@ -4,6 +4,8 @@ import { tankCrew, nativeTaps } from "./tank-helpers";
 import {
   repairWithFreshLastKnown,
   staleContacts,
+  knownContact,
+  readKnownContacts,
 } from "./tank-integration-helpers";
 
 test("駕駛離頁全場暫停，裝填與戰況凍結，原職位重連後安全續玩", async ({
@@ -69,7 +71,7 @@ test("缺員以現實60秒到期回同房，舊戰鬥不能續接，新局須三
   test.setTimeout(180000);
   const c = await tankCrew(browser, "loader", 0, 1972);
   try {
-    await repairWithFreshLastKnown(c);
+    const contactId = await repairWithFreshLastKnown(c);
     await c.driver.goto("about:blank");
     await expect(c.loader.getByTestId("battle-pause")).toContainText(
       "等待駕駛",
@@ -79,11 +81,18 @@ test("缺員以現實60秒到期回同房，舊戰鬥不能續接，新局須三
     const circle = await c.loader
       .getByTestId("repair-calibration-position")
       .textContent();
-    const contact = await staleContacts(c.loader).evaluate((marker) => [
-      marker.getAttribute("x"),
-      marker.getAttribute("y"),
-      marker.getAttribute("opacity"),
-    ]);
+    await expect(knownContact(c.loader, contactId)).toHaveAttribute(
+      "data-observation",
+      "stale",
+    );
+    const contacts = await readKnownContacts(c.loader);
+    expect(
+      contacts.some((contact) => contact["data-contact"] === contactId),
+    ).toBe(true);
+    await test.info().attach("paused-known-contacts", {
+      body: JSON.stringify({ requiredPanzer: contactId, contacts }),
+      contentType: "application/json",
+    });
     await c.loader.keyboard.up("r");
     // This deliberately waits real wall time; production reconnect rules are never shortened.
     await c.loader.waitForTimeout(57000);
@@ -94,13 +103,7 @@ test("缺員以現實60秒到期回同房，舊戰鬥不能續接，新局須三
     await expect(
       c.loader.getByTestId("repair-calibration-position"),
     ).toHaveText(circle!);
-    expect(
-      await staleContacts(c.loader).evaluate((marker) => [
-        marker.getAttribute("x"),
-        marker.getAttribute("y"),
-        marker.getAttribute("opacity"),
-      ]),
-    ).toEqual(contact);
+    expect(await readKnownContacts(c.loader)).toEqual(contacts);
     await expect(
       c.loader.getByRole("heading", { name: "乘員集合" }),
     ).toBeVisible({ timeout: 8000 });
