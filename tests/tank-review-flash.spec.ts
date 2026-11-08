@@ -7,46 +7,54 @@ test("真實主炮、機槍與敵炮開火的外景火光影像", async ({ brows
     process.env.TANK_FLASH_EVIDENCE ||
     "/tmp/car-game-to-spec/review-fixes/flash";
   await mkdir(dir, { recursive: true });
-  const c = await tankCrew(browser, "loader", 0, 1000, `${dir}/video`, () => {
-    const marks: unknown[] = [];
-    (window as any).__publicFiringMarks = marks;
-    addEventListener("keydown", (e) => {
-      if (e.isTrusted && ["Space", "Tab", "KeyR"].includes(e.code))
-        marks.push({
-          ms: performance.now(),
-          key: e.code,
-          shot: document.querySelector('[data-testid="shot-count"]')
-            ?.textContent,
-          mg: document.querySelector('[data-testid="mg-shot-count"]')
-            ?.textContent,
-        });
-    });
-    addEventListener("DOMContentLoaded", () => {
-      let last = "";
-      new MutationObserver(() => {
-        const value = [
-          "shot-count",
-          "mg-shot-count",
-          "enemy-warning",
-          "enemy-activity",
-          "tank-health",
-        ]
-          .map(
-            (id) =>
-              `${id}=${document.querySelector(`[data-testid="${id}"]`)?.textContent || ""}`,
-          )
-          .join(";");
-        if (value !== last) {
-          last = value;
-          marks.push({ ms: performance.now(), hud: value });
-        }
-      }).observe(document.body, {
-        subtree: true,
-        childList: true,
-        characterData: true,
+  const c = await tankCrew(
+    browser,
+    "loader",
+    0,
+    1000,
+    `${dir}/video`,
+    () => {
+      const marks: unknown[] = [];
+      (window as any).__publicFiringMarks = marks;
+      addEventListener("keydown", (e) => {
+        if (e.isTrusted && ["Space", "Tab", "KeyR"].includes(e.code))
+          marks.push({
+            ms: performance.now(),
+            key: e.code,
+            shot: document.querySelector('[data-testid="shot-count"]')
+              ?.textContent,
+            mg: document.querySelector('[data-testid="mg-shot-count"]')
+              ?.textContent,
+          });
       });
-    });
-  });
+      addEventListener("DOMContentLoaded", () => {
+        let last = "";
+        new MutationObserver(() => {
+          const value = [
+            "shot-count",
+            "mg-shot-count",
+            "enemy-warning",
+            "enemy-activity",
+            "tank-health",
+          ]
+            .map(
+              (id) =>
+                `${id}=${document.querySelector(`[data-testid="${id}"]`)?.textContent || ""}`,
+            )
+            .join(";");
+          if (value !== last) {
+            last = value;
+            marks.push({ ms: performance.now(), hud: value });
+          }
+        }).observe(document.body, {
+          subtree: true,
+          childList: true,
+          characterData: true,
+        });
+      });
+    },
+    { recordVideoRequired: true },
+  );
   try {
     const gpu = await c.gunner.locator("canvas").evaluateAll((canvases) =>
       canvases.map((canvas) => {

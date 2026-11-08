@@ -2,11 +2,77 @@ import { mkdir, writeFile } from "node:fs/promises";
 import {
   expect,
   type Browser,
+  type BrowserContext,
   type Page,
   type CDPSession,
 } from "@playwright/test";
+import { observeBrowser } from "./tank-browser-observations";
+import { createCrewCleanup } from "./tank-crew-cleanup";
 
 const keyboards = new WeakMap<Page, CDPSession>();
+let publicObservationId = 0;
+
+/** A page observer reports only its public HUD reading. CDP's notification
+ * reaches the controller independently of an evaluate RPC acknowledgment.
+ * The controller remains the sole source of real browser key events. */
+export async function createPublicObservationBridge<T>(page: Page) {
+  const session = keyboards.get(page)!;
+  const name = `__tankPublicObservation${++publicObservationId}`;
+  let resolve!: (event: { value: T; receivedAt: number }) => void;
+  let reject!: (error: unknown) => void;
+  let settled = false;
+  const event = new Promise<{ value: T; receivedAt: number }>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
+  event.catch(() => {}); // Setup/disposal can precede the caller's join.
+  const receive = (message: { name: string; payload: string }) => {
+    if (message.name !== name || settled) return;
+    settled = true;
+    try {
+      resolve({
+        value: JSON.parse(message.payload) as T,
+        receivedAt: Date.now(),
+      });
+    } catch (error) {
+      reject(error);
+    }
+  };
+  session.on("Runtime.bindingCalled", receive);
+  try {
+    await session.send("Runtime.enable");
+    await session.send("Runtime.addBinding", { name });
+  } catch (error) {
+    session.off("Runtime.bindingCalled", receive);
+    reject(error);
+    throw error;
+  }
+  let disposing: Promise<void> | undefined;
+  return {
+    name,
+    event,
+    dispose: () =>
+      (disposing ??= (async () => {
+        session.off("Runtime.bindingCalled", receive);
+        if (!settled) {
+          settled = true;
+          reject(new Error("Public observation disposed before notification"));
+        }
+        const results = await Promise.allSettled([
+          session.send("Runtime.removeBinding", { name }),
+          page.evaluate((name) => {
+            delete (window as any)[name];
+          }, name),
+        ]);
+        const failed = results.filter((result) => result.status === "rejected");
+        if (failed.length)
+          throw new AggregateError(
+            failed.map((result) => result.reason),
+            "Public observation bridge disposal failed",
+          );
+      })()),
+  };
+}
 
 /** Aim through the visible compass with real held keys, then correct any
  * delivery/coasting error from the compass. No authority state is accessed.
@@ -25,9 +91,9 @@ export async function aimAtHeading(page: Page, target: number) {
       Math.abs(error) > 24.4
         ? Math.abs(error) * 20.5
         : Math.sqrt(Math.abs(error)) * 100;
-    await page.keyboard.down(key);
-    await page.waitForTimeout(duration);
-    await page.keyboard.up(key);
+    // Start the release timer when sending down, without waiting for its CDP
+    // acknowledgment to inflate the real hold (observed223.6ms→862.7ms).
+    await nativeHeldKey(page, key, duration);
     // Do not accept the pre-keydown zero-rate HUD as a completed coast. The
     // host may not have painted (or a client received) this short pulse yet.
     await expect(heading).not.toHaveText(displayed);
@@ -35,6 +101,40 @@ export async function aimAtHeading(page: Page, target: number) {
   }
   const current = Number((await heading.textContent())!.replace("°", ""));
   expect(Math.abs(((target - current + 540) % 360) - 180)).toBeLessThan(1);
+}
+
+/** Real browser events on the session attached before navigation. The original
+ * pilot duration schedules up independently of down's protocol acknowledgment. */
+export async function nativeHeldKey(
+  page: Page,
+  key: "ArrowLeft" | "ArrowRight" | "a" | "d",
+  durationMs: number,
+) {
+  const keyboard = keyboards.get(page)!;
+  const descriptor = {
+    key,
+    code: key === "a" ? "KeyA" : key === "d" ? "KeyD" : key,
+    windowsVirtualKeyCode: { ArrowLeft: 37, ArrowRight: 39, a: 65, d: 68 }[key],
+  };
+  const down = keyboard.send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    ...descriptor,
+    ...(["a", "d"].includes(key) ? { text: key, unmodifiedText: key } : {}),
+    autoRepeat: false,
+  });
+  down.catch(() => {}); // Still inspected below, even if it rejects before up.
+  await new Promise<void>((resolve) => setTimeout(resolve, durationMs));
+  const up = keyboard.send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    ...descriptor,
+  });
+  const results = await Promise.allSettled([down, up]);
+  const failed = results.filter((result) => result.status === "rejected");
+  if (failed.length)
+    throw new AggregateError(
+      failed.map((result) => result.reason),
+      "Native held-key delivery failed",
+    );
 }
 
 export async function elevateCannon(page: Page) {
@@ -51,31 +151,99 @@ export async function observeTiger(c: { gunner: Page }) {
     "虎式 I 型",
     { timeout: 30000 },
   );
+  await expect(
+    c.gunner.locator('.navigation-enemy[aria-label="觀測敵車 虎式 I 型"]'),
+  ).toHaveCount(1, { timeout: 30000 });
+  // A silhouette peeking around masonry is an observation, not yet a clear
+  // flat-cannon shot. Crew read the actual painted contact/cover and wait for
+  // its ordinary flank into the nearby open lane; never use hidden ray tests.
+  await expect
+    .poll(
+      () =>
+        c.gunner
+          .getByRole("img", {
+            name: "北方固定朝上的戰場導航",
+          })
+          .evaluate((svg) => {
+            const marker = svg.querySelector<SVGRectElement>(
+              '.navigation-enemy[aria-label="觀測敵車 虎式 I 型"]',
+            );
+            if (!marker) return false;
+            const own = svg
+              .querySelector(".navigation-player")!
+              .getAttribute("transform")!
+              .match(/-?[\d.]+/g)!
+              .map(Number);
+            const target = [
+              marker.x.baseVal.value + marker.width.baseVal.value / 2,
+              marker.y.baseVal.value + marker.height.baseVal.value / 2,
+            ];
+            // The visible map uses its captioned 84m square. The 20m nearby lane keeps
+            // ordinary level shots from falling short while the Tiger approaches.
+            if (Math.hypot(target[0] - own[0], target[1] - own[1]) > 20)
+              return false;
+            const margin = marker.width.baseVal.value / 2;
+            return ![
+              ...svg.querySelectorAll<SVGRectElement>(".navigation-cover rect"),
+            ].some((cover) => {
+              // Sample only the line drawn between the two visible map glyphs, with
+              // a half-marker margin so a partial corner peek does not trigger fire.
+              for (let sample = 0; sample <= 100; sample++) {
+                const x = own[0] + ((target[0] - own[0]) * sample) / 100;
+                const y = own[1] + ((target[1] - own[1]) * sample) / 100;
+                if (
+                  x >= cover.x.baseVal.value - margin &&
+                  x <=
+                    cover.x.baseVal.value +
+                      cover.width.baseVal.value +
+                      margin &&
+                  y >= cover.y.baseVal.value - margin &&
+                  y <=
+                    cover.y.baseVal.value + cover.height.baseVal.value + margin
+                )
+                  return true;
+              }
+              return false;
+            });
+          }),
+      { intervals: [50], timeout: 30000 },
+    )
+    .toBe(true);
 }
 
 /** Crew can report a bearing from the actual north-up map. These are the
  * painted rect/arrow coordinates; no hidden world-state mirror is read. */
-export async function aimAtObservedEnemy(page: Page, label: string) {
+export async function aimAtObservedEnemy(
+  page: Page,
+  label: string,
+  index?: number,
+) {
   const map = page.getByRole("img", { name: "北方固定朝上的戰場導航" });
+  const contacts = map.locator(
+    `.navigation-enemy[aria-label="觀測敵車 ${label}"]`,
+  );
   await expect(
-    map.locator(`.navigation-enemy[aria-label="觀測敵車 ${label}"]`),
+    index === undefined ? contacts : contacts.nth(index),
   ).toHaveCount(1);
-  const bearing = await map.evaluate((svg, label) => {
-    const marker = svg.querySelector<SVGRectElement>(
-      `.navigation-enemy[aria-label="觀測敵車 ${label}"]`,
-    )!;
-    const player = svg
-      .querySelector(".navigation-player")!
-      .getAttribute("transform")!
-      .match(/-?[\d.]+/g)!
-      .map(Number);
-    const x = marker.x.baseVal.value + marker.width.baseVal.value / 2;
-    const z = marker.y.baseVal.value + marker.height.baseVal.value / 2;
-    return (
-      ((Math.atan2(x - player[0], -(z - player[1])) * 180) / Math.PI + 360) %
-      360
-    );
-  }, label);
+  const bearing = await map.evaluate(
+    (svg, { label, index }) => {
+      const marker = svg.querySelectorAll<SVGRectElement>(
+        `.navigation-enemy[aria-label="觀測敵車 ${label}"]`,
+      )[index ?? 0]!;
+      const player = svg
+        .querySelector(".navigation-player")!
+        .getAttribute("transform")!
+        .match(/-?[\d.]+/g)!
+        .map(Number);
+      const x = marker.x.baseVal.value + marker.width.baseVal.value / 2;
+      const z = marker.y.baseVal.value + marker.height.baseVal.value / 2;
+      return (
+        ((Math.atan2(x - player[0], -(z - player[1])) * 180) / Math.PI + 360) %
+        360
+      );
+    },
+    { label, index },
+  );
   await aimAtHeading(page, bearing);
 }
 
@@ -124,184 +292,314 @@ export async function tankCrew(
   seed = 1000,
   recordVideoDir?: string,
   beforeNavigation?: () => void,
-  independentBrowserOptions: { headless?: boolean } = {},
+  crewOptions: { headless?: boolean; recordVideoRequired?: boolean } = {},
 ) {
   const pages: Page[] = [];
+  const contexts: BrowserContext[] = [];
+  let closing: Promise<void> | undefined;
   const separateBrowsers: Browser[] = [];
+  const flushObservations: (() => Promise<void>)[] = [];
+  const flushResources: (() => Promise<void>)[] = [];
   const independent = process.env.TANK_THREE_BROWSERS === "1";
+  // Requested capture keeps its original viewport even when optional videos
+  // are off. Tests that consume video explicitly require it below.
+  const recordCrewVideo =
+    !!recordVideoDir &&
+    (crewOptions.recordVideoRequired === true ||
+      process.env.TANK_RECORD_CREW_VIDEO === "1");
   const evidence = process.env.TANK_EVIDENCE_DIR;
   if (evidence) await mkdir(evidence, { recursive: true });
-  for (const name of hostRole === "loader"
-    ? ["裝填房主", "駕駛乘員", "砲手乘員"]
-    : ["砲手房主", "駕駛乘員", "裝填乘員"]) {
-    const owner = independent
-      ? await browser.browserType().launch({
-          channel: "chromium",
-          headless: independentBrowserOptions.headless ?? true,
-          chromiumSandbox: true,
-          ignoreDefaultArgs: ["--enable-unsafe-swiftshader"],
-          args: [
-            "--disable-background-timer-throttling",
-            "--disable-renderer-backgrounding",
-            "--disable-backgrounding-occluded-windows",
-          ],
-        })
-      : browser;
-    if (independent) separateBrowsers.push(owner);
-    const context = await owner.newContext({
-      baseURL:
-        process.env.BASE_URL ||
-        `http://127.0.0.1:${process.env.WEB_PORT || 4273}`,
-      viewport: { width: 1440, height: 1050 },
-      ...(recordVideoDir ? { viewport: { width: 1280, height: 720 } } : {}),
-      recordVideo: recordVideoDir
-        ? { dir: recordVideoDir, size: { width: 1280, height: 720 } }
-        : undefined,
-    });
-    await context.addInitScript((seed) => {
-      const original = crypto.getRandomValues.bind(crypto);
-      crypto.getRandomValues = <T extends ArrayBufferView>(array: T): T => {
-        if (array instanceof Uint32Array && array.length === 1) {
-          array[0] = seed;
-          return array;
-        }
-        return original(array) as T;
-      };
-    }, seed);
-    if (process.env.TANK_AUDIO_COLLECTOR) {
-      await context.addInitScript({ path: process.env.TANK_AUDIO_COLLECTOR });
-      await context.addInitScript(() => {
-        addEventListener("keydown", (event) => {
-          if (!event.isTrusted || !document.querySelector(".battle-station"))
-            return;
-          const observer = (window as any).__actualAudioOutputObservation;
+  const initialRoles = [
+    hostRole,
+    "driver",
+    hostRole === "loader" ? "gunner" : "loader",
+  ];
+  const cleanupStarted = Date.now();
+  const recordedMedia: {
+    index: number;
+    initialRole: string;
+    rawPath: string;
+    finalized: boolean;
+    aliasPath?: string;
+    aliasSaved?: boolean;
+  }[] = [];
+  const close = () =>
+    (closing ??= (async () => {
+      const finalize = createCrewCleanup(
+        [
+          ...pages.map((page, index) => ({
+            label: `initial-${initialRoles[index]}-page-${index}`,
+            observe: async () => {
+              const results = await Promise.allSettled([
+                flushObservations[index]?.(),
+                flushResources[index]?.(),
+              ]);
+              const failed = results.filter(
+                (result) => result.status === "rejected",
+              );
+              if (failed.length)
+                throw new AggregateError(
+                  failed.map((result) => result.reason),
+                  "Browser observation flush failed",
+                );
+            },
+            beforeClose: async () => {
+              if (evidence && process.env.TANK_AUDIO_COLLECTOR) {
+                const audio = await page.evaluate(async () => {
+                  const observer = (window as any)
+                    .__actualAudioOutputObservation;
+                  return observer ? await observer.stop() : null;
+                });
+                if (audio) {
+                  for (const stream of audio.streams) {
+                    await writeFile(
+                      `${evidence}/audio-${index}-${stream.id}-${Date.now()}.webm`,
+                      Buffer.from(stream.base64, "base64"),
+                    );
+                    delete stream.base64;
+                  }
+                  await writeFile(
+                    `${evidence}/audio-${index}-${Date.now()}.json`,
+                    JSON.stringify(audio, null, 2),
+                  );
+                }
+              }
+            },
+            close: () => page.context().close(),
+            afterClose: async () => {
+              const video = page.video();
+              if (!video) return;
+              const media = {
+                index,
+                initialRole: initialRoles[index],
+                rawPath: await video.path(),
+                finalized: true,
+              } as (typeof recordedMedia)[number];
+              recordedMedia.push(media);
+              if (evidence && recordVideoDir?.includes("win-videos")) {
+                media.aliasPath = `${evidence}/win-${initialRoles[index]}.webm`;
+                media.aliasSaved = false;
+                await video.saveAs(media.aliasPath);
+                media.aliasSaved = true;
+              }
+            },
+          })),
+          ...contexts
+            .filter(
+              (context) => !pages.some((page) => page.context() === context),
+            )
+            .map((context, index) => ({
+              label: `partial-context-${index}`,
+              observe: async () => {},
+              close: () => context.close(),
+            })),
+        ],
+        separateBrowsers.map((owner, index) => ({
+          label: `browser-${index}`,
+          close: () => owner.close(),
+        })),
+        evidence
+          ? (phases) =>
+              writeFile(
+                `${evidence}/crew-cleanup-${cleanupStarted}.json`,
+                JSON.stringify(
+                  {
+                    initialRoles,
+                    recording: {
+                      requested: !!recordVideoDir,
+                      enabled: recordCrewVideo,
+                      required: crewOptions.recordVideoRequired === true,
+                    },
+                    media: recordedMedia.sort((a, b) => a.index - b.index),
+                    phases,
+                  },
+                  null,
+                  2,
+                ),
+              )
+          : undefined,
+      );
+      await finalize();
+    })());
+  try {
+    for (const name of hostRole === "loader"
+      ? ["裝填房主", "駕駛乘員", "砲手乘員"]
+      : ["砲手房主", "駕駛乘員", "裝填乘員"]) {
+      const owner = independent
+        ? await browser.browserType().launch({
+            channel: "chromium",
+            headless: crewOptions.headless ?? true,
+            chromiumSandbox: true,
+            ignoreDefaultArgs: ["--enable-unsafe-swiftshader"],
+            args: [
+              "--disable-background-timer-throttling",
+              "--disable-renderer-backgrounding",
+              "--disable-backgrounding-occluded-windows",
+            ],
+          })
+        : browser;
+      if (independent) separateBrowsers.push(owner);
+      const context = await owner.newContext({
+        baseURL:
+          process.env.BASE_URL ||
+          `http://127.0.0.1:${process.env.WEB_PORT || 4273}`,
+        viewport: { width: 1440, height: 1050 },
+        ...(recordVideoDir ? { viewport: { width: 1280, height: 720 } } : {}),
+        recordVideo: recordCrewVideo
+          ? { dir: recordVideoDir!, size: { width: 1280, height: 720 } }
+          : undefined,
+      });
+      contexts.push(context);
+      await context.addInitScript((seed) => {
+        const original = crypto.getRandomValues.bind(crypto);
+        crypto.getRandomValues = <T extends ArrayBufferView>(array: T): T => {
+          if (array instanceof Uint32Array && array.length === 1) {
+            array[0] = seed;
+            return array;
+          }
+          return original(array) as T;
+        };
+      }, seed);
+      if (process.env.TANK_AUDIO_COLLECTOR) {
+        await context.addInitScript({ path: process.env.TANK_AUDIO_COLLECTOR });
+        await context.addInitScript(() => {
+          addEventListener("keydown", (event) => {
+            if (!event.isTrusted || !document.querySelector(".battle-station"))
+              return;
+            const observer = (window as any).__actualAudioOutputObservation;
+            if (
+              [
+                "KeyR",
+                "KeyC",
+                "Tab",
+                "Space",
+                "Digit1",
+                "Digit2",
+                "Digit3",
+              ].includes(event.code)
+            )
+              observer?.mark(
+                `${event.code}; chamber=${document.querySelector('[data-testid="chamber-state"]')?.textContent || "absent"}; mode=${document.querySelector('[data-testid="loader-mode"]')?.textContent || "absent"}`,
+              );
+          });
+        });
+      }
+      if (beforeNavigation) await context.addInitScript(beforeNavigation);
+      const page = await context.newPage();
+      const index = pages.length;
+      pages.push(page);
+      const resourceWrites: Promise<void>[] = [];
+      if (evidence)
+        flushObservations.push(await observeBrowser(page, evidence, index));
+      if (evidence)
+        page.on("response", (response) => {
+          const url = new URL(response.url());
           if (
-            [
-              "KeyR",
-              "KeyC",
-              "Tab",
-              "Space",
-              "Digit1",
-              "Digit2",
-              "Digit3",
-            ].includes(event.code)
+            response.status() === 404 &&
+            url.origin ===
+              new URL(
+                process.env.BASE_URL ||
+                  `http://127.0.0.1:${process.env.WEB_PORT || 4273}`,
+              ).origin
+          ) {
+            // Static path only: never retain query, headers, peer IDs or payloads.
+            if (
+              /^\/(favicon[^/]*|(?:art|assets|web)\/[^?]*)$/.test(url.pathname)
+            ) {
+              const writing = writeFile(
+                `${evidence}/missing-resource-${index}.json`,
+                JSON.stringify({ path: url.pathname, status: 404 }),
+              );
+              // Retain rejection for awaited cleanup without an unhandled
+              // rejection while the browser is still running gameplay.
+              writing.catch(() => {});
+              resourceWrites.push(writing);
+            }
+          }
+        });
+      const keyboard = await context.newCDPSession(page);
+      keyboards.set(page, keyboard);
+      if (evidence) {
+        const statuses: Record<string, number> = {};
+        keyboard.on("Network.responseReceived", ({ response }) => {
+          const url = new URL(response.url);
+          if (
+            url.origin ===
+              new URL(
+                process.env.BASE_URL ||
+                  `http://127.0.0.1:${process.env.WEB_PORT || 4273}`,
+              ).origin &&
+            /^\/(favicon[^/]*|(?:art|assets)\/[^?]*)$/.test(url.pathname)
           )
-            observer?.mark(
-              `${event.code}; chamber=${document.querySelector('[data-testid="chamber-state"]')?.textContent || "absent"}; mode=${document.querySelector('[data-testid="loader-mode"]')?.textContent || "absent"}`,
+            statuses[url.pathname] = response.status;
+        });
+        await keyboard.send("Network.enable");
+        const started = Date.now();
+        flushResources.push(async () => {
+          await writeFile(
+            `${evidence}/resources-${started}-${index}.json`,
+            JSON.stringify(statuses, null, 2),
+          );
+          const writes = await Promise.allSettled(resourceWrites);
+          const failed = writes.filter(
+            (result) => result.status === "rejected",
+          );
+          if (failed.length)
+            throw new AggregateError(
+              failed.map((result) => result.reason),
+              "Resource observation writes failed",
             );
         });
-      });
-    }
-    if (beforeNavigation) await context.addInitScript(beforeNavigation);
-    const page = await context.newPage();
-    if (evidence)
-      page.on("response", (response) => {
-        const url = new URL(response.url());
-        if (
-          response.status() === 404 &&
-          url.origin ===
-            new URL(
-              process.env.BASE_URL ||
-                `http://127.0.0.1:${process.env.WEB_PORT || 4273}`,
-            ).origin
-        ) {
-          // Static path only: never retain query, headers, peer IDs or payloads.
-          if (/^\/(favicon[^/]*|(?:art|assets|web)\/[^?]*)$/.test(url.pathname))
-            void writeFile(
-              `${evidence}/missing-resource-${pages.length}.json`,
-              JSON.stringify({ path: url.pathname, status: 404 }),
-            );
-        }
-      });
-    const keyboard = await context.newCDPSession(page);
-    keyboards.set(page, keyboard);
-    if (evidence) {
-      const statuses: Record<string, number> = {};
-      keyboard.on("Network.responseReceived", ({ response }) => {
-        const url = new URL(response.url);
-        if (
-          url.origin ===
-            new URL(
-              process.env.BASE_URL ||
-                `http://127.0.0.1:${process.env.WEB_PORT || 4273}`,
-            ).origin &&
-          /^\/(favicon[^/]*|(?:art|assets)\/[^?]*)$/.test(url.pathname)
-        )
-          statuses[url.pathname] = response.status;
-      });
-      await keyboard.send("Network.enable");
-      page.on("close", () => {
-        void writeFile(
-          `${evidence}/resources-${Date.now()}-${pages.indexOf(page)}.json`,
-          JSON.stringify(statuses, null, 2),
-        );
-      });
-    }
-    pages.push(page);
-    await page.goto("/");
-    await page.getByLabel("乘員名稱").fill(name);
-  }
-  const [host, driver, other] = pages;
-  const loader = hostRole === "loader" ? host : other;
-  const gunner = hostRole === "gunner" ? host : other;
-  await host.getByRole("button", { name: "建立房間", exact: true }).click();
-  const code = await host.getByTestId("room-code").textContent();
-  for (const page of [driver, other]) {
-    await page.getByLabel("房間代碼").fill(code!);
-    await page.getByRole("button", { name: "加入房間", exact: true }).click();
-    await expect(page.getByTestId("crew-list").locator("li")).toHaveCount(
-      pages.indexOf(page) + 1,
-    );
-  }
-  for (const [page, role] of [
-    [loader, "裝填手"],
-    [driver, "駕駛"],
-    [gunner, "砲手"],
-  ] as const) {
-    await page
-      .getByRole("button", { name: `擔任${role}`, exact: true })
-      .click();
-    await page.getByRole("button", { name: "準備", exact: true }).click();
-  }
-  if (lobbyWaitMs) await host.waitForTimeout(lobbyWaitMs);
-  await host.getByRole("button", { name: "開始戰鬥", exact: true }).click();
-  for (const page of pages)
-    await expect(page.getByRole("heading", { name: /工作站$/ })).toBeVisible();
-  return {
-    code: code!,
-    loader,
-    driver,
-    gunner,
-    close: async () => {
-      for (const [index, page] of pages.entries()) {
-        if (evidence && process.env.TANK_AUDIO_COLLECTOR) {
-          const audio = await page.evaluate(async () => {
-            const observer = (window as any).__actualAudioOutputObservation;
-            return observer ? await observer.stop() : null;
-          });
-          if (audio) {
-            for (const stream of audio.streams) {
-              await writeFile(
-                `${evidence}/audio-${index}-${stream.id}-${Date.now()}.webm`,
-                Buffer.from(stream.base64, "base64"),
-              );
-              delete stream.base64;
-            }
-            await writeFile(
-              `${evidence}/audio-${index}-${Date.now()}.json`,
-              JSON.stringify(audio, null, 2),
-            );
-          }
-        }
-        await page.context().close();
-        if (evidence && page.video() && recordVideoDir?.includes("win-videos"))
-          await page
-            .video()!
-            .saveAs(
-              `${evidence}/win-${[hostRole, "driver", hostRole === "loader" ? "gunner" : "loader"][index]}.webm`,
-            );
       }
-      for (const owner of separateBrowsers) await owner.close();
-    },
-  };
+      await page.goto("/");
+      await page.getByLabel("乘員名稱").fill(name);
+    }
+    const [host, driver, other] = pages;
+    const loader = hostRole === "loader" ? host : other;
+    const gunner = hostRole === "gunner" ? host : other;
+    await host.getByRole("button", { name: "建立房間", exact: true }).click();
+    const code = await host.getByTestId("room-code").textContent();
+    for (const page of [driver, other]) {
+      await page.getByLabel("房間代碼").fill(code!);
+      await page.getByRole("button", { name: "加入房間", exact: true }).click();
+      await expect(page.getByTestId("crew-list").locator("li")).toHaveCount(
+        pages.indexOf(page) + 1,
+      );
+    }
+    for (const [page, role] of [
+      [loader, "裝填手"],
+      [driver, "駕駛"],
+      [gunner, "砲手"],
+    ] as const) {
+      await page
+        .getByRole("button", { name: `擔任${role}`, exact: true })
+        .click();
+      await page.getByRole("button", { name: "準備", exact: true }).click();
+    }
+    if (lobbyWaitMs) await host.waitForTimeout(lobbyWaitMs);
+    const start = host.getByRole("button", { name: "開始戰鬥", exact: true });
+    await expect(start).toBeEnabled();
+    await start.click();
+    for (const page of pages)
+      await expect(
+        page.getByRole("heading", { name: /工作站$/ }),
+      ).toBeVisible();
+    return {
+      code: code!,
+      loader,
+      driver,
+      gunner,
+      close,
+    };
+  } catch (primary) {
+    try {
+      await close();
+    } catch (cleanup) {
+      throw new AggregateError(
+        [primary, cleanup],
+        "Crew setup and cleanup failed",
+      );
+    }
+    throw primary;
+  }
 }

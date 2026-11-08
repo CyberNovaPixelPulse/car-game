@@ -18,7 +18,7 @@ Tab 依序循環裝填、機槍、維修，再回到裝填。維修重用準備�
 
 ## 權威狀態與生命週期
 
-`TankState.version = 3`，`repair` 與主炮 `weapon.jam` 分開：
+目前 `TankState.version = 5`；維修狀態最初於 v3 加入，之後敵情與導航擴充至 v5。`repair` 與主炮 `weapon.jam` 分開：
 
 - `status`：inactive、destroyed、stunned、crouching、moving、waiting、full、ready、repairing，表示當前工作原因。
 - `blockedUntil`：共同遊戲時鐘上的最晚禁修期限；`failureUntil` 保留校準失敗期限，讓 HUD 正確說明較晚的等待原因。

@@ -20,7 +20,7 @@ Vite、TypeScript、Three.js／WebGL2；PeerJS／WebRTC 連線與房主權威模
 
 ## Positioning
 
-真實二戰背景與使用者已接受的簡化程序外觀，搭配緊張又好笑的遊戲化合作操作；不是史實操作模擬器。
+二戰背景、既有 Blender 坦克與地景，搭配緊張又好笑的遊戲化合作操作；不是史實操作模擬器。
 
 ## Operating Context
 
@@ -36,7 +36,7 @@ Vite、TypeScript、Three.js／WebGL2；PeerJS／WebRTC 連線與房主權威模
 
 ## Evidence on Hand
 
-使用者已完整確認的 #11 規格與 #12–#27 子議題，以及主規格中的官方歷史典藏與戰時手冊。沒有使用者提供的成品 mock 或美術資產包。
+使用者已確認的 #11、後續 #30 與各子議題，以及主規格中的官方歷史典藏與戰時手冊。#30 指定 `2e2a621` 的 Blender 坦克／諾曼第地景為保留基準；本次加入視野、持續瞄準、全頁 HUD、畫質、隊伍偵察及裝填手維修，不重建這些資產。#27 的簡化外觀接受決定與當時部署保留在歷史驗證紀錄，不能代替 #30 的整合驗收。
 
 ## Product Principles
 

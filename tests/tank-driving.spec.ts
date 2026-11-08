@@ -123,7 +123,7 @@ test("前進遇固定石牆會受阻，倒車能脫離，砲手視野真實呈�
       [crew.loader, "loader-mg"],
     ] as const)
       await page.screenshot({
-        path: `/tmp/car-game-spec30/evidence/31/blocked-${role}.png`,
+        path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/31"}/legacy-blocked-${role}.png`,
       });
     await crew.driver.keyboard.up("w");
     await crew.driver.keyboard.down("s");

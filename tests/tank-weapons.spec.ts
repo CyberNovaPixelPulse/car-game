@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { tankCrew, nativeTaps, elevateCannon } from "./tank-helpers";
 
 test("裝填中斷可續接，砲手就緒後射擊敵車，再退殼裝下一發", async ({
@@ -30,16 +30,41 @@ test("裝填中斷可續接，砲手就緒後射擊敵車，再退殼裝下一�
     await expect(crew.gunner.getByTestId("chamber-state")).toHaveText(
       "主炮就緒",
     );
+    await observeWeaponHud(crew.loader);
     await crew.loader.keyboard.down("c");
     await crew.gunner.keyboard.press("Space");
-    await expect(crew.loader.getByTestId("chamber-state")).toHaveText(
-      "正在退殼",
-    );
+    await expect
+      .poll(() =>
+        crew.loader.evaluate(() =>
+          (window as any).__weaponHudObservation.timeline.some(
+            (row: { chamber: string; progress: string; shots: string }) =>
+              row.chamber === "正在退殼" &&
+              row.progress === "0" &&
+              row.shots === "1",
+          ),
+        ),
+      )
+      .toBe(true);
     await expect(crew.gunner.getByTestId("shot-count")).toHaveText("1");
     await expect(crew.gunner.getByTestId("target-status")).toContainText(
       "四號 H 型 100/200",
     );
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText("空膛");
+    const ejection = await crew.loader.evaluate(() => {
+      const entry = (window as any).__weaponHudObservation;
+      entry.observer.disconnect();
+      delete (window as any).__weaponHudObservation;
+      return entry.timeline as {
+        chamber: string;
+        progress: string;
+        shots: string;
+      }[];
+    });
+    expect(
+      ejection
+        .filter((row) => row.chamber === "正在退殼")
+        .every((row) => row.progress === "0" && row.shots === "1"),
+    ).toBe(true);
     await crew.loader.keyboard.up("c");
     await crew.loader.keyboard.down("r");
     await expect(crew.gunner.getByTestId("chamber-state")).toHaveText(
@@ -75,40 +100,7 @@ test("只有裝填手能裝彈、只有砲手能射擊，連點不會複製同�
     await expect(crew.gunner.getByTestId("shot-count")).toHaveText("0");
     // Observe only the loader's real visible HUD before the short ejection window.
     // Serial Playwright round trips can finish after that 0.8s window has ended.
-    await crew.loader.evaluate(() => {
-      const chamber = document.querySelector('[data-testid="chamber-state"]')!;
-      const progress = document.querySelector('[data-testid="load-progress"]')!;
-      const shots = document.querySelector('[data-testid="shot-count"]')!;
-      const timeline: {
-        chamber: string;
-        progress: string;
-        shots: string;
-        at: number;
-      }[] = [];
-      const observer = new MutationObserver(() => {
-        const row = {
-          chamber: chamber.textContent!,
-          progress: progress.textContent!,
-          shots: shots.textContent!,
-          at: performance.timeOrigin + performance.now(),
-        };
-        const prior = timeline.at(-1);
-        if (
-          !prior ||
-          row.chamber !== prior.chamber ||
-          row.progress !== prior.progress ||
-          row.shots !== prior.shots
-        )
-          timeline.push(row);
-      });
-      for (const node of [chamber, progress, shots])
-        observer.observe(node, {
-          childList: true,
-          characterData: true,
-          subtree: true,
-        });
-      (window as any).__weaponHudObservation = { timeline, observer };
-    });
+    await observeWeaponHud(crew.loader);
     await crew.loader.keyboard.down("c");
     // Held R now spans the entire warning/ejection, including when crouched.
     await crew.loader.keyboard.down("r");
@@ -186,3 +178,41 @@ test("仰射砲彈確實飛行後落地，未命中敵車不會憑空擊毀", as
     await crew.close();
   }
 });
+
+/** Preserve actual short public HUD transitions before serial RPCs return. */
+async function observeWeaponHud(page: Page) {
+  await page.evaluate(() => {
+    const chamber = document.querySelector('[data-testid="chamber-state"]')!;
+    const progress = document.querySelector('[data-testid="load-progress"]')!;
+    const shots = document.querySelector('[data-testid="shot-count"]')!;
+    const timeline: {
+      chamber: string;
+      progress: string;
+      shots: string;
+      at: number;
+    }[] = [];
+    const observer = new MutationObserver(() => {
+      const row = {
+        chamber: chamber.textContent!,
+        progress: progress.textContent!,
+        shots: shots.textContent!,
+        at: performance.timeOrigin + performance.now(),
+      };
+      const prior = timeline.at(-1);
+      if (
+        !prior ||
+        row.chamber !== prior.chamber ||
+        row.progress !== prior.progress ||
+        row.shots !== prior.shots
+      )
+        timeline.push(row);
+    });
+    for (const node of [chamber, progress, shots])
+      observer.observe(node, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+    (window as any).__weaponHudObservation = { timeline, observer };
+  });
+}

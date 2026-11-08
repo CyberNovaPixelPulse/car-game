@@ -19,7 +19,9 @@ test("720高視窗從捲動的大廳正常開戰後，各職標題與血量立�
     "loader",
     0,
     1000,
-    "/tmp/car-game-to-spec/visual27-final/start-transition-videos",
+    process.env.TANK_EVIDENCE_DIR
+      ? `${process.env.TANK_EVIDENCE_DIR}/legacy-start-transition-videos`
+      : "/tmp/car-game-to-spec/visual27-final/start-transition-videos",
   );
   try {
     for (const page of [c.driver, c.loader, c.gunner]) {

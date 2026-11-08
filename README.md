@@ -4,6 +4,8 @@
 
 [開啟正式遊戲](https://car-game-necterelux.vercel.app/)
 
+以下操作說明對應 #30 本機整合版本。本次視野、偵察與維修改版尚未部署；公開網址的 #27 歷史發布紀錄與本次驗收分列於 [最終驗證](docs/final-validation.md)。
+
 ## 本機啟動
 
 使用 Node.js 22 以上，執行 `npm ci`，再於兩個終端分別執行 `npm run relay` 與 `npm run dev`。開啟 [本機遊戲](http://localhost:4273/)，建立房間並分享六碼代碼；三人各選一個職位，等待自己的準備完成，再由房主開始。需要 WebGL2，準備會載入素材、編譯 shader 並完成第一張畫面；準備失敗有可重試提示。
@@ -34,6 +36,6 @@
 
 本機完整 Chromium 可明確選用 `TANK_NATIVE_BROWSER=1 npm test`；它啟用完整 Chromium、保留 sandbox 並移除預設 unsafe SwiftShader，沒有放寬瀏覽器安全性。預設仍使用 Playwright 標準設定。這是測試環境選項，不是 FPS 保證。詳細驗證、三獨立瀏覽器及證據指令見 [測試說明](docs/testing.md)。
 
-目前為使用者接受的簡化二戰程序外觀；不是原先寫實材質標準已通過。模型、地形為原創幾何，本機 CC0 材質出處與雜湊見 [素材來源](public/art/README.md)、[車內來源](public/assets/interior/sources.json)。設計見 [DESIGN.md](DESIGN.md)，規則起始值見 [平衡設定](docs/tank-balance.md)。
+本版保留指定基準的 Blender 坦克與諾曼第地景 GLB、烘焙材質和原創車內；素材出處與雜湊見 [素材來源](public/art/README.md)、[車內來源](public/assets/interior/sources.json)。#27 曾接受的簡化外觀是歷史驗收範圍，本次沒有重建美術或重新承諾原寫實標準。設計見 [DESIGN.md](DESIGN.md)，規則起始值見 [平衡設定](docs/tank-balance.md)。
 
 戰鬥採全頁場景與角落 HUD；每名乘員可自行以右上按鈕進出瀏覽器全螢幕，Esc 返回視窗後繼續操作。瀏覽器不開放全螢幕時仍可使用全頁畫面。大廳維持手冊風格；HUD／工作面與顯示控制見 [戰鬥頁面](docs/tank-hud.md)。

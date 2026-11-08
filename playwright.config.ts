@@ -10,7 +10,15 @@ export default defineConfig({
   use: {
     baseURL: process.env.BASE_URL || `http://127.0.0.1:${webPort}`,
     viewport: { width: 1440, height: 1050 },
-    trace: "retain-on-failure",
+    // DOM snapshots before/after each RPC can delay a real timing-game key
+    // beyond its visible sector. Keep failure traces and screencasts without
+    // inserting that snapshot work between public observation and native input.
+    trace: {
+      mode: "retain-on-failure",
+      snapshots: false,
+      screenshots: true,
+      sources: true,
+    },
   },
   projects: [
     {

@@ -116,7 +116,7 @@ test("機槍正常掃射確實傷害虎式，兩類敵車共用命中規則", as
     await c.loader.keyboard.up("a");
     await c.loader.keyboard.up("Space");
     await c.loader.screenshot({
-      path: "/tmp/car-game-spec30/evidence/32/regression/visual27-final/mg-tiger-hit.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final"}/legacy-mg-tiger-hit.png`,
     });
   } finally {
     await c.close();
@@ -184,11 +184,11 @@ for (const dirty of ["jam", "heat", "smoke-stun", "flight"] as const) {
         await expect(c.loader.getByTestId("stun-remaining")).not.toHaveText("");
       }
       await c.loader.screenshot({
-        path: `/tmp/car-game-spec30/evidence/32/regression/visual27-final/dirty-${dirty}-defeat.png`,
+        path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final"}/legacy-dirty-${dirty}-defeat.png`,
       });
       await replay(c);
       await c.loader.screenshot({
-        path: `/tmp/car-game-spec30/evidence/32/regression/visual27-final/dirty-${dirty}-reset.png`,
+        path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final"}/legacy-dirty-${dirty}-reset.png`,
       });
       if (dirty !== "jam") {
         await loaded(c);

@@ -1,5 +1,11 @@
 # 坦克驗證
 
+#30 的完整整合以固定來源執行全部案例，明確設定 `TANK_BROWSER_ESCAPE=1`，再用 `TANK_THREE_BROWSERS=1` 對重要三波／新增狀態暫停／同房換職流程補驗。`tank-driver-view` 等直接呼叫 `browser.newContext` 的案例不受獨立程序旗標影響，須按實際程序數描述。完整與補驗不可加總成一次全套通過。
+
+`tank-integration` 透過機槍唯一觀測者切維修，使活躍校準與舊情報同時凍結；`tank-waves` 在實際增援寬限停穩維修／校準，保留 HE 多敵傷害、退休 ID 與跨波工作狀態。`tank-repair-lifecycle` 先刻意產生校準失敗／舊情報，再由 HP0、回同房、房主換駕駛與新局驗證清空。真60秒期限與房主離開沿用正常生命週期案例，帶入上述新增狀態。
+
+設定 `TANK_EVIDENCE_DIR` 後，歷史固定截圖一律寫入本次目錄，以保留舊來源 captures。`tank-hud` 的兩尺寸五視野矩陣包含頁面／瀏覽器全螢幕，並輸出實際 viewport、screen、buffer、quality及WebGL renderer manifest；選定首屏仍須逐一開啟。共用三人 helper另留經去識別的 console、pageerror、failed request、HTTP錯誤、renderer crash及WebGL contextlost觀察，故意的故障案例須逐項標示，不能全部過濾。
+
 已確認的接點是真實 PeerServer／WebRTC、瀏覽器原生鍵盤、可見 HUD／畫面／結算。不可注入世界狀態、呼叫內部瞄準／擊殺函式、縮短生產時間或把隱藏 DOM 當視覺證據。固定種子僅替換單一 Uint32 戰鬥熵來源；房間代碼、token 與 epoch 繼續使用真隨機。
 
 先 `npm ci`；首次執行瀏覽器測試前用 `npx playwright install chromium` 安裝 Playwright Chromium。再 `npm run check`、`npm run build`。`npm test` 自行啟動前端與 relay。單 worker 執行，3D 驗證不要同時搶 GPU。自訂埠範例：
