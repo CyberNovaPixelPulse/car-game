@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { aimAtHeading, tankCrew } from "./tank-helpers";
 
 export const staleContacts = (page: Page) =>
@@ -71,8 +71,9 @@ export async function repairWithFreshLastKnown(
       { timeout: 45000 },
     )
     .toBeLessThanOrEqual(82);
-  // Read only the visible health: keep observing through an actual damage-free
-  // three seconds, instead of reading the repair deadline from a hidden mode.
+  // Keep observing during the early damage block, then hold R through its
+  // remaining real wait. Waiting the entire block before changing workplace
+  // needlessly gave the next enemy shot time to interrupt the first 3s of work.
   await c.loader.evaluate(
     () =>
       new Promise<void>((resolve, reject) => {
@@ -83,7 +84,7 @@ export async function repairWithFreshLastKnown(
           if (health.textContent === text) return;
           text = health.textContent;
           clearTimeout(stable);
-          stable = setTimeout(done, 3100);
+          stable = setTimeout(done, 2200);
         });
         const done = () => {
           clearTimeout(deadline);
@@ -93,9 +94,9 @@ export async function repairWithFreshLastKnown(
         const deadline = setTimeout(() => {
           clearTimeout(stable);
           observer.disconnect();
-          reject(new Error("未找到真實敵彈後三秒的維修機會"));
+          reject(new Error("未找到真實敵彈後可提早準備維修的機會"));
         }, 20000);
-        stable = setTimeout(done, 3100);
+        stable = setTimeout(done, 2200);
         observer.observe(health, {
           childList: true,
           characterData: true,
@@ -109,6 +110,11 @@ export async function repairWithFreshLastKnown(
     "data-observation",
     "stale",
   );
+  const beforeWork = {
+    status: await c.loader.getByTestId("repair-status").textContent(),
+    health: await c.loader.getByTestId("tank-health").textContent(),
+    at: Date.now(),
+  };
   // Observe the first public onset at frame cadence. A visibility matcher's
   // retry backoff can miss an actually displayed circle before the next hit.
   const onset = c.loader.waitForFunction(
@@ -130,5 +136,16 @@ export async function repairWithFreshLastKnown(
     "data-observation",
     "stale",
   );
+  await test.info().attach("public-repair-preparation", {
+    body: JSON.stringify({
+      preparationStableMs: 2200,
+      unchangedDamageBlockMs: 3000,
+      unchangedOnsetTimeoutMs: 4500,
+      beforeWork,
+      circleVisibleAt: Date.now(),
+      contactId,
+    }),
+    contentType: "application/json",
+  });
   return contactId;
 }
