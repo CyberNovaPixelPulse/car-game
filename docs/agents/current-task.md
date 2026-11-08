@@ -2,7 +2,7 @@
 
 - 任務：retro工作流程改善；技能檔保持不變。
 - 工作分支：`codex/retro-validation-guardrails`；實際來源以 `git rev-parse HEAD` 為準。
-- 狀態：本機便宜檢查與build通過，待遠端CI；不修遊戲bug。
+- 狀態：本機便宜檢查與build通過；遠端CI以[草稿PR #43](https://github.com/CyberNovaPixelPulse/car-game/pull/43)的checks為準；不修遊戲bug。
 - 本輪交付：專案執行草案v2、便宜檢查入口、CI、預設多場景防護、唯一run與最新結果索引。
 - 驗證：`npm test`及build；最新實際命令／結果以 `npm run verify:status` 顯示的run報告為準。
 - 正式站：仍是已發布的`da69fac`；本輪流程改動不部署。
