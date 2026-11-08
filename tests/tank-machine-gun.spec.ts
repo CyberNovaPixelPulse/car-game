@@ -156,9 +156,12 @@ test("跨機槍模式保留AP卡彈，蹲下與退殼暈眩封鎖全部工作", 
     process.env.TANK_EVIDENCE_DIR
       ? `${process.env.TANK_EVIDENCE_DIR}/legacy-mg-recordings`
       : "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual20/recordings",
+    undefined,
+    { recordVideoRequired: true },
   );
   const video = crew.loader.video();
   try {
+    expect(video).not.toBeNull();
     await crew.loader.keyboard.press("2");
     await crew.loader.keyboard.down("r");
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText("卡彈");

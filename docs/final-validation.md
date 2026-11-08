@@ -10,9 +10,13 @@
 
 唯讀 `browser-observations-*.json` 留存經去識別的 console warning/error、pageerror、failed request、HTTP錯誤、renderer crash及公開 WebGL contextlost事件；不攔截或過濾產品事件。故意的503降級、權限政策拒絕、導航中止及 renderer故障需按案例明列，不能據此宣稱所有錯誤為零。截圖、命名影片副本與錄影目錄以當次 `TANK_EVIDENCE_DIR` 分開保存。
 
+功能驗證保留原1280×720錄影情境的建立視窗、所有遊戲斷言、失敗trace／截圖與實際音訊觀察，預設不加錄可選的三路全程乘員影片；`TANK_RECORD_CREW_VIDEO=1` 可明確開啟診斷錄影。火光、機槍及車內三個真正使用影片的案例以 `recordVideoRequired` 保留錄影與影片檢查，不受此旗標關閉影響。同來源、同視窗與全部原斷言的公開區間通知比較已各以獨立目錄完成兩次三波勝利；錄影開啟的失敗與量測仍另存，不相加成完整回歸通過。後續每次重複都使用獨立的證據、log及JSON目錄。
+
 歷史證據來源更正：#41 首個 `bc122ca617ef338b8e69e87e9a3c41e983a46d7f` 完整批次的路徑遷移漏接11個舊固定輸出（9張PNG、2個命名WebM），覆寫了 #31／#32／#37 目錄下的對應路徑。這些路徑目前是該 #41 批次輸出，不能當成原功能票版本；逐檔路徑、原報告、雜湊、bc副本及後續目的地保護記在 `evidence/41/historical-output-correction.json`，相關外部歷史報告保留原敘述並加上更正連結。兩段較早的 raw 裝填手影片已另外辨識及保留；原命名副本的覆寫前雜湊未記錄，9張PNG的舊版本復原仍未驗證，不推定它們不可恢復。原bc完整批次的失敗log、JSON及trace未受此路徑疏漏影響。上述相對證據路徑以 `/tmp/car-game-spec30/` 為根。
 
 音訊沿用實際 WebAudio destination輸出觀察器，記錄真正遊玩訊號與鍵盤／公開狀態時間。波形、頻譜及時間核對與人耳聽辨分開：目前模型工具明確不接受音訊輸入，因此沒有模型／人工聽辨或實體喇叭主張。瀏覽器可信Esc補驗以 `TANK_BROWSER_ESCAPE=1` 執行；Mac鎖定時未驗證實體OS Esc或原生選單鍵盤commit。沒有 FPS、所有瀏覽器、三台實體電腦或本版正式部署保證。
+
+後續Mac解鎖後，使用者授權的測試PID限定OS層Escape子檢查已涵蓋三職位；原生畫質選單commit仍未驗證（維持medium、未捕捉到trustedchange），該合併原生probe整體為0／1，不能把三個Escape子檢查說成整個原生probe通過。另一次 `f445728` 重複批次共用的兩個修復PNG別名被後續次覆寫；原失敗trace的JPEG幀保留，選定84張審查圖未受影響，原PNG不能從已檢查的該traceZIP取回。這與前述11條歷史路徑更正分開記錄，詳本機 `reports/f445-manual-png-recovery-check.md`。
 
 本票僅交付本機整合、驗證與審查證據；#30尚未合併main或部署。以下完整保留 #27 的歷史紀錄，其當時的部署、舊畫面與審查結論不代表 #30 已發布或完成本次審查。
 

@@ -75,9 +75,12 @@ test("關閉機械音效仍可見退殼預警，車內蹲下與暈眩不丟工�
     process.env.TANK_EVIDENCE_DIR
       ? `${process.env.TANK_EVIDENCE_DIR}/legacy-interior-video`
       : "/tmp/car-game-spec30/evidence/31/regression/visual26/video",
+    undefined,
+    { recordVideoRequired: true },
   );
   const video = crew.loader.video();
   try {
+    expect(video).not.toBeNull();
     await crew.loader.setViewportSize({ width: 1280, height: 720 });
     const sound = crew.loader.getByRole("button", { name: "音效：開" });
     await expect(sound).toBeVisible();

@@ -292,7 +292,7 @@ export async function tankCrew(
   seed = 1000,
   recordVideoDir?: string,
   beforeNavigation?: () => void,
-  independentBrowserOptions: { headless?: boolean } = {},
+  crewOptions: { headless?: boolean; recordVideoRequired?: boolean } = {},
 ) {
   const pages: Page[] = [];
   const contexts: BrowserContext[] = [];
@@ -301,6 +301,12 @@ export async function tankCrew(
   const flushObservations: (() => Promise<void>)[] = [];
   const flushResources: (() => Promise<void>)[] = [];
   const independent = process.env.TANK_THREE_BROWSERS === "1";
+  // Requested capture keeps its original viewport even when optional videos
+  // are off. Tests that consume video explicitly require it below.
+  const recordCrewVideo =
+    !!recordVideoDir &&
+    (crewOptions.recordVideoRequired === true ||
+      process.env.TANK_RECORD_CREW_VIDEO === "1");
   const evidence = process.env.TANK_EVIDENCE_DIR;
   if (evidence) await mkdir(evidence, { recursive: true });
   const initialRoles = [
@@ -309,6 +315,14 @@ export async function tankCrew(
     hostRole === "loader" ? "gunner" : "loader",
   ];
   const cleanupStarted = Date.now();
+  const recordedMedia: {
+    index: number;
+    initialRole: string;
+    rawPath: string;
+    finalized: boolean;
+    aliasPath?: string;
+    aliasSaved?: boolean;
+  }[] = [];
   const close = () =>
     (closing ??= (async () => {
       const finalize = createCrewCleanup(
@@ -353,14 +367,21 @@ export async function tankCrew(
             },
             close: () => page.context().close(),
             afterClose: async () => {
-              if (
-                evidence &&
-                page.video() &&
-                recordVideoDir?.includes("win-videos")
-              )
-                await page
-                  .video()!
-                  .saveAs(`${evidence}/win-${initialRoles[index]}.webm`);
+              const video = page.video();
+              if (!video) return;
+              const media = {
+                index,
+                initialRole: initialRoles[index],
+                rawPath: await video.path(),
+                finalized: true,
+              } as (typeof recordedMedia)[number];
+              recordedMedia.push(media);
+              if (evidence && recordVideoDir?.includes("win-videos")) {
+                media.aliasPath = `${evidence}/win-${initialRoles[index]}.webm`;
+                media.aliasSaved = false;
+                await video.saveAs(media.aliasPath);
+                media.aliasSaved = true;
+              }
             },
           })),
           ...contexts
@@ -381,7 +402,20 @@ export async function tankCrew(
           ? (phases) =>
               writeFile(
                 `${evidence}/crew-cleanup-${cleanupStarted}.json`,
-                JSON.stringify({ initialRoles, phases }, null, 2),
+                JSON.stringify(
+                  {
+                    initialRoles,
+                    recording: {
+                      requested: !!recordVideoDir,
+                      enabled: recordCrewVideo,
+                      required: crewOptions.recordVideoRequired === true,
+                    },
+                    media: recordedMedia.sort((a, b) => a.index - b.index),
+                    phases,
+                  },
+                  null,
+                  2,
+                ),
               )
           : undefined,
       );
@@ -394,7 +428,7 @@ export async function tankCrew(
       const owner = independent
         ? await browser.browserType().launch({
             channel: "chromium",
-            headless: independentBrowserOptions.headless ?? true,
+            headless: crewOptions.headless ?? true,
             chromiumSandbox: true,
             ignoreDefaultArgs: ["--enable-unsafe-swiftshader"],
             args: [
@@ -411,8 +445,8 @@ export async function tankCrew(
           `http://127.0.0.1:${process.env.WEB_PORT || 4273}`,
         viewport: { width: 1440, height: 1050 },
         ...(recordVideoDir ? { viewport: { width: 1280, height: 720 } } : {}),
-        recordVideo: recordVideoDir
-          ? { dir: recordVideoDir, size: { width: 1280, height: 720 } }
+        recordVideo: recordCrewVideo
+          ? { dir: recordVideoDir!, size: { width: 1280, height: 720 } }
           : undefined,
       });
       contexts.push(context);
