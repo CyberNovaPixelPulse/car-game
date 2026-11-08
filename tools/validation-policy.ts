@@ -39,7 +39,7 @@ export function browserPolicyError(
 export function e2eArgumentError(argv: string[]): string | undefined {
   if (
     argv.some((arg) =>
-      /^(--(?:output|reporter|config|repeat-each|ui|debug|list|workers)(?:=|$)|-[oc])/.test(
+      /^(--(?:output|reporter|config|repeat-each|ui|debug|list|workers)(?:=|$)|-[ocj])/.test(
         arg,
       ),
     )

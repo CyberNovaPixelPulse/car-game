@@ -21,8 +21,7 @@ if (mode === "status") {
   if (!["fast", "e2e"].includes(mode))
     throw new Error("Supported modes: fast, status, e2e");
   const selected = process.argv.slice(3);
-  if (mode === "e2e" && e2eArgumentError(selected))
-    throw new Error(e2eArgumentError(selected));
+  const argumentError = mode === "e2e" ? e2eArgumentError(selected) : undefined;
   mkdirSync(base, { recursive: true });
   const run = join(base, `${Date.now()}-${randomUUID().slice(0, 8)}`);
   mkdirSync(run); // Exclusive directory: existing evidence is never reused.
@@ -55,8 +54,20 @@ if (mode === "status") {
   const indexTmp = join(base, `latest-${randomUUID()}.tmp`);
   writeFileSync(indexTmp, JSON.stringify({ report: reportPath }));
   renameSync(indexTmp, join(base, "latest.json"));
-  const commands =
-    mode === "e2e"
+  if (argumentError) {
+    const log = join(run, "1.log");
+    writeFileSync(log, argumentError);
+    report.steps.push({
+      command: ["verify", mode, ...selected],
+      status: 1,
+      log,
+    });
+    report.status = "failed";
+    console.error(argumentError);
+  }
+  const commands = argumentError
+    ? []
+    : mode === "e2e"
       ? [
           [
             "npx",

@@ -68,6 +68,8 @@ test("E2E entry protects capture destinations and avoids repeated aliases", () =
     "--ui",
     "--debug",
     "--workers=3",
+    "-j",
+    "-j3",
     "--reporter=json",
     "--list",
   ])

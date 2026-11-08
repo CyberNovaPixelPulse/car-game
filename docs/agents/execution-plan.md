@@ -1,6 +1,6 @@
-# 執行草案 v2：有限交付與低負載驗證
+# 執行流程 v2：有限交付與低負載驗證
 
-狀態：專案工作流程草案；技能檔不變。此流程補充技能的專案執行方式。
+狀態：使用者已採納，依[Spec #44](https://github.com/CyberNovaPixelPulse/car-game/issues/44)執行；技能檔不變。此流程補充技能的專案執行方式。
 
 ## 每輪交付
 
@@ -24,7 +24,7 @@
 
 - `npm test`／`npm run verify:fast`：規則自檢、既有型別檢查、Playwright案例收集；不啟動瀏覽器。CI另外執行既有build。
 - 每次快速檢查建立獨立 `output/qa/<run-id>/`，以原子方式更新 `output/qa/latest.json`。`npm run verify:status`讀取最新報告；已退出程序的running紀錄顯示interrupted。
-- 手動或資源主機E2E每次嘗試使用全新證據／log／JSON目錄。重複案例改用獨立命令目錄，避免共用手動PNG別名；E2E入口也建立唯一run、接管證據／JSON／test-results，拒絕舊輸出路徑覆寫、UI無限等待、平行worker及repeat-each；後續新增capture採用 `testInfo.outputPath()`。
+- 手動或資源主機E2E每次嘗試使用全新證據／log／JSON目錄。重複案例改用獨立命令目錄，避免共用手動PNG別名；E2E入口也建立唯一run、接管證據／JSON／test-results，拒絕舊輸出路徑覆寫、UI無限等待、平行worker及repeat-each。入口拒絕也保留本次失敗報告，最新狀態不沿用上輪通過；後續新增capture採用 `testInfo.outputPath()`。
 - 兩輪上限與假設分類需要判斷，由執行／審查把關；本輪不新增自動除錯排程器。global timeout與本機多場景禁用由設定檢查。
 - 最新任務只維護一份狀態；歷史原始紀錄留在獨立run目錄。先讀摘要，有新線索才展開trace。
 
