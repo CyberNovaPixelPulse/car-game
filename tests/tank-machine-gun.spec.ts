@@ -24,7 +24,7 @@ test("Tab互斥切換，保留裝填進度且機槍按住瞄準放開停止", as
     await crew.loader.setViewportSize({ width: 1280, height: 720 });
     await expect(crew.loader.getByTestId("mg-status")).toBeInViewport();
     await crew.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual20/mg-laptop.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual20"}/legacy-mg-laptop.png`,
     });
     const saved = await crew.loader.getByTestId("load-progress").textContent();
     await crew.loader.keyboard.down("r");
@@ -42,6 +42,8 @@ test("Tab互斥切換，保留裝填進度且機槍按住瞄準放開停止", as
     await expect(crew.gunner.getByTestId("turret-heading")).toHaveText("0.0°");
     await expect(crew.loader.getByTestId("load-progress")).toHaveText(saved!);
     await crew.loader.keyboard.up("r");
+    await crew.loader.keyboard.press("Tab");
+    await expect(crew.loader.getByTestId("loader-mode")).toHaveText("維修模式");
     await crew.loader.keyboard.press("Tab");
     await expect(crew.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
     await expect(
@@ -85,6 +87,8 @@ test("機槍連射小傷害，五秒過熱且切模式不能繞過三秒冷卻",
     expect(overheatedAt - burstAt).toBeLessThan(6200);
     await crew.loader.keyboard.up("Space");
     const shots = await crew.loader.getByTestId("mg-shot-count").textContent();
+    await crew.loader.keyboard.press("Tab");
+    await expect(crew.loader.getByTestId("loader-mode")).toHaveText("維修模式");
     await crew.loader.keyboard.press("Tab");
     await expect(crew.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
     await crew.loader.keyboard.down("Space");
@@ -133,7 +137,7 @@ test("機槍連射小傷害，五秒過熱且切模式不能繞過三秒冷卻",
       { timeout: 6500 },
     );
     await crew.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual20/mg-overheated.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual20"}/legacy-mg-overheated.png`,
     });
     await crew.loader.keyboard.up("Space");
   } finally {
@@ -149,10 +153,15 @@ test("跨機槍模式保留AP卡彈，蹲下與退殼暈眩封鎖全部工作", 
     "gunner",
     0,
     1,
-    "/tmp/car-game-to-spec/visual27-final/regression/visual20/recordings",
+    process.env.TANK_EVIDENCE_DIR
+      ? `${process.env.TANK_EVIDENCE_DIR}/legacy-mg-recordings`
+      : "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual20/recordings",
+    undefined,
+    { recordVideoRequired: true },
   );
   const video = crew.loader.video();
   try {
+    expect(video).not.toBeNull();
     await crew.loader.keyboard.press("2");
     await crew.loader.keyboard.down("r");
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText("卡彈");
@@ -189,6 +198,8 @@ test("跨機槍模式保留AP卡彈，蹲下與退殼暈眩封鎖全部工作", 
     await crew.loader.keyboard.up("Space");
     await crew.loader.keyboard.up("r");
     await crew.loader.keyboard.up("c");
+    await crew.loader.keyboard.press("Tab");
+    await expect(crew.loader.getByTestId("loader-mode")).toHaveText("維修模式");
     await crew.loader.keyboard.press("Tab");
     await expect(crew.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
     await expect(crew.loader.getByTestId("jam-result")).toHaveText(
@@ -235,13 +246,15 @@ test("跨機槍模式保留AP卡彈，蹲下與退殼暈眩封鎖全部工作", 
       "按住 C",
     );
     await crew.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual20/mg-warning.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual20"}/legacy-mg-warning.png`,
     });
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText("空膛");
     await expect(crew.loader.getByTestId("loader-status")).toContainText(
       "蹲下",
     );
     await crew.loader.keyboard.up("c");
+    await crew.loader.keyboard.press("Tab");
+    await expect(crew.loader.getByTestId("loader-mode")).toHaveText("維修模式");
     await crew.loader.keyboard.press("Tab");
     await crew.loader.keyboard.down("r");
     await expect(crew.gunner.getByTestId("chamber-state")).toHaveText(
@@ -265,7 +278,7 @@ test("跨機槍模式保留AP卡彈，蹲下與退殼暈眩封鎖全部工作", 
     await crew.loader.keyboard.down("Space");
     await crew.loader.keyboard.down("d");
     await crew.driver.keyboard.down("s");
-    await crew.gunner.keyboard.press("d");
+    await crew.gunner.keyboard.down("ArrowRight");
     await expect(crew.driver.getByTestId("tank-motion")).toHaveText("倒車");
     await expect(crew.gunner.getByTestId("turret-yaw-rate")).not.toHaveText(
       "0.0°/s",
@@ -280,7 +293,7 @@ test("跨機槍模式保留AP卡彈，蹲下與退殼暈眩封鎖全部工作", 
     await expect(crew.loader.getByTestId("load-progress")).toHaveText("0");
     await expect(crew.loader.getByTestId("loader-mode")).toHaveText("機槍模式");
     await crew.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual20/mg-stunned.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual20"}/legacy-mg-stunned.png`,
     });
     await crew.loader.keyboard.up("Space");
     await crew.loader.keyboard.up("r");
@@ -291,7 +304,7 @@ test("跨機槍模式保留AP卡彈，蹲下與退殼暈眩封鎖全部工作", 
     if (video)
       await copyFile(
         await video.path(),
-        "/tmp/car-game-to-spec/visual27-final/regression/visual20/mg-session.webm",
+        `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual20"}/legacy-mg-session.webm`,
       );
   }
 });
@@ -309,6 +322,8 @@ test("客端立即Tab接按住空白，不因舊模式快照漏掉連射", async
       )
       .toBeGreaterThan(0);
     await crew.loader.keyboard.up("Space");
+    await crew.loader.keyboard.press("Tab");
+    await expect(crew.loader.getByTestId("loader-mode")).toHaveText("維修模式");
     await crew.loader.keyboard.press("Tab");
     await expect(crew.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
     const shots = await crew.loader.getByTestId("mg-shot-count").textContent();

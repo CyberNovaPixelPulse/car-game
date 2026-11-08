@@ -1,6 +1,7 @@
 import { RECONNECT_GRACE_MS, TRANSPORT } from "./tank-settings";
 import { isCrewRole, type CrewRole } from "./crew";
 import Peer, { type DataConnection, type PeerOptions } from "peerjs";
+import { validViewAspect } from "./tank-battle-view";
 
 export interface Member {
   slot: number;
@@ -119,7 +120,7 @@ export class Session {
   onError: (message: string) => void = () => {};
   onStart: (participants: number[], seed: number) => void = () => {};
   onState: (data: string) => void = () => {};
-  onInput: (slot: number, keys: number) => void = () => {};
+  onInput: (slot: number, keys: number, aspect?: number) => void = () => {};
   onAction: (slot: number, action: number) => void = () => {};
   onEnded: (message: string) => void = () => {};
   onRetryAvailable: () => void = () => {};
@@ -401,10 +402,15 @@ export class Session {
           Number(data.sequence) > member.sequence &&
           Number.isInteger(data.keys) &&
           Number(data.keys) >= 0 &&
-          Number(data.keys) <= 127
+          Number(data.keys) <= 127 &&
+          (data.aspect === undefined || validViewAspect(data.aspect))
         ) {
           member.sequence = Number(data.sequence);
-          this.onInput(assigned, Number(data.keys));
+          this.onInput(
+            assigned,
+            Number(data.keys),
+            data.aspect as number | undefined,
+          );
         } else if (
           data.type === "action" &&
           this.playing &&
@@ -661,13 +667,14 @@ export class Session {
     });
     this.onStart(participants, seed);
   }
-  input(keys: number) {
+  input(keys: number, aspect?: number) {
     if (this.uplink?.open && this.room && this.playing)
       this.uplink.send({
         type: "input",
         epoch: this.room.epoch,
         sequence: this.sequence++,
         keys,
+        aspect,
       });
   }
   action(action: number) {

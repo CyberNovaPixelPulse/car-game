@@ -25,7 +25,7 @@ test("裝填手持續蹲下不能工作，及時蹲下避開退殼後放開可�
     );
     await crew.loader.keyboard.down("c");
     await crew.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual19/warning.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual19"}/legacy-warning.png`,
       fullPage: true,
     });
     await expect(crew.loader.getByTestId("chamber-state")).toHaveText("空膛");
@@ -36,7 +36,7 @@ test("裝填手持續蹲下不能工作，及時蹲下避開退殼後放開可�
     await crew.loader.waitForTimeout(500);
     await expect(crew.loader.getByTestId("load-progress")).toHaveText("0");
     await crew.loader.screenshot({
-      path: "/tmp/car-game-to-spec/visual27-final/regression/visual19/ducked.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/32/regression/visual27-final/regression/visual19"}/legacy-ducked.png`,
       fullPage: true,
     });
     await crew.loader.keyboard.up("c");
@@ -102,7 +102,7 @@ test("站立被彈殼擊中固定五秒不能工作，重新按鍵無效且另�
         await expect(crew.driver.getByTestId("tank-motion")).toHaveText("倒車");
       })(),
       (async () => {
-        await crew.gunner.keyboard.press("d");
+        await crew.gunner.keyboard.down("ArrowRight");
         await expect(crew.gunner.getByTestId("turret-yaw-rate")).not.toHaveText(
           "0.0°/s",
         );

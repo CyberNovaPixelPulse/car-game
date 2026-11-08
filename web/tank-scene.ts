@@ -1,15 +1,26 @@
 import * as THREE from "three";
 import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
 import { type TankState } from "./tank-core";
-import { VehicleModel, buildBrowning } from "./tank-vehicle-model";
+import {
+  VehicleModel,
+  buildBrowning,
+  preloadVehicles,
+  noteRenderer,
+} from "./tank-vehicle-model";
 import { buildNormandy } from "./tank-environment";
 import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import { disposeArt } from "./tank-art-materials";
 import { SmokeScene } from "./tank-smoke-scene";
 import { MuzzleFlash } from "./tank-muzzle-flash";
 import { FIRING_FEEDBACK } from "./tank-settings";
+import { battleProjection, battleView } from "./tank-battle-view";
+import { buildDriverArmour } from "./tank-driver-armour";
+import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
 
-/** The gunner's real 3D view; no renderer is created for the blind driver. */
+/** Metres from the eye within which an enemy tank keeps full detail. */
+const LOD_RANGE = 28;
+
+/** Role-specific exterior presentation; authority alone moves the shared hull. */
 export class TankScene {
   private renderer: THREE.WebGLRenderer;
   private disposed = false;
@@ -25,12 +36,12 @@ export class TankScene {
   private enemyFlashes = new Map<number, MuzzleFlash>();
   private camera = new THREE.PerspectiveCamera(65, 1, 0.1, 180);
   private assets = new ArtPreparation();
-  private player = new VehicleModel("sherman", this.assets.manager);
+  private player: VehicleModel;
   private width = 0;
   private height = 0;
-  private tank = this.player.root;
-  private turret = this.player.turret;
-  private elevation = this.player.elevation;
+  private tank: THREE.Group;
+  private turret: THREE.Group;
+  private elevation: THREE.Group;
   private observer: ResizeObserver;
   private targetMeshes = new Map<number, THREE.Group>();
   private enemyModels = new Map<number, VehicleModel>();
@@ -40,10 +51,15 @@ export class TankScene {
   private impactMeshes = new Map<number, THREE.Mesh>();
   constructor(
     private canvas: HTMLCanvasElement,
-    private view: "gunner" | "machine-gun" = "gunner",
+    private view: "gunner" | "machine-gun" | "driver" = "gunner",
+    private quality: SceneQuality = "medium",
   ) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+    const software = noteRenderer(this.renderer);
+    this.player = new VehicleModel("sherman", this.assets.manager);
+    this.tank = this.player.root;
+    this.turret = this.player.turret;
+    this.elevation = this.player.elevation;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.autoUpdate = false;
     this.renderer.shadowMap.needsUpdate = true;
@@ -56,7 +72,10 @@ export class TankScene {
     const sun = new THREE.DirectionalLight(0xffefd6, 2.3);
     sun.position.set(-25, 40, 15);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(512, 512);
+    // Baked tank detail needs a finer shadow map on the target discrete GPU;
+    // a software rasteriser keeps the old coarse map (and procedural tanks).
+    const shadow = software ? 512 : 2048;
+    sun.shadow.mapSize.set(shadow, shadow);
     Object.assign(sun.shadow.camera, {
       left: -48,
       right: 48,
@@ -81,7 +100,12 @@ export class TankScene {
       },
     );
     buildNormandy(this.scene, this.assets.manager);
+    preloadVehicles(this.assets.manager);
     this.scene.add(this.tank);
+    if (this.view === "driver") {
+      buildDriverArmour(this.camera);
+      this.scene.add(this.camera);
+    }
     if (this.view === "machine-gun") {
       const steel = new THREE.MeshStandardMaterial({
         color: 0x434a43,
@@ -112,20 +136,29 @@ export class TankScene {
     this.observer.observe(canvas);
     this.resize();
   }
-  private resize() {
+  setQuality(quality: SceneQuality) {
+    if (this.quality === quality) return;
+    this.quality = quality;
+    this.resize(true);
+  }
+  private resize(force = false) {
     // Hidden/detached retained canvases keep their real buffer. Never reallocate at 1px.
     const w = this.canvas.clientWidth,
       h = this.canvas.clientHeight;
     const width = w || this.width || 1024,
       height = h || this.height || 576;
-    if (width === this.width && height === this.height) return;
+    if (!force && width === this.width && height === this.height) return;
     this.width = width;
     this.height = height;
-    this.renderer.setPixelRatio(
-      Math.min(devicePixelRatio, 1.5, 1024 / width, 576 / height),
+    this.renderer.setDrawingBufferSize(
+      width,
+      height,
+      scenePixelRatio(width, height, this.quality),
     );
-    this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
+    this.camera.fov = THREE.MathUtils.radToDeg(
+      battleProjection(this.view, this.camera.aspect).verticalFov,
+    );
     this.camera.updateProjectionMatrix();
     this.lastVisual = "";
   }
@@ -186,24 +219,22 @@ export class TankScene {
     }
     this.lastVisual = visual;
     this.lastDraw = now;
-    this.tank.visible = this.view !== "machine-gun";
+    this.tank.visible = this.view === "gunner";
     this.player.animate(t.x, t.z, t.yaw);
     this.tank.position.set(t.x, 0, t.z);
     this.tank.rotation.y = -t.yaw;
     this.turret.rotation.y = -state.turret.yaw;
     this.elevation.rotation.x = state.turret.pitch;
-    const aim = this.view === "machine-gun" ? state.weapon.mg : state.turret;
-    const eye = this.view === "machine-gun" ? 3.1 : 2.85;
-    const heading = t.yaw + aim.yaw;
-    // Gunner remains beyond the roof at the mantlet; MG observes from its hatch.
-    const offset = this.view === "machine-gun" ? 0 : 1.9;
-    const eyeX = t.x + Math.sin(heading) * offset;
-    const eyeZ = t.z - Math.cos(heading) * offset;
-    this.camera.position.set(eyeX, eye, eyeZ);
+    const view = battleView(
+      t,
+      this.view === "machine-gun" ? state.weapon.mg : state.turret,
+      this.view,
+    );
+    this.camera.position.set(view.x, view.y, view.z);
     this.camera.lookAt(
-      eyeX + Math.sin(heading) * Math.cos(aim.pitch) * 40,
-      eye + Math.sin(aim.pitch) * 40,
-      eyeZ - Math.cos(heading) * Math.cos(aim.pitch) * 40,
+      view.x + Math.sin(view.yaw) * Math.cos(view.pitch) * 40,
+      view.y + Math.sin(view.pitch) * 40,
+      view.z - Math.cos(view.yaw) * Math.cos(view.pitch) * 40,
     );
     // Wave IDs belong to authority. Remove retired groups instead of leaving phantom enemies.
     for (const [id, mesh] of this.targetMeshes) {
@@ -227,6 +258,13 @@ export class TankScene {
       }
       const mesh = model.root;
       model.animate(target.x, target.z, target.yaw);
+      // Decimated meshes past close range keep many baked tanks affordable.
+      model.setDetail(
+        Math.hypot(
+          target.x - this.camera.position.x,
+          target.z - this.camera.position.z,
+        ) < LOD_RANGE,
+      );
       mesh.position.set(target.x, 0, target.z);
       mesh.rotation.y = -target.yaw;
       model.turret.rotation.y = -(target.turretYaw - target.yaw);

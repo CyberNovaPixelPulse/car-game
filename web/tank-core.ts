@@ -1,3 +1,10 @@
+import {
+  createRepairState,
+  stepRepair,
+  stopRepairCalibration,
+  validRepair,
+  type RepairState,
+} from "./tank-repair";
 import { AIMING, DRIVING, MG_AIMING, TANK_RULES } from "./tank-settings";
 import {
   createEnemyBattle,
@@ -25,9 +32,17 @@ import {
   validWeapon,
   type WeaponState,
 } from "./tank-weapons";
+import { validViewAspect } from "./tank-battle-view";
+import {
+  createTeamIntel,
+  stepTeamIntel,
+  validTeamIntel,
+  type TeamIntel,
+} from "./tank-intel";
 
 export const DRIVE = { forward: 1, reverse: 2, left: 4, right: 8 } as const;
-export const AIM = { left: 0, right: 1, up: 2, down: 3 } as const;
+/** Role-scoped held bits; cannon fire remains a separate discrete action. */
+export const AIM = { up: 1, down: 2, left: 4, right: 8 } as const;
 export { AIMING } from "./tank-settings";
 export const BATTLEFIELD = {
   limit: 42,
@@ -40,7 +55,9 @@ export const BATTLEFIELD = {
   ],
 } as const;
 export interface TankState {
-  version: 1;
+  version: 5;
+  intel: TeamIntel;
+  repair: RepairState;
   time: number;
   weapon: WeaponState;
   battle: EnemyBattle;
@@ -56,7 +73,9 @@ export interface TankState {
   };
 }
 const initial = (seed = 1): TankState => ({
-  version: 1,
+  version: 5,
+  intel: createTeamIntel(),
+  repair: createRepairState(seed),
   time: 0,
   weapon: createWeaponState(seed),
   battle: createEnemyBattle(),
@@ -80,33 +99,60 @@ const approach = (value: number, target: number, amount: number) =>
 export class TankCore implements GameCore<TankState> {
   private state = initial();
   private controls = new Map<number, number>();
+  private aspects = new Map<number, number>();
+  private participants: number[] = [];
+  private paused = false;
   present: (state: TankState, participant: number) => void = () => {};
   constructor(private roleOf: (participant: number) => CrewRole | undefined) {}
   start(options: GameStart) {
     this.state = initial(options.seed);
     this.controls.clear();
+    this.aspects.clear();
+    this.participants = options.participants;
+    this.paused = false;
   }
-  input(participant: number, keys: number) {
+  pause(paused: boolean) {
+    this.paused = paused;
+    if (paused && this.state.repair.calibration.result === "active")
+      this.state.repair.calibration.suspended = true;
+  }
+  input(participant: number, keys: number, aspect?: number) {
     if (this.state.battle.failed || this.state.battle.won) return;
+    if (validViewAspect(aspect)) this.aspects.set(participant, aspect);
     if (this.roleOf(participant) === "loader") {
       const w = this.state.weapon;
       w.crouching = this.state.time >= w.stunnedUntil && Boolean(keys & CROUCH);
     }
     this.controls.set(
       participant,
-      this.roleOf(participant) === "driver"
+      this.roleOf(participant) === "driver" ||
+        this.roleOf(participant) === "gunner"
         ? keys & 15
         : this.roleOf(participant) === "loader"
           ? keys & (15 | LOAD | CROUCH | MG_FIRE)
           : 0,
     );
+    // Ordered input precedes the discrete work action. A release/crouch must
+    // settle an active calibration before a following Space can award HP.
+    if (!this.paused && this.roleOf(participant) === "loader")
+      stepRepair(this.state, Boolean(keys & LOAD), 0);
   }
   action(participant: number, action: number) {
     if (this.state.battle.failed || this.state.battle.won) return;
     if (this.roleOf(participant) === "loader" && action === MODE) {
       const w = this.state.weapon;
-      if (loaderCanWork(w, this.state.time))
-        w.mode = w.mode === "loading" ? "machine-gun" : "loading";
+      if (loaderCanWork(w, this.state.time)) {
+        // A retained MG buffer is not a currently mounted observer. Require
+        // fresh actual projection metadata when exterior work is entered.
+        this.aspects.delete(participant);
+        w.mode =
+          w.mode === "loading"
+            ? "machine-gun"
+            : w.mode === "machine-gun"
+              ? "repair"
+              : "loading";
+      }
+      stepRepair(this.state, false, 0);
       return;
     }
     if (
@@ -124,7 +170,9 @@ export class TankCore implements GameCore<TankState> {
       return;
     }
     if (this.roleOf(participant) === "loader" && action === STOP_JAM) {
-      stopJam(this.state.weapon, this.state.time);
+      if (this.state.weapon.mode === "repair")
+        stopRepairCalibration(this.state);
+      else stopJam(this.state.weapon, this.state.time);
       return;
     }
     if (this.roleOf(participant) !== "gunner") return;
@@ -140,24 +188,12 @@ export class TankCore implements GameCore<TankState> {
       );
       return;
     }
-    const t = this.state.turret;
-    const clamp = (v: number, max: number) => Math.max(-max, Math.min(max, v));
-    if (action === AIM.left || action === AIM.right)
-      t.yawRate = clamp(
-        t.yawRate + (action === AIM.right ? 1 : -1) * AIMING.impulse,
-        AIMING.maxYawRate,
-      );
-    else if (action === AIM.up || action === AIM.down)
-      t.pitchRate = clamp(
-        t.pitchRate + (action === AIM.up ? 1 : -1) * AIMING.impulse,
-        AIMING.maxPitchRate,
-      );
   }
   connected(participant: number, connected: boolean) {
     if (!connected) this.controls.delete(participant);
   }
   step(elapsed: number) {
-    if (!Number.isFinite(elapsed) || elapsed <= 0) return;
+    if (this.paused || !Number.isFinite(elapsed) || elapsed <= 0) return;
     // Preserve elapsed gameplay time under slow rendering. Small physics steps
     // prevent tunnelling without lengthening loader timers at low frame rates.
     let remaining = elapsed;
@@ -234,10 +270,16 @@ export class TankCore implements GameCore<TankState> {
     // Resolve incoming damage first: zero HP always defeats the crew, even on
     // the step that destroys the last enemy. Weapon/MG/smoke work continues
     // across waves; only a new round starts from initial().
-    if (this.state.battle.failed) return;
+    if (this.state.battle.failed) {
+      stepRepair(this.state, false, dt);
+      this.observe();
+      return;
+    }
     if (this.state.weapon.targets.every((enemy) => enemy.hp <= 0)) {
       if (this.state.battle.wave === TANK_RULES.waves) {
         this.state.battle.won = true;
+        stepRepair(this.state, false, dt);
+        this.observe();
         return;
       }
       this.state.battle.wave++;
@@ -247,6 +289,24 @@ export class TankCore implements GameCore<TankState> {
       );
     }
     const turret = this.state.turret;
+    let aimKeys = 0;
+    for (const [participant, held] of this.controls)
+      if (this.roleOf(participant) === "gunner") aimKeys = held;
+    const horizontal =
+      Number(Boolean(aimKeys & AIM.right)) -
+      Number(Boolean(aimKeys & AIM.left));
+    const vertical =
+      Number(Boolean(aimKeys & AIM.up)) - Number(Boolean(aimKeys & AIM.down));
+    turret.yawRate = approach(
+      turret.yawRate,
+      horizontal * AIMING.maxYawRate,
+      (AIMING.maxYawRate / AIMING.rampSeconds) * dt,
+    );
+    turret.pitchRate = approach(
+      turret.pitchRate,
+      vertical * AIMING.maxPitchRate,
+      (AIMING.maxPitchRate / AIMING.rampSeconds) * dt,
+    );
     turret.yaw =
       (turret.yaw + turret.yawRate * dt + Math.PI * 2) % (Math.PI * 2);
     turret.pitch = Math.max(
@@ -258,8 +318,6 @@ export class TankCore implements GameCore<TankState> {
       (turret.pitch === AIMING.maxPitch && turret.pitchRate > 0)
     )
       turret.pitchRate = 0;
-    turret.yawRate = approach(turret.yawRate, 0, AIMING.drag * dt);
-    turret.pitchRate = approach(turret.pitchRate, 0, AIMING.drag * dt);
     const t = this.state.tank;
     let keys = 0;
     for (const [participant, held] of this.controls)
@@ -299,6 +357,18 @@ export class TankCore implements GameCore<TankState> {
       t.x = x;
       t.z = z;
     }
+    stepRepair(this.state, loading, dt);
+    this.observe();
+  }
+  private observe() {
+    stepTeamIntel(
+      this.state,
+      this.participants.flatMap((participant) => {
+        const role = this.roleOf(participant);
+        return role ? [{ role, aspect: this.aspects.get(participant) }] : [];
+      }),
+      BATTLEFIELD.cover,
+    );
   }
   draw(participant: number) {
     this.present(this.state, participant);
@@ -312,7 +382,9 @@ export class TankCore implements GameCore<TankState> {
   restore(snapshot: string) {
     const next: TankState = JSON.parse(snapshot);
     if (
-      next.version !== 1 ||
+      next.version !== 5 ||
+      !validTeamIntel(next.intel, next.time, next.weapon?.targets) ||
+      !validRepair(next.repair) ||
       !next.battle ||
       typeof next.battle.failed !== "boolean" ||
       typeof next.battle.won !== "boolean" ||
@@ -344,6 +416,8 @@ export class TankCore implements GameCore<TankState> {
         next.tank.speed,
         next.tank.turnRate,
       ].every(Number.isFinite) ||
+      next.tank.hp < 0 ||
+      next.tank.hp > TANK_RULES.maxHp ||
       typeof next.tank.blocked !== "boolean"
     )
       throw new Error("坦克戰況格式不符，請重新加入房間。");

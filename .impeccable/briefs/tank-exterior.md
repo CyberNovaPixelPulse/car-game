@@ -1,5 +1,7 @@
 # Exterior battle direction contract
 
+Historical direction: the blind-driver and framed battle-layout requirements below describe #11/#25. [Issue #30](https://github.com/CyberNovaPixelPulse/car-game/issues/30) supersedes those rules with the current driver exterior view and full-viewport workstations. Use [DESIGN.md](../../DESIGN.md) and the [current main surface brief](../surfaces/web-tank-main-ts.md) for the implemented layout; retain the accepted vehicle, environment and attachment quality direction below.
+
 Mode: Experience for the world, Operate for the edge HUD. Authority: approved #11/#25 and the pinned 1944 Normandy/Caen direction. No new direction vote or generated comp. Code-led original 3D geometry plus verified CC0 physical surface maps.
 
 THESIS: three people inhabit one heavy wartime machine. The gunner sees only the current gun direction, the machine-gunner independently scans from the hatch, the driver receives instruments without exterior pixels.

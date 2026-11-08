@@ -1,5 +1,7 @@
 # Loader interior and machine-gun feedback
 
+Historical direction: the blind-driver, exterior-renderer and framed battle-layout requirements below describe #11/#26. [Issue #30](https://github.com/CyberNovaPixelPulse/car-game/issues/30) supersedes those rules with the current driver exterior view and full-viewport workstations. Use [DESIGN.md](../../DESIGN.md) and the [current main surface brief](../surfaces/web-tank-main-ts.md) for the implemented layout; retain the interior, ammunition and mechanical feedback direction below.
+
 Authority: approved #11 and #26; 1944 Normandy, 75mm Sherman V / M4A4 visual reference. Experience scene with Operate HUD. This is a game, not an exact historical operating reconstruction; three crew, blind driver and ejection stun are deliberately fictional rules.
 
 ## Direction contract

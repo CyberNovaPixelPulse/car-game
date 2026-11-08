@@ -49,7 +49,7 @@ test("結算期間離線的非房主釋放席位，同房正常重新加入換�
       await page.getByRole("button", { name: "準備", exact: true }).click();
     }
     await c.loader.screenshot({
-      path: "/tmp/car-game-to-spec/review-fixes/rejoined-unique-roles.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/37/legacy/review-fixes"}/legacy-rejoined-unique-roles.png`,
     });
     await c.loader
       .getByRole("button", { name: "開始戰鬥", exact: true })
@@ -57,7 +57,7 @@ test("結算期間離線的非房主釋放席位，同房正常重新加入換�
     for (const page of [c.loader, c.driver, c.gunner]) {
       await expect(page.getByTestId("tank-health")).toHaveText("100/100");
       await expect(page.getByTestId("wave-status")).toHaveText(
-        "第 1 / 3 波 · 存活敵車 2",
+        "第 1 / 3 波 · 目前觀測敵車 1",
       );
     }
     await c.gunner.keyboard.down("r");
@@ -68,7 +68,7 @@ test("結算期間離線的非房主釋放席位，同房正常重新加入換�
     await expect(c.driver.getByTestId("shot-count")).toHaveText("1");
     await c.gunner.keyboard.up("c");
     await c.driver.screenshot({
-      path: "/tmp/car-game-to-spec/review-fixes/rejoined-new-round-shot.png",
+      path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/37/legacy/review-fixes"}/legacy-rejoined-new-round-shot.png`,
     });
   } finally {
     await c.close();

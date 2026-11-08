@@ -1,590 +1,315 @@
 import * as THREE from "three";
+import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { BATTLEFIELD } from "./tank-core";
-import {
-  armour,
-  batchFixedParts,
-  box,
-  part,
-  surfaceMaps,
-} from "./tank-art-materials";
+import { buildProceduralNormandy } from "./tank-environment-procedural";
+import { softwareRendering } from "./tank-vehicle-model";
 
-/** A compressed Caen countryside, not a reconstruction of a named engagement. */
+/** Baked Normandy farm scenery from tools/blender/build_map.py. Visual only:
+ * hits, sight lines and collision still read BATTLEFIELD.cover, which the
+ * baked cover meshes fill exactly. A failed load, or a software rasteriser,
+ * falls back to the primitive map in tank-environment-procedural.ts. */
+const ART = "/art/map";
+const GROUND = [
+  "leafy_grass",
+  "muddy_tracks",
+  "farm_soil",
+  "burned_ground_01",
+  "brown_mud_leaves_01",
+] as const;
+/** Splat maps span this square of the terrain, centred on the battlefield. */
+const MAP_SIZE = 420;
+/** Instance rows: x, y, z, yaw, scale, tilt about x, tilt about the Blender y axis. */
+const STRIDE = 7;
+/** Foliage culling cell size in metres. */
+const CELL = 50;
+/** Cells whose centre is within this range of the battlefield cast sun shadows. */
+const SHADOW_REACH = 80;
+/** Lane centreline (game x, z), shared with build_map.py, kept clear of grass tufts. */
+const LANE = [
+  [0, 160],
+  [0, 46],
+  [0, 2],
+  [5, -7],
+  [10, -15],
+  [10.5, -34],
+  [8, -46],
+];
+
+interface MapArt {
+  map: THREE.Group;
+  foliage: THREE.Group;
+  splat: THREE.Texture[];
+  ground: Record<(typeof GROUND)[number], THREE.Texture>;
+}
+
 export function buildNormandy(
   scene: THREE.Scene,
   manager?: THREE.LoadingManager,
 ) {
-  const soilMaps = surfaceMaps("farm_soil", 38, "terrain", true, manager);
-  const earth = new THREE.MeshStandardMaterial({
-    color: 0x9b947b,
-    ...soilMaps,
-    roughness: 1,
-    normalScale: new THREE.Vector2(0.45, 0.45),
-  });
-  const grass = new THREE.MeshStandardMaterial({
-    color: 0x7d8259,
-    ...surfaceMaps("farm_soil", 52, "terrain", true, manager),
-    roughness: 1,
-    normalScale: new THREE.Vector2(0.22, 0.22),
-  });
+  // A CPU rasteriser cannot afford the baked map's textures and foliage without
+  // stalling the page past the crew's peer-link timeout: keep the primitive map.
+  if (softwareRendering()) return buildProceduralNormandy(scene, manager);
+  const key = `${ART}/normandy.glb`;
+  // Hold the preparation barrier open until the map or its fallback is in place.
+  manager?.itemStart(key);
+  void loadMap()
+    .then((art) => placeMap(scene, art))
+    .catch((error: unknown) => {
+      console.warn("地圖模型載入失敗，改用簡易場景。", error);
+      buildProceduralNormandy(scene, manager);
+    })
+    .finally(() => manager?.itemEnd(key));
+}
 
-  const ground = part(
-    scene,
-    new THREE.PlaneGeometry(240, 240),
-    grass,
-    0,
-    -0.025,
-    0,
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.castShadow = false;
-  const road = part(
-    scene,
-    new THREE.PlaneGeometry(8.6, 104),
-    earth,
-    0,
-    0.008,
-    -1,
-  );
-  road.rotation.x = -Math.PI / 2;
-  road.castShadow = false;
-  // Two faint wheel ruts. These are ground surfaces, never hidden collision.
-  for (const x of [-1.18, 1.18]) {
-    const rut = part(
-      scene,
-      new THREE.PlaneGeometry(0.65, 102),
-      new THREE.MeshStandardMaterial({
-        color: 0x817b63,
-        ...surfaceMaps("farm_soil", 32, "terrain", true, manager),
-        roughness: 1,
-      }),
-      x,
-      0.015,
-      -1,
-    );
-    rut.rotation.x = -Math.PI / 2;
-    rut.castShadow = false;
+/** One Draco decoder (wasm in public/draco, from three.js) shared by every scene. */
+const draco = new DRACOLoader().setDecoderPath("/draco/");
+
+async function loadMap(): Promise<MapArt> {
+  const gltf = new GLTFLoader().setDRACOLoader(draco);
+  const textures = new THREE.TextureLoader();
+  const [map, foliage, ...images] = await Promise.all([
+    gltf.loadAsync(`${ART}/normandy.glb`),
+    gltf.loadAsync(`${ART}/foliage.glb`),
+    textures.loadAsync(`${ART}/splat_a.png`),
+    textures.loadAsync(`${ART}/splat_b.png`),
+    ...GROUND.map((id) => textures.loadAsync(`/art/terrain/${id}_diff_1k.jpg`)),
+  ]);
+  const splat = images.slice(0, 2) as THREE.Texture[];
+  for (const t of splat) {
+    t.colorSpace = THREE.NoColorSpace;
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
   }
-  const fieldMat = new THREE.MeshStandardMaterial({
-    color: 0x8d805c,
-    ...surfaceMaps("farm_soil", 13, "terrain", true, manager),
-    roughness: 1,
-    normalScale: new THREE.Vector2(0.5, 0.5),
+  const ground = {} as MapArt["ground"];
+  GROUND.forEach((id, i) => {
+    const t = images[2 + i] as THREE.Texture;
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.anisotropy = 8;
+    ground[id] = t;
   });
-  for (const [x, z, w, d] of [
-    [-27, -24, 25, 36],
-    [28, 8, 24, 42],
-    [-26, 24, 26, 20],
-    [26, -52, 34, 24],
-  ]) {
-    const field = part(
-      scene,
-      new THREE.PlaneGeometry(w, d),
-      fieldMat,
-      x,
-      0.012,
-      z,
-    );
-    field.rotation.x = -Math.PI / 2;
-    field.castShadow = false;
-  }
-  const stoneMaps = surfaceMaps(
-    "old_stone_wall_02",
-    1,
-    "terrain",
-    true,
-    manager,
-  );
-  const stone = new THREE.MeshStandardMaterial({
-    ...stoneMaps,
-    color: 0xd2cbb4,
-    roughness: 1,
-    normalScale: new THREE.Vector2(0.75, 0.75),
-  });
-  stone.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace(
-      "#include <map_fragment>",
-      `
-      #ifdef USE_MAP
-        vec3 sampledStone = texture2D(map, vMapUv).rgb;
-        float limestone = dot(sampledStone,vec3(0.2126,0.7152,0.0722));
-        diffuseColor.rgb *= vec3(0.63,0.64,0.61) + limestone * 0.65;
-      #endif`,
-    );
+  return {
+    map: (map as { scene: THREE.Group }).scene,
+    foliage: (foliage as { scene: THREE.Group }).scene,
+    splat,
+    ground,
   };
-  const cap = new THREE.MeshStandardMaterial({
-    color: 0xa49e89,
-    roughness: 0.95,
-  });
-  const door = new THREE.MeshStandardMaterial({
-    color: 0x454c43,
-    roughness: 0.96,
-  });
-  const slate = new THREE.MeshStandardMaterial({
-    color: 0x555b58,
-    roughness: 0.95,
-  });
-  for (const c of BATTLEFIELD.cover) {
-    // The solid masonry fills exactly the authoritative box. Faces get metre-scale UVs.
-    const geo = box(c.width, c.height, c.depth);
-    const positions = geo.getAttribute("position"),
-      normals = geo.getAttribute("normal"),
-      uv = geo.getAttribute("uv");
-    for (let i = 0; i < uv.count; i++) {
-      const nx = Math.abs(normals.getX(i)),
-        ny = Math.abs(normals.getY(i));
-      uv.setXY(
-        i,
-        (nx > 0.5 ? positions.getZ(i) : positions.getX(i)) / 2,
-        (ny > 0.5 ? positions.getZ(i) : positions.getY(i)) / 2,
-      );
-    }
-    part(scene, geo, stone, c.x, c.height / 2, c.z);
-    if (c.height > 4) {
-      // A masonry agricultural store: relief is shallow; all solid walls keep
-      // the authoritative rectangular volume. Pitched farms live outside the map.
-      part(
-        scene,
-        box(c.width - 0.12, 0.07, c.depth - 0.12),
-        slate,
-        c.x,
-        c.height - 0.035,
-        c.z,
-      );
-      for (const face of [-1, 1]) {
-        const faceZ = c.z + face * (c.depth / 2 + 0.018);
-        const doorShape = new THREE.Shape();
-        doorShape.moveTo(-1.05, 0);
-        doorShape.lineTo(1.05, 0);
-        doorShape.lineTo(1.05, 2.35);
-        doorShape.absarc(0, 2.35, 1.05, 0, Math.PI, false);
-        doorShape.closePath();
-        const timber = part(
-          scene,
-          new THREE.ShapeGeometry(doorShape),
-          door,
-          c.x,
-          0.03,
-          faceZ,
-        );
-        if (face < 0) timber.rotation.y = Math.PI;
-        for (const side of [-1, 1]) {
-          part(
-            scene,
-            armour(0.2, 2.48, 0.09),
-            cap,
-            c.x + side * 1.16,
-            1.24,
-            faceZ,
-          );
-          for (let hinge = 0; hinge < 2; hinge++)
-            part(
-              scene,
-              box(0.67, 0.055, 0.05),
-              slate,
-              c.x + side * 0.51,
-              0.65 + hinge * 1.05,
-              faceZ + face * 0.04,
-            );
-        }
-        const arch = part(
-          scene,
-          new THREE.TorusGeometry(1.15, 0.115, 6, 20, Math.PI),
-          cap,
-          c.x,
-          2.38,
-          faceZ,
-        );
-        for (let board = 0; board < 10; board++)
-          part(
-            scene,
-            box(0.025, 2.3, 0.025),
-            cap,
-            c.x - 0.94 + board * 0.208,
-            1.18,
-            faceZ + face * 0.018,
-          );
-        for (const x of [-2.85, 2.85])
-          for (const y of [2.08, 4.75]) {
-            part(scene, armour(1.23, 1.55, 0.07), cap, c.x + x, y, faceZ);
-            part(
-              scene,
-              box(1.0, 1.31, 0.085),
-              slate,
-              c.x + x,
-              y,
-              faceZ + face * 0.025,
-            );
-            for (const dx of [-0.3, 0.3])
-              part(
-                scene,
-                box(0.045, 1.34, 0.1),
-                door,
-                c.x + x + dx,
-                y,
-                faceZ + face * 0.045,
-              );
-            part(
-              scene,
-              box(1.02, 0.05, 0.1),
-              door,
-              c.x + x,
-              y,
-              faceZ + face * 0.045,
-            );
-            part(
-              scene,
-              box(1.4, 0.12, 0.11),
-              cap,
-              c.x + x,
-              y - 0.77,
-              faceZ + face * 0.025,
-            );
-            // Weathered shutters flank the upper windows and add architectural depth.
-            if (y > 4)
-              for (const side of [-1, 1]) {
-                part(
-                  scene,
-                  armour(0.38, 1.28, 0.055),
-                  door,
-                  c.x + x + side * 0.83,
-                  y,
-                  faceZ,
-                );
-                for (let slat = 0; slat < 7; slat++)
-                  part(
-                    scene,
-                    box(0.35, 0.025, 0.025),
-                    cap,
-                    c.x + x + side * 0.83,
-                    y - 0.53 + slat * 0.17,
-                    faceZ + face * 0.028,
-                  );
-              }
-          }
-        for (const y of [0.22, 3.38, 6.74])
-          part(scene, armour(c.width - 0.04, 0.16, 0.09), cap, c.x, y, faceZ);
-        for (const side of [-1, 1])
-          for (let course = 0; course < 14; course++) {
-            part(
-              scene,
-              box(course % 2 ? 0.32 : 0.53, 0.23, 0.04),
-              cap,
-              c.x + side * (c.width / 2 - 0.3),
-              0.3 + course * 0.46,
-              faceZ,
-            );
-          }
-      }
+}
+
+function placeMap(scene: THREE.Scene, art: MapArt) {
+  art.map.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    if (object.name === "terrain") {
+      (object.material as THREE.Material).dispose();
+      object.material = terrainMaterial(art);
+      object.castShadow = false;
+      object.receiveShadow = true;
     } else {
-      const length = Math.max(c.width, c.depth),
-        wide = c.width > c.depth;
-      const n = Math.ceil(length / 0.68);
-      for (let i = 0; i < n; i++) {
-        const q = ((i + 0.5) * length) / n - length / 2;
-        part(
-          scene,
-          box(
-            wide ? length / n : c.width - 0.02,
-            0.14,
-            wide ? c.depth - 0.02 : length / n,
-          ),
-          cap,
-          c.x + (wide ? q : 0),
-          c.height - 0.07,
-          c.z + (wide ? 0 : q),
+      object.castShadow = object.receiveShadow = true;
+    }
+  });
+  scene.add(art.map);
+  placeFoliage(scene, art.foliage);
+  scene.add(meadowGrass());
+}
+
+/** Tiled CC0 ground sets blended by two baked weight maps.
+ * splat_a: lane mud, ploughed soil, burnt ground. splat_b: leaf litter, stubble, wet ruts. */
+function terrainMaterial(art: MapArt) {
+  const material = new THREE.MeshStandardMaterial({
+    roughness: 1,
+    metalness: 0,
+  });
+  material.onBeforeCompile = (shader) => {
+    const uniforms: Record<string, { value: unknown }> = {
+      splatA: { value: art.splat[0] },
+      splatB: { value: art.splat[1] },
+      mapSize: { value: MAP_SIZE },
+    };
+    for (const id of GROUND) uniforms[`g_${id}`] = { value: art.ground[id] };
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        "#include <common>",
+        "#include <common>\nvarying vec2 vGroundXZ;",
+      )
+      .replace(
+        "#include <begin_vertex>",
+        "#include <begin_vertex>\nvGroundXZ = (modelMatrix * vec4(transformed, 1.0)).xz;",
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        `#include <common>
+varying vec2 vGroundXZ;
+uniform sampler2D splatA, splatB;
+uniform float mapSize;
+${GROUND.map((id) => `uniform sampler2D g_${id};`).join("\n")}`,
+      )
+      .replace(
+        "#include <map_fragment>",
+        `vec2 gxz = vGroundXZ;
+vec2 splatUv = vec2(gxz.x / mapSize + 0.5, 0.5 - gxz.y / mapSize);
+vec3 wa = texture2D(splatA, splatUv).rgb;
+vec3 wb = texture2D(splatB, splatUv).rgb;
+vec3 grass = texture2D(g_leafy_grass, gxz / 3.0).rgb * vec3(0.62, 0.95, 0.42);
+float drift = smoothstep(0.3, 0.7, texture2D(g_leafy_grass, gxz / 137.0).g * 2.2);
+grass = mix(grass, grass * vec3(1.15, 1.0, 0.8), drift * 0.5);
+vec3 ground = mix(grass, texture2D(g_leafy_grass, gxz / 2.2).rgb * vec3(1.25, 1.05, 0.45), wb.g * 0.85);
+ground = mix(ground, texture2D(g_farm_soil, gxz / 4.0).rgb, wa.g);
+ground = mix(ground, texture2D(g_brown_mud_leaves_01, gxz / 2.5).rgb, wb.r);
+ground = mix(ground, texture2D(g_muddy_tracks, gxz / 3.5).rgb * vec3(0.95, 0.9, 0.88), wa.r);
+ground = mix(ground, texture2D(g_burned_ground_01, gxz / 3.0).rgb, wa.b);
+ground = mix(ground, ground * 0.55, wb.b * 0.6);
+float groundWet = wb.b;
+diffuseColor.rgb *= ground;`,
+      )
+      .replace(
+        "#include <roughnessmap_fragment>",
+        "float roughnessFactor = mix(roughness, 0.3, groundWet);",
+      );
+  };
+  return material;
+}
+
+/** Trees, hedges, rocks and props. Placements are bucketed into square cells, one
+ * InstancedMesh per prototype primitive per cell, so off-screen cells are culled and
+ * only cells near the battlefield pay for the sun's shadow pass. */
+function placeFoliage(scene: THREE.Scene, foliage: THREE.Group) {
+  const root = foliage.getObjectByName("foliage");
+  if (!root || typeof root.userData.instances !== "string")
+    throw new Error("foliage glTF is missing its instance table");
+  const rows = JSON.parse(root.userData.instances) as Record<string, number[]>;
+  foliage.updateMatrixWorld(true);
+  const parts = new Map<string, THREE.Mesh[]>();
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    let node: THREE.Object3D | null = object;
+    while (node && node.parent !== root) node = node.parent;
+    const proto = node?.name.split("__")[0];
+    if (!proto) return;
+    if (!parts.has(proto)) parts.set(proto, []);
+    parts.get(proto)!.push(object);
+  });
+  for (const mesh of [...parts.values()].flat()) {
+    const material = mesh.material as THREE.MeshStandardMaterial;
+    if (material.name === "leaves" || material.alphaTest > 0) {
+      material.alphaTest = 0.5;
+      material.transparent = false;
+      material.side = THREE.DoubleSide;
+    }
+  }
+  const place = new THREE.Matrix4(),
+    rotate = new THREE.Matrix4(),
+    step = new THREE.Matrix4(),
+    scale = new THREE.Matrix4();
+  for (const [proto, data] of Object.entries(rows)) {
+    const cells = new Map<string, number[]>();
+    for (let i = 0; i < data.length; i += STRIDE) {
+      const key = `${Math.floor(data[i] / CELL)},${Math.floor(data[i + 2] / CELL)}`;
+      if (!cells.has(key)) cells.set(key, []);
+      cells.get(key)!.push(i);
+    }
+    const lowPlant = /^(nettle|weed|fern)/.test(proto);
+    for (const [key, starts] of cells) {
+      const [cx, cz] = key.split(",").map((v) => (Number(v) + 0.5) * CELL);
+      const shadow = !lowPlant && Math.hypot(cx, cz) < SHADOW_REACH;
+      for (const mesh of parts.get(proto) ?? []) {
+        const instanced = new THREE.InstancedMesh(
+          mesh.geometry,
+          mesh.material,
+          starts.length,
         );
+        starts.forEach((start, n) => {
+          const [x, y, z, yaw, s, tiltX, tiltY] = data.slice(
+            start,
+            start + STRIDE,
+          );
+          // Blender XYZ euler (tiltX, tiltY, yaw) expressed in the Y-up game frame.
+          rotate.makeRotationY(yaw);
+          rotate.multiply(step.makeRotationZ(-tiltY));
+          rotate.multiply(step.makeRotationX(tiltX));
+          place.makeTranslation(x, y, z).multiply(rotate);
+          place.multiply(scale.makeScale(s, s, s)).multiply(mesh.matrixWorld);
+          instanced.setMatrixAt(n, place);
+        });
+        instanced.castShadow = shadow;
+        instanced.receiveShadow = true;
+        instanced.computeBoundingSphere();
+        instanced.name = proto;
+        scene.add(instanced);
       }
     }
   }
-  // Tall scenery lives beyond the playable boundary; none pretends to be usable cover.
-  const trunk = new THREE.MeshStandardMaterial({
-    color: 0x625948,
-    roughness: 1,
-  });
-  const foliage = new THREE.MeshLambertMaterial({
-    color: 0x526344,
-    side: THREE.DoubleSide,
-  });
-  // Each card carries a twig of pointed leaves; alpha is authored in the shader,
-  // so distant canopies have foliage gaps instead of shaded green balls.
-  foliage.onBeforeCompile = (shader) => {
-    shader.vertexShader =
-      "varying vec2 leafUv;\n" +
-      shader.vertexShader.replace(
-        "#include <begin_vertex>",
-        "#include <begin_vertex>\nleafUv = uv;",
-      );
-    shader.fragmentShader =
-      "varying vec2 leafUv;\n" +
-      shader.fragmentShader.replace(
-        "#include <color_fragment>",
-        `#include <color_fragment>
-      vec2 leaf = fract(leafUv * vec2(3.0, 3.0)) * 2.0 - 1.0;
-      float edge = pow(abs(leaf.x), 1.4) + pow(abs(leaf.y), 0.85);
-      if (edge > 0.90) discard;
-      diffuseColor.rgb *= 0.78 + 0.22 * (1.0 - abs(leaf.x));`,
-      );
-  };
-  const leafGeo = new THREE.PlaneGeometry(0.85, 1.0);
-  const leaves = new THREE.InstancedMesh(leafGeo, foliage, 3200);
-  const transform = new THREE.Object3D();
-  let leaf = 0;
-  for (let i = 0; i < 20; i++) {
-    const x = (i % 2 ? 1 : -1) * (48 + (i % 3) * 7),
-      z = -72 + Math.floor(i / 2) * 16;
-    const height = 5.2 + (i % 4) * 0.7;
-    part(
-      scene,
-      new THREE.CylinderGeometry(0.12, 0.4, height, 7),
-      trunk,
-      x,
-      height / 2,
-      z,
-    );
-    for (let b = 0; b < 3; b++) {
-      const branch = part(
-        scene,
-        new THREE.CylinderGeometry(0.055, 0.15, 3.1, 6),
-        trunk,
-        x + Math.sin(b * 2.3) * 0.7,
-        height - 1.8,
-        z + Math.cos(b * 2.3) * 0.7,
-      );
-      branch.rotation.z = 0.65 * Math.sin(b * 2.3);
-      branch.rotation.x = 0.6 * Math.cos(b * 2.3);
-    }
-    for (let b = 0; b < 160; b++) {
-      const angle = b * 2.399;
-      const r = 3.5 * Math.sqrt((b % 53) / 53);
-      transform.position.set(
-        x + Math.sin(angle) * r,
-        height - 0.4 + Math.sin(b * 1.731) * 1.7 + (1 - r / 4) * 1.2,
-        z + Math.cos(angle) * r,
-      );
-      transform.scale.setScalar(0.75 + (b % 7) * 0.09);
-      transform.rotation.set(b * 0.73, b * 1.39, b * 0.23);
-      transform.updateMatrix();
-      leaves.setMatrixAt(leaf, transform.matrix);
-      leaves.setColorAt(
-        leaf++,
-        new THREE.Color().setHSL(
-          0.22 + (b % 4) * 0.008,
-          0.18,
-          0.43 + (b % 5) * 0.035,
-        ),
-      );
-    }
-  }
-  leaves.castShadow = false;
-  leaves.receiveShadow = false;
-  leaves.computeBoundingSphere();
-  scene.add(leaves);
-  // Stubble and grass tufts are low enough to neither hide tanks nor imply solid hedges.
+}
+
+/** Low meadow tufts on open grass. Never blockers; kept off cover, lane and plough. */
+function meadowGrass() {
   const blades = new THREE.BufferGeometry();
   blades.setAttribute(
     "position",
     new THREE.Float32BufferAttribute(
       [
-        -0.018, 0, 0, 0.06, 0.3, 0, 0.018, 0, 0, 0, 0, -0.018, 0, 0.24, 0.045,
-        0, 0, 0.018,
+        -0.02, 0, 0, 0.05, 0.34, 0.01, 0.02, 0, 0, 0, 0, -0.02, -0.04, 0.28,
+        0.05, 0, 0, 0.02, -0.02, 0, 0.01, -0.07, 0.22, -0.03, 0.02, 0, -0.01,
       ],
       3,
     ),
   );
   blades.computeVertexNormals();
-  const grassMat = new THREE.MeshLambertMaterial({
-    color: 0x65714a,
-    side: THREE.DoubleSide,
-  });
-  const tufts = new THREE.InstancedMesh(blades, grassMat, 6500);
-  const fieldPlots = [
-    [-27, -24, 25, 36],
-    [28, 8, 24, 42],
-    [-26, 24, 26, 20],
-    [26, -52, 34, 24],
-  ];
+  const material = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide });
+  const count = 20000;
+  const tufts = new THREE.InstancedMesh(blades, material, count);
   const hash = (n: number) => {
     const v = Math.sin(n * 127.1) * 43758.5453;
     return v - Math.floor(v);
   };
-  for (let i = 0; i < 6500; i++) {
-    const plot = fieldPlots[i % 4],
-      row = Math.floor((hash(i + 431) * plot[2]) / 0.56);
-    const x = plot[0] - plot[2] / 2 + row * 0.56 + hash(i + 71) * 0.14;
-    const z = plot[1] + (hash(i + 1437) - 0.5) * plot[3];
-    const clear = BATTLEFIELD.cover.some(
+  const laneDistance = (x: number, z: number) => {
+    let best = Infinity;
+    for (let i = 0; i + 1 < LANE.length; i++) {
+      const [ax, az] = LANE[i],
+        [bx, bz] = LANE[i + 1];
+      const dx = bx - ax,
+        dz = bz - az;
+      const t = Math.max(
+        0,
+        Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)),
+      );
+      best = Math.min(best, Math.hypot(x - ax - dx * t, z - az - dz * t));
+    }
+    return best;
+  };
+  const transform = new THREE.Object3D();
+  const colour = new THREE.Color();
+  let placed = 0;
+  for (let i = 0; placed < count && i < count * 3; i++) {
+    const x = (hash(i + 11) - 0.5) * 92,
+      z = (hash(i + 977) - 0.5) * 92;
+    const onCover = BATTLEFIELD.cover.some(
       (c) =>
-        Math.abs(x - c.x) < c.width / 2 + 0.3 &&
-        Math.abs(z - c.z) < c.depth / 2 + 0.3,
+        Math.abs(x - c.x) < c.width / 2 + 0.25 &&
+        Math.abs(z - c.z) < c.depth / 2 + 0.25,
     );
+    const ploughed = x > -39.5 && x < -14.5 && z > -42 && z < -6;
+    if (onCover || ploughed || laneDistance(x, z) < 3.4) continue;
+    const stubble = x > 16 && x < 40 && z > -13 && z < 29;
     transform.position.set(x, 0.01, z);
     transform.scale.set(
-      0.8 + hash(i) * 0.6,
-      clear ? 0 : 0.75 + hash(i + 14) * 0.6,
-      0.8 + hash(i + 81) * 0.4,
+      0.8 + hash(i) * 0.7,
+      (stubble ? 0.4 : 0.5) + hash(i + 14) * 0.45,
+      0.8 + hash(i + 81) * 0.5,
     );
     transform.rotation.set(0, i * 2.399, 0);
     transform.updateMatrix();
-    tufts.setMatrixAt(i, transform.matrix);
-    tufts.setColorAt(
-      i,
-      new THREE.Color().setHSL(
-        0.14 + (i % 4) * 0.012,
-        0.22,
-        0.43 + (i % 5) * 0.025,
-      ),
-    );
+    tufts.setMatrixAt(placed, transform.matrix);
+    if (stubble) colour.setHSL(0.12 + hash(i + 3) * 0.02, 0.38, 0.42);
+    else
+      colour.setHSL(0.2 + hash(i + 3) * 0.05, 0.32, 0.27 + hash(i + 5) * 0.08);
+    tufts.setColorAt(placed, colour);
+    placed++;
   }
-  const furrow = new THREE.MeshLambertMaterial({ color: 0x6e684f });
-  for (const [x, z, w, d] of fieldPlots)
-    for (let row = 0; row < Math.floor(w / 0.56); row++) {
-      const strip = part(
-        scene,
-        new THREE.PlaneGeometry(0.13, d),
-        furrow,
-        x - w / 2 + row * 0.56,
-        0.016,
-        z,
-      );
-      strip.rotation.x = -Math.PI / 2;
-      strip.castShadow = false;
-      strip.receiveShadow = false;
-    }
-  tufts.receiveShadow = false;
+  tufts.count = placed;
+  tufts.receiveShadow = true;
   tufts.computeBoundingSphere();
-  scene.add(tufts);
-  // Farm groupings beyond the playable boundary, never new battlefield cover.
-  for (const [x, z, w, d, h, roofHeight] of [
-    [-28, -66, 9, 8, 5.4, 2.4],
-    [35, -70, 13, 9, 4.2, 3.0],
-    [-60, 13, 8, 10, 5.2, 2.0],
-  ]) {
-    part(scene, box(w, h, d), stone, x, h / 2, z);
-    const gable = new THREE.Shape();
-    gable.moveTo(-w / 2, 0);
-    gable.lineTo(w / 2, 0);
-    gable.lineTo(0, roofHeight);
-    gable.closePath();
-    for (const side of [-1, 1]) {
-      const end = part(
-        scene,
-        new THREE.ShapeGeometry(gable),
-        stone,
-        x,
-        h,
-        z + (side * d) / 2,
-      );
-      if (side < 0) end.rotation.y = Math.PI;
-      const slope = Math.atan2(roofHeight, w / 2),
-        length = Math.hypot(w / 2, roofHeight);
-      const roof = part(
-        scene,
-        box(length + 0.22, 0.13, d + 0.45),
-        slate,
-        x + (side * w) / 4,
-        h + roofHeight / 2,
-        z,
-      );
-      roof.rotation.z = -side * slope;
-      // Slate courses articulate the large roof without a new texture provider.
-      for (let course = 0; course < 6; course++) {
-        const t = (course + 0.5) / 6;
-        const line = part(
-          scene,
-          box(0.032, 0.018, d + 0.42),
-          cap,
-          x + side * (w / 2) * (1 - t),
-          h + roofHeight * t + 0.09,
-          z,
-        );
-        line.rotation.z = -side * slope;
-      }
-    }
-    part(
-      scene,
-      armour(0.7, 1.45, 0.78),
-      stone,
-      x - w * 0.24,
-      h + roofHeight * 0.85,
-      z + d * 0.18,
-    );
-    part(
-      scene,
-      box(0.84, 0.15, 0.91),
-      cap,
-      x - w * 0.24,
-      h + roofHeight * 0.85 + 0.76,
-      z + d * 0.18,
-    );
-    for (const side of [-1, 1]) {
-      const front = z + side * (d / 2 + 0.03);
-      for (const floor of [1.2, h - 1.2])
-        for (const offset of [-w * 0.3, 0, w * 0.3]) {
-          const isDoor = floor < 2 && offset === 0;
-          part(
-            scene,
-            armour(isDoor ? 1.5 : 1.12, isDoor ? 2.35 : 1.35, 0.09),
-            cap,
-            x + offset,
-            isDoor ? 1.18 : floor,
-            front,
-          );
-          part(
-            scene,
-            box(isDoor ? 1.3 : 0.91, isDoor ? 2.19 : 1.14, 0.11),
-            door,
-            x + offset,
-            isDoor ? 1.12 : floor,
-            front + side * 0.02,
-          );
-          if (!isDoor) {
-            part(
-              scene,
-              box(0.055, 1.15, 0.13),
-              cap,
-              x + offset,
-              floor,
-              front + side * 0.03,
-            );
-            part(
-              scene,
-              box(0.92, 0.055, 0.13),
-              cap,
-              x + offset,
-              floor,
-              front + side * 0.03,
-            );
-          }
-        }
-    }
-  }
-  // Low rolling ground closes the horizon beyond the map, with no collision change.
-  const horizon = new THREE.PlaneGeometry(220, 90, 36, 14);
-  horizon.rotateX(-Math.PI / 2);
-  const hp = horizon.getAttribute("position");
-  for (let i = 0; i < hp.count; i++) {
-    const x = hp.getX(i),
-      z = hp.getZ(i) - 105;
-    hp.setXYZ(
-      i,
-      x,
-      Math.max(
-        0,
-        2.8 + Math.sin(x * 0.055) * 2.2 + Math.sin(z * 0.08 + x * 0.025) * 1.4,
-      ),
-      z,
-    );
-  }
-  horizon.computeVertexNormals();
-  const ridge = part(
-    scene,
-    horizon,
-    new THREE.MeshLambertMaterial({ color: 0x6c7559 }),
-    0,
-    -0.04,
-    0,
-  );
-  ridge.castShadow = false;
-  ridge.receiveShadow = false;
-  batchFixedParts(scene);
+  return tufts;
 }

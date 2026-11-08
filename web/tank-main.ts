@@ -1,5 +1,6 @@
-import { TANK_RULES, RECONNECT_GRACE_MS } from "./tank-settings";
-import { smokeBlocks, smokeSight } from "./tank-smoke";
+import { TANK_RULES, RECONNECT_GRACE_MS, REPAIR_RULES } from "./tank-settings";
+import { smokeSight } from "./tank-smoke";
+import { validViewAspect } from "./tank-battle-view";
 import { ENEMY_LABELS } from "./tank-enemies";
 import { MG_FIRE } from "./tank-machine-gun";
 import { Session, type Room } from "./network";
@@ -8,7 +9,12 @@ import { GameRuntime } from "./game-runtime";
 import { TankCore, DRIVE, AIM } from "./tank-core";
 import { TankScene } from "./tank-scene";
 import { TankInteriorScene } from "./tank-interior-scene";
+import type { SceneQuality } from "./tank-scene-quality";
 import { TankMechanicalAudio } from "./tank-mechanical-audio";
+import {
+  mountBattleNavigation,
+  presentBattleNavigation,
+} from "./tank-navigation";
 import {
   LOAD,
   MODE,
@@ -21,11 +27,14 @@ import {
   STOP_JAM,
   JAM_RULES,
 } from "./tank-weapons";
+import { stationMarkup } from "./tank-station";
+import { attachFullscreenControl } from "./tank-fullscreen";
 import "./tank.css";
 
 const app = document.querySelector<HTMLDivElement>("#tank-app")!;
-app.innerHTML = `<main class="crew-shell"><header><h1>三人坦克合作戰鬥</h1><p class="setting">1944 年・諾曼第</p><p>一台坦克，三個職位。請先和隊友開啟語音通話。</p></header><section id="crew-content" aria-label="房間與職位"></section><p id="crew-message" role="status" aria-live="polite"></p><button id="crew-retry" class="secondary" hidden>重新連線</button></main>`;
+app.innerHTML = `<main class="crew-shell"><header><h1>三人坦克合作戰鬥</h1><p class="setting">1944 年・諾曼第</p><p>一台坦克，三個職位。請先和隊友開啟語音通話。</p></header><section id="crew-content" aria-label="房間與職位"></section><div id="crew-recovery"><p id="crew-message" role="status" aria-live="polite"></p><button id="crew-retry" class="secondary" hidden>重新連線</button></div></main>`;
 const content = document.querySelector<HTMLElement>("#crew-content")!;
+const recovery = document.querySelector<HTMLElement>("#crew-recovery")!;
 const message = document.querySelector<HTMLElement>("#crew-message")!;
 const retryButton = document.querySelector<HTMLButtonElement>("#crew-retry")!;
 const session = new Session();
@@ -45,6 +54,8 @@ let scene: TankScene | undefined;
 let interiorScene: TankInteriorScene | undefined;
 let mgCanvas: HTMLCanvasElement | undefined;
 let stationRole: string | undefined;
+let sceneQuality: SceneQuality = "medium";
+let disposeFullscreen: (() => void) | undefined;
 interface PreparedViews {
   role: CrewRole;
   code: string;
@@ -92,15 +103,24 @@ async function prepareVote(room: Room, role: CrewRole) {
       requestAnimationFrame(() => resolve()),
     );
     if (version !== preparationVersion) return;
-    if (role === "gunner") {
-      views.exteriorCanvas = artCanvas("主炮戰場視野");
-      views.exterior = new TankScene(views.exteriorCanvas);
+    if (role === "gunner" || role === "driver") {
+      views.exteriorCanvas = artCanvas(
+        role === "driver" ? "駕駛裝甲觀察窗" : "主炮戰場視野",
+      );
+      views.exterior = new TankScene(views.exteriorCanvas, role, sceneQuality);
       await views.exterior.prepare(core.view());
     } else if (role === "loader") {
       views.interiorCanvas = artCanvas("車內炮膛與彈藥架");
-      views.interior = new TankInteriorScene(views.interiorCanvas);
+      views.interior = new TankInteriorScene(
+        views.interiorCanvas,
+        sceneQuality,
+      );
       views.exteriorCanvas = artCanvas("機槍戰場視野");
-      views.exterior = new TankScene(views.exteriorCanvas, "machine-gun");
+      views.exterior = new TankScene(
+        views.exteriorCanvas,
+        "machine-gun",
+        sceneQuality,
+      );
       // Both actual views are prepared before the loader's existing ready vote.
       await views.interior.prepare(core.view());
       await views.exterior.prepare(core.view());
@@ -193,6 +213,9 @@ function hullPlate(states: Record<CrewRole, SeatState>) {
   return `<figure class="hull-plate"><svg viewBox="0 0 300 340" role="img" aria-label="乘員位置示意：1 駕駛在車體左前，2 砲手在砲塔右側，3 裝填手在砲塔左側"><g class="hull-lines"><rect x="34" y="20" width="16" height="290"/><rect x="190" y="20" width="16" height="290"/><path d="M50 40 Q50 22 70 22 H170 Q190 22 190 40 V300 H50Z"/><circle cx="120" cy="176" r="62"/><rect x="113" y="0" width="14" height="116"/><path d="M60 110 H180" class="dash"/><rect x="70" y="56" width="44" height="36"/><rect x="126" y="56" width="44" height="36" class="dash"/></g><g class="leaders">${leaders}</g><g class="track-links">${Array.from({ length: 14 }, (_, i) => `<path d="M34 ${36 + i * 20}h16M190 ${36 + i * 20}h16"/>`).join("")}</g>${seats}</svg><figcaption>圖 1　M4 中型戰車乘員位置，前方朝上（示意，未依比例）</figcaption></figure>`;
 }
 function menu() {
+  disposeFullscreen?.();
+  disposeFullscreen = undefined;
+  content.after(recovery);
   document.documentElement.dataset.surface = "manual";
   retryButton.hidden = true;
   runtime.mode = "idle";
@@ -238,6 +261,9 @@ function menu() {
   };
 }
 function lobby(room: Room) {
+  disposeFullscreen?.();
+  disposeFullscreen = undefined;
+  content.after(recovery);
   document.documentElement.dataset.surface = "manual";
   const me = room.members.find((m) => m.slot === session.slot);
   const complete =
@@ -303,11 +329,38 @@ function station(room: Room) {
   soundedShot = 0;
   soundedStun = 0;
   soundedDamage = -100;
-  content.innerHTML = `<section class="workstation battle-station" data-role="${role}"><h2>${ROLE_LABELS[role]}工作站</h2><div class="battle-pause" data-testid="battle-pause" role="status" hidden></div><p class="station-task">${ROLE_TASKS[role]}</p><p class="crew-health">共用坦克血量 <strong data-testid="tank-health">${TANK_RULES.maxHp}/${TANK_RULES.maxHp}</strong></p><p data-testid="wave-status"></p><p data-testid="damage-warning" role="status"></p><h2 data-testid="battle-result" hidden>戰鬥失敗</h2><button id="battle-return" hidden>回到房間</button>${role === "gunner" ? '<div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong> · 砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p><p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note">連點 A／D 左右、W／S 上下；反方向連點可煞停。按住只推動一次。</p>' : role === "driver" ? '<div class="driver-instruments"><p class="instrument-label">速度</p><p class="speed-readout"><strong data-testid="tank-speed">0.0</strong> m/s</p><p data-testid="tank-motion">靜止</p><p data-testid="tank-contact">車體正常</p></div>' + hullPlate({ driver: "mine", gunner: "taken", loader: "taken" }) + '<p class="note">按住 W／S 前進與倒車，A／D 左右轉向。請聽從隊友指揮。</p>' : '<div class="loader-workspace"><p><strong data-testid="loader-mode">裝填模式</strong> · Tab 切換工作</p><p class="ejection-warning" data-testid="ejection-warning" role="status"></p><p><span data-testid="loader-status">站立・可以工作</span> <strong class="stun-timer" data-testid="stun-remaining"></strong></p><div class="mg-workspace" hidden><div class="battle-viewport"><span class="sight" aria-hidden="true"></span><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p></div><p>機槍朝向 <strong data-testid="mg-heading">0.0°</strong> · 仰角 <strong data-testid="mg-pitch">0.0°</strong></p><p class="note">按住 WASD 瞄準，放開即停止。空白鍵按住連射，備彈無限。Tab 返回裝填。</p><div class="mg-hud"><p>機槍熱度 <strong data-testid="mg-heat">0</strong>% · <span data-testid="mg-status">可以射擊</span> <strong data-testid="mg-cooldown"></strong></p><progress aria-label="機槍熱度" max="100" value="0"></progress></div><p>機槍已射擊 <strong data-testid="mg-shot-count">0</strong> 發</p><p data-testid="mg-target-status"></p></div><div class="loading-workspace"><div class="interior-viewport"><canvas role="img" aria-label="車內炮膛與彈藥架"></canvas></div><section class="jam-game" aria-label="卡彈排除" hidden><h3>卡彈：停在目標區</h3><div class="jam-track"><span class="jam-zone" data-testid="jam-zone">目標</span><span class="jam-needle" data-testid="jam-needle"></span></div><p data-testid="jam-result">按空白鍵停針</p></section><p class="note">按 1 選高爆彈、2 選穿甲彈、3 選煙霧彈。按住 R 裝填，放開可暫停；開始裝填後鎖定該發彈種。等待砲手開火、退殼後再裝下一發。按住 C 蹲下避開彈殼，放開起身；蹲下時無法工作。</p></div></div>'}${role !== "driver" ? '<div class="weapon-status"><p>選擇：<strong data-testid="selected-shell">高爆彈</strong> · 高爆／穿甲／煙霧備彈無限</p><p>膛內：<strong data-testid="chamber-shell">無</strong></p><p data-testid="chamber-state">空膛</p><p>裝填進度 <strong data-testid="load-progress">0</strong>%</p><progress aria-label="裝填進度" max="100" value="0"></progress><p>已發射 <strong data-testid="shot-count">0</strong> 發</p></div>' : ""}${role === "gunner" ? '<p data-testid="enemy-warning" role="status"></p><p data-testid="enemy-activity" role="status"></p><p data-testid="target-status">敵車接近中</p><p data-testid="flight-status"></p><p class="note">主炮就緒後，按空白鍵開火。</p>' : ""}${role === "gunner" ? '<p class="vehicle-status">車體速度 <strong data-testid="tank-speed">0.0</strong> m/s · <span data-testid="tank-motion">靜止</span></p><p data-testid="tank-contact">車體正常</p>' : ""}${role === "loader" ? `<button type="button" class="secondary" id="station-sound" aria-pressed="${soundEnabled}">音效：${soundEnabled ? "開" : "關"}</button>` : ""}<button class="secondary" id="station-leave">離開房間</button></section>`;
+  content.innerHTML = stationMarkup(role, soundEnabled);
+  const stationElement = content.querySelector<HTMLElement>(".battle-station")!;
+  // Keep the live status and retry handler inside the browser's fullscreen
+  // surface; menu/lobby move the same nodes out before replacing this station.
+  stationElement.append(recovery);
+  disposeFullscreen?.();
+  disposeFullscreen = attachFullscreenControl(stationElement);
+  mountBattleNavigation(content.querySelector(".battle-station")!);
   if (role === "loader") {
-    const jamPanel = content.querySelector(".jam-game");
-    if (jamPanel)
-      content.querySelector(".loading-workspace")!.prepend(jamPanel);
+    const interiorViewport =
+      content.querySelector<HTMLElement>(".interior-viewport")!;
+    interiorViewport.insertAdjacentHTML(
+      "beforeend",
+      `<section class="repair-workspace" aria-label="車內維修" hidden>
+        <h3>車體維修</h3>
+        <p class="repair-readout" data-testid="repair-status" role="status"></p>
+        <p class="repair-requirements">停車並停止轉向，按住 <kbd>R</kbd> 維修</p>
+        <p class="repair-requirements">每秒回復 2 HP · 不需耗材 · 上限 100 HP</p>
+        <div class="repair-calibration" data-testid="repair-calibration" role="group" aria-label="維修時機校準" hidden>
+          <svg viewBox="0 0 200 200" aria-hidden="true">
+            <circle class="calibration-track" cx="100" cy="100" r="76"/>
+            <circle class="calibration-zone" cx="100" cy="100" r="76" pathLength="1"/>
+            <circle class="calibration-perfect" cx="100" cy="100" r="76" pathLength="1"/>
+            <line class="calibration-needle" x1="100" y1="110" x2="100" y2="16"/>
+            <circle class="calibration-hub" cx="100" cy="100" r="5"/>
+          </svg>
+          <p>按住 <kbd>R</kbd> 維修 · <kbd>空白鍵</kbd> 校準</p>
+          <p class="calibration-position" data-testid="repair-calibration-position"></p>
+        </div>
+        <p class="repair-controls">按住 <kbd>C</kbd> 蹲下避殼 · <kbd>Tab</kbd> 返回裝填</p>
+      </section>`,
+    );
     try {
       if (ready && prepared?.interior && prepared.interiorCanvas) {
         content
@@ -319,37 +372,49 @@ function station(room: Room) {
       } else
         interiorScene = new TankInteriorScene(
           content.querySelector(".interior-viewport canvas")!,
+          sceneQuality,
         );
     } catch {
       message.textContent =
         "無法啟動 3D 車內工作區，請使用支援 WebGL2 的瀏覽器重新加入。";
     }
   }
+  const qualitySelect =
+    content.querySelector<HTMLSelectElement>("#station-quality")!;
+  qualitySelect.value = sceneQuality;
+  qualitySelect.onchange = () => {
+    const quality = qualitySelect.value;
+    if (quality !== "low" && quality !== "medium" && quality !== "high") return;
+    sceneQuality = quality;
+    // Prepared and retained views may be detached or hidden. Resize their real
+    // buffers too, without rebuilding resources, the station or authority.
+    for (const view of new Set([scene, prepared?.exterior]))
+      view?.setQuality(quality);
+    for (const view of new Set([interiorScene, prepared?.interior]))
+      view?.setQuality(quality);
+  };
   const soundButton =
     content.querySelector<HTMLButtonElement>("#station-sound");
   if (soundButton)
-    soundButton.onclick = () => {
+    soundButton.onclick = (event) => {
       soundEnabled = !soundEnabled;
       soundButton.textContent = `音效：${soundEnabled ? "開" : "關"}`;
       soundButton.setAttribute("aria-pressed", String(soundEnabled));
+      if (event.detail > 0) soundButton.blur();
     };
   content.querySelector<HTMLButtonElement>("#battle-return")!.onclick = () =>
     session.returnToLobby();
-  const enemyWarning = content.querySelector('[data-testid="enemy-warning"]');
-  if (enemyWarning)
-    content.querySelector(".battle-viewport")!.before(enemyWarning);
-  const enemyActivity = content.querySelector('[data-testid="enemy-activity"]');
-  if (enemyActivity)
-    content.querySelector(".battle-viewport")!.before(enemyActivity);
-  const mgHud = content.querySelector(".mg-hud");
-  if (mgHud)
-    content.querySelector(".mg-workspace .battle-viewport")!.append(mgHud);
-  if (role === "gunner") {
+  if (role === "gunner" || role === "driver") {
     try {
       if (ready && prepared?.exterior && prepared.exteriorCanvas) {
         content.querySelector("canvas")!.replaceWith(prepared.exteriorCanvas);
         scene = prepared.exterior;
-      } else scene = new TankScene(content.querySelector("canvas")!);
+      } else
+        scene = new TankScene(
+          content.querySelector("canvas")!,
+          role,
+          sceneQuality,
+        );
     } catch {
       message.textContent =
         "無法啟動 3D 戰場，請使用支援 WebGL2 的瀏覽器重新加入。";
@@ -364,9 +429,10 @@ function station(room: Room) {
 }
 core.present = (state) => {
   if (!stationRole) return;
+  presentBattleNavigation(content, state);
   const wave = content.querySelector('[data-testid="wave-status"]');
   if (wave)
-    wave.textContent = `第 ${state.battle.wave} / ${TANK_RULES.waves} 波 · 存活敵車 ${state.weapon.targets.filter((e) => e.hp > 0).length}`;
+    wave.textContent = `第 ${state.battle.wave} / ${TANK_RULES.waves} 波 · 目前觀測敵車 ${state.intel.contacts.filter((e) => e.hp > 0 && e.visible).length}${state.intel.contacts.some((e) => e.hp > 0 && !e.visible) ? ` · 舊情報 ${state.intel.contacts.filter((e) => e.hp > 0 && !e.visible).length}` : ""}`;
   const speed = content.querySelector('[data-testid="tank-speed"]');
   if (speed) speed.textContent = Math.abs(state.tank.speed).toFixed(1);
   const motion = content.querySelector('[data-testid="tank-motion"]');
@@ -411,6 +477,8 @@ core.present = (state) => {
     result.hidden = !state.battle.failed && !state.battle.won;
     result.textContent = state.battle.failed ? "戰鬥失敗" : "戰鬥勝利";
     result.dataset.outcome = state.battle.failed ? "failed" : "won";
+    content.querySelector<HTMLElement>(".battle-outcome")!.hidden =
+      result.hidden;
     if (enteringResult) window.scrollTo(0, 0);
   }
   const returnButton =
@@ -437,22 +505,38 @@ core.present = (state) => {
     stationRole === "loader",
     state.time,
   );
-  const obscured = (target: { x: number; z: number; height: number }) =>
-    smokeBlocks(
-      state.weapon.smoke,
-      sight.eye,
-      [target.x, target.height / 2, target.z],
-      state.time,
-    );
   const smokeStatus = content.querySelector('[data-testid="smoke-status"]');
   if (smokeStatus)
     smokeStatus.textContent = sight.obscured ? "煙幕遮蔽視線" : "視線清晰";
   const enemyWarning = content.querySelector('[data-testid="enemy-warning"]');
   if (enemyWarning)
-    enemyWarning.textContent = state.weapon.targets
-      .filter((e) => e.hp > 0 && e.phase === "warning" && !obscured(e))
+    enemyWarning.textContent = state.intel.contacts
+      .filter((e) => e.visible && e.hp > 0 && e.phase === "warning")
       .map((e) => `${ENEMY_LABELS[e.kind]} 正在瞄準，即將開火！移動或尋找掩護`)
       .join("；");
+  const calibration = state.repair.calibration;
+  const calibrationMessages = {
+    idle: "",
+    active: `維修校準中${calibration.suspended ? "・重新按住 R 續接" : ""}`,
+    success: "校準成功・額外 +1 HP",
+    perfect: "完美校準・額外 +3 HP",
+    failed:
+      state.time < state.repair.failureUntil
+        ? "校準失敗・停修兩秒"
+        : "上次校準失敗・停修已結束",
+  };
+  const calibrationResult = content.querySelector<HTMLElement>(
+    '[data-testid="repair-calibration-result"]',
+  )!;
+  calibrationResult.hidden = calibration.result === "idle";
+  calibrationResult.querySelector(".calibration-result-message")!.textContent =
+    calibrationMessages[calibration.result];
+  // The visible shared needle is useful crew information. Keep rapid degree
+  // updates outside the live status so assistive tech announces each result once.
+  calibrationResult.querySelector(".calibration-shared-needle")!.textContent =
+    calibration.result === "active"
+      ? `・指針 ${((calibration.elapsed / REPAIR_RULES.calibrationDuration) * 360).toFixed(0)}°`
+      : "";
   const weapon = state.weapon;
   const stunned = state.time < weapon.stunnedUntil;
   if (stationRole === "loader") {
@@ -466,10 +550,66 @@ core.present = (state) => {
       soundedStun = weapon.stunnedUntil;
     }
     content.querySelector('[data-testid="loader-mode"]')!.textContent =
-      weapon.mode === "loading" ? "裝填模式" : "機槍模式";
+      weapon.mode === "loading"
+        ? "裝填模式"
+        : weapon.mode === "machine-gun"
+          ? "機槍模式"
+          : "維修模式";
+    content.querySelector<HTMLElement>(".interior-viewport")!.hidden =
+      weapon.mode === "machine-gun";
+    content.querySelector<HTMLElement>(".repair-workspace")!.hidden =
+      weapon.mode !== "repair";
+    const calibrationPanel = content.querySelector<HTMLElement>(
+      '[data-testid="repair-calibration"]',
+    )!;
+    calibrationPanel.hidden = calibration.result !== "active";
+    const target = calibration.target * 360;
+    const width = REPAIR_RULES.calibrationWidth * 360;
+    const perfectWidth = REPAIR_RULES.perfectWidth * 360;
+    const perfectStart = target + (width - perfectWidth) / 2;
+    const needle =
+      (calibration.elapsed / REPAIR_RULES.calibrationDuration) * 360;
+    calibrationPanel.querySelector<SVGElement>(
+      ".calibration-zone",
+    )!.style.strokeDasharray = `${REPAIR_RULES.calibrationWidth} 1`;
+    calibrationPanel.querySelector<SVGElement>(
+      ".calibration-zone",
+    )!.style.transform = `rotate(${target - 90}deg)`;
+    calibrationPanel.querySelector<SVGElement>(
+      ".calibration-perfect",
+    )!.style.strokeDasharray = `${REPAIR_RULES.perfectWidth} 1`;
+    calibrationPanel.querySelector<SVGElement>(
+      ".calibration-perfect",
+    )!.style.transform = `rotate(${perfectStart - 90}deg)`;
+    calibrationPanel.querySelector<SVGElement>(
+      ".calibration-needle",
+    )!.style.transform = `rotate(${needle}deg)`;
+    calibrationPanel.querySelector(
+      '[data-testid="repair-calibration-position"]',
+    )!.textContent =
+      `指針 ${needle.toFixed(0)}° · 目標 ${target.toFixed(0)}°–${(target + width).toFixed(0)}° · 完美 ${perfectStart.toFixed(0)}°–${(perfectStart + perfectWidth).toFixed(0)}°`;
+    const repairMessages = {
+      inactive: "切換維修模式開始工作",
+      destroyed: "坦克已毀・無法維修復活",
+      stunned: "彈殼命中・暈眩中無法維修",
+      crouching: "蹲下避險・暫停維修",
+      moving: "停車並停止轉向後才能維修",
+      waiting: `${state.repair.failureUntil > state.battle.lastHitAt + REPAIR_RULES.damageWait ? "校準失敗等待" : "受擊等待"}・${Math.max(0, state.repair.blockedUntil - state.time).toFixed(1)} 秒後可維修`,
+      full: "車體完好・100 / 100 HP",
+      ready: "已停穩・按住 R 維修",
+      repairing: "維修中・每秒回復 2 HP",
+    };
+    content.querySelector('[data-testid="repair-status"]')!.textContent =
+      repairMessages[state.repair.status];
     const mgWorkspace = content.querySelector<HTMLElement>(".mg-workspace")!;
     mgWorkspace.hidden = weapon.mode !== "machine-gun";
+    content.querySelector<HTMLElement>(".battle-intel")!.hidden =
+      weapon.mode !== "machine-gun";
     content.querySelector<HTMLElement>(".loading-workspace")!.hidden =
+      weapon.mode === "machine-gun";
+    content.querySelector<HTMLElement>(".battle-work")!.hidden =
+      weapon.mode === "machine-gun";
+    content.querySelector<HTMLElement>(".loading-help")!.hidden =
       weapon.mode !== "loading";
     content.querySelector('[data-testid="mg-heading"]')!.textContent =
       `${degrees((state.tank.yaw + weapon.mg.yaw) % (Math.PI * 2))}°`;
@@ -486,7 +626,7 @@ core.present = (state) => {
         mgWorkspace.querySelector(".battle-viewport")!.prepend(mgCanvas);
       if (!scene) {
         try {
-          scene = new TankScene(mgCanvas, "machine-gun");
+          scene = new TankScene(mgCanvas, "machine-gun", sceneQuality);
         } catch {
           message.textContent =
             "無法啟動 3D 機槍視野，請使用支援 WebGL2 的瀏覽器重新加入。";
@@ -519,13 +659,12 @@ core.present = (state) => {
     content.querySelector('[data-testid="mg-shot-count"]')!.textContent =
       String(weapon.mg.shots);
     content.querySelector('[data-testid="mg-target-status"]')!.textContent =
-      weapon.targets
-        .map((t) =>
-          obscured(t)
-            ? "煙幕遮蔽，無法辨認敵車"
-            : `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp}`,
+      state.intel.contacts
+        .map(
+          (t) =>
+            `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp}${t.visible ? " · 目前觀測" : ` · 最後已知 · ${(state.time - t.observedAt).toFixed(1)} 秒前`}`,
         )
-        .join("；");
+        .join("；") || "目前沒有觀測到敵車";
     const workspace = content.querySelector<HTMLElement>(".loader-workspace");
     if (workspace)
       workspace.dataset.posture = stunned
@@ -541,7 +680,7 @@ core.present = (state) => {
     ejecting: "正在退殼",
   };
   const updates: Record<string, string> = {
-    "tank-health": `${state.tank.hp}/${TANK_RULES.maxHp}`,
+    "tank-health": `${Math.round(state.tank.hp * 10) / 10}/${TANK_RULES.maxHp}`,
     "selected-shell": SHELL_LABELS[weapon.selectedShell],
     "chamber-shell": weapon.chamberShell
       ? `${SHELL_LABELS[weapon.chamberShell]}（已鎖定）`
@@ -563,26 +702,26 @@ core.present = (state) => {
     "shot-count": String(weapon.shotsFired),
     "enemy-activity": [
       ...new Set(
-        weapon.targets
-          .filter((t) => t.hp > 0)
+        state.intel.contacts
+          .filter((t) => t.visible && t.hp > 0)
           .map((t) =>
             t.phase === "searching"
-              ? "煙幕中的敵車停止追蹤，搜尋中"
-              : t.phase === "blind-fire" ||
-                  (t.phase === "warning" && obscured(t))
+              ? "觀測敵車搜尋中"
+              : t.phase === "blind-fire"
                 ? "敵車失去視線，短暫瞄準最後已見位置"
                 : "",
           )
           .filter(Boolean),
       ),
     ].join("；"),
-    "target-status": weapon.targets
-      .map((t) =>
-        obscured(t)
-          ? "煙幕遮蔽，無法辨認敵車"
-          : `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp} · ${t.hp <= 0 ? "已擊毀" : t.hp === t.maxHp ? "完好" : "受損"} · ${t.hp <= 0 ? "殘骸" : { approaching: "接近中", aiming: "轉砲瞄準", warning: "瞄準預告", reloading: "重新裝填", "blind-fire": "最後位置射擊", searching: "搜尋中" }[t.phase]}`,
-      )
-      .join("；"),
+    "target-status":
+      state.intel.contacts
+        .map((t) =>
+          t.visible
+            ? `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp} · ${t.hp <= 0 ? "已擊毀" : t.hp === t.maxHp ? "完好" : "受損"} · ${t.hp <= 0 ? "殘骸" : { approaching: "接近中", aiming: "轉砲瞄準", warning: "瞄準預告", reloading: "重新裝填", "blind-fire": "最後位置射擊", searching: "搜尋中" }[t.phase]}`
+            : `${ENEMY_LABELS[t.kind]} ${t.hp}/${t.maxHp} · 最後已知 · ${(state.time - t.observedAt).toFixed(1)} 秒前`,
+        )
+        .join("；") || "目前沒有觀測到敵車",
     "flight-status": weapon.projectiles.length
       ? "砲彈飛行中"
       : weapon.impacts.length
@@ -601,7 +740,9 @@ core.present = (state) => {
   if (jam) {
     jam.querySelector("h3")!.textContent =
       weapon.jam.result === "cleared" ? "故障已排除" : "卡彈：停在目標區";
-    jam.hidden = !weapon.jam.active && weapon.jam.result !== "cleared";
+    jam.hidden =
+      weapon.mode !== "loading" ||
+      (!weapon.jam.active && weapon.jam.result !== "cleared");
     const zone = jam.querySelector<HTMLElement>(".jam-zone")!;
     zone.style.left = `${weapon.jam.zone * 100}%`;
     zone.style.width = `${JAM_RULES.width * 100}%`;
@@ -614,7 +755,7 @@ core.present = (state) => {
           ? `未命中，重試倒數 ${Math.max(0, weapon.jam.retryAt - state.time).toFixed(1)} 秒`
           : "按空白鍵停針";
   }
-  if (stationRole === "loader" && weapon.mode === "loading")
+  if (stationRole === "loader" && weapon.mode !== "machine-gun")
     interiorScene?.render(state);
   if (stationRole !== "loader" || weapon.mode === "machine-gun")
     scene?.render(state);
@@ -625,8 +766,23 @@ const driveKeys: Record<string, number> = {
   a: DRIVE.left,
   d: DRIVE.right,
 };
+const aimKeys: Record<string, number> = {
+  ArrowLeft: AIM.left,
+  ArrowRight: AIM.right,
+  ArrowUp: AIM.up,
+  ArrowDown: AIM.down,
+};
 window.addEventListener("keydown", (event) => {
   if (runtime.mode !== "online" || runtime.paused) return;
+  // Let native controls own their keys. Space/Enter activate a display button;
+  // Tab navigates it and arrows change a select, without firing or doing work.
+  if (
+    event.target instanceof Element &&
+    event.target.closest(
+      "button, input, select, textarea, a[href], [contenteditable]",
+    )
+  )
+    return;
   if (stationRole === "loader" && event.code === "Tab") {
     event.preventDefault();
     if (!event.repeat) runtime.action(MODE);
@@ -655,17 +811,17 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (stationRole === "gunner") {
-    const aimKeys: Record<string, number> = {
-      a: AIM.left,
-      d: AIM.right,
-      w: AIM.up,
-      s: AIM.down,
-      " ": FIRE,
-    };
-    const action = aimKeys[event.key.toLowerCase()];
-    if (action === undefined) return;
+    if (event.code === "Space") {
+      event.preventDefault();
+      if (!event.repeat) runtime.action(FIRE);
+      return;
+    }
+    const key = aimKeys[event.code];
+    if (!key) return;
     event.preventDefault();
-    if (!event.repeat) runtime.action(action);
+    if (event.repeat) return;
+    held |= key;
+    runtime.setInput(held);
     return;
   }
   if (stationRole !== "driver" && stationRole !== "loader") return;
@@ -685,23 +841,42 @@ window.addEventListener("keydown", (event) => {
 });
 window.addEventListener("keyup", (event) => {
   const key =
-    event.code === "Space"
-      ? MG_FIRE
-      : event.key.toLowerCase() === "r"
-        ? LOAD
-        : event.key.toLowerCase() === "c"
-          ? CROUCH
-          : driveKeys[event.key.toLowerCase()];
+    stationRole === "gunner"
+      ? aimKeys[event.code]
+      : event.code === "Space"
+        ? MG_FIRE
+        : event.key.toLowerCase() === "r"
+          ? LOAD
+          : event.key.toLowerCase() === "c"
+            ? CROUCH
+            : driveKeys[event.key.toLowerCase()];
   if (!key) return;
   held &= ~key;
   runtime.setInput(held);
 });
-window.addEventListener("blur", () => {
+function releaseControls() {
   held = 0;
   runtime.clearInput();
+}
+window.addEventListener("blur", releaseControls);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) releaseControls();
 });
 function frame(now: number) {
   if (runtime.mode === "online") {
+    const canvas = content.querySelector<HTMLCanvasElement>(
+      stationRole === "gunner"
+        ? 'canvas[aria-label="主炮戰場視野"]'
+        : stationRole === "loader"
+          ? 'canvas[aria-label="機槍戰場視野"]'
+          : 'canvas[aria-label="駕駛裝甲觀察窗"]',
+    );
+    // Only a mounted, painted exterior supplies CSS aspect. A retained/detached
+    // preparation buffer must never grant a wider authoritative observation.
+    if (canvas && canvas.clientWidth > 0 && canvas.clientHeight > 0) {
+      const aspect = canvas.clientWidth / canvas.clientHeight;
+      if (validViewAspect(aspect)) runtime.setViewAspect(aspect);
+    } else runtime.setViewAspect(undefined);
     runtime.frame(now);
     updatePause();
   }
@@ -774,6 +949,7 @@ runtime.onStart = () => {
 };
 runtime.onRestoreError = error;
 window.addEventListener("pagehide", () => {
+  disposeFullscreen?.();
   clearViews();
   session.leave(false);
 });

@@ -9,9 +9,11 @@ export interface GameStart {
 /** A game owns simulation and presentation; the room transports opaque snapshots. */
 export interface GameCore<View> {
   start(options: GameStart): void;
-  input(participant: number, keys: number): void;
+  input(participant: number, keys: number, aspect?: number): void;
   action?(participant: number, action: number): void;
   connected(participant: number, connected: boolean): void;
+  /** Whole-room suspension precedes physical-input clearing. */
+  pause?(paused: boolean): void;
   step(dt: number): void;
   draw(participant: number): void;
   view(): View;
@@ -26,6 +28,7 @@ export class GameRuntime<View> {
   onRoom: (room: Room) => void = () => {};
   onRestoreError: (error: Error) => void = () => {};
   private held = 0;
+  private viewAspect?: number;
   private previous = performance.now();
   private lastNetwork = 0;
   // Session.room is replaced before callbacks. Keep the OLD authority pause state.
@@ -41,9 +44,9 @@ export class GameRuntime<View> {
     private core: GameCore<View>,
     private session: Session,
   ) {
-    session.onInput = (participant, keys) => {
+    session.onInput = (participant, keys, aspect) => {
       this.advanceTankAuthority();
-      if (!this.paused) core.input(participant, keys);
+      core.input(participant, this.paused ? 0 : keys, aspect);
     };
     session.onAction = (participant, action) => {
       this.advanceTankAuthority();
@@ -61,6 +64,7 @@ export class GameRuntime<View> {
       // Finish the pre-disconnect interval before clearing controls/connection.
       this.advanceTankAuthority();
       if (this.paused !== wasPaused) {
+        core.pause?.(this.paused);
         this.clearInput();
         for (const member of room.members) core.input(member.slot, 0);
         this.previous = performance.now();
@@ -74,6 +78,7 @@ export class GameRuntime<View> {
     session.onStart = (participants, seed) => {
       this.mode = "online";
       this.held = 0;
+      this.viewAspect = undefined;
       this.tankPaused = this.paused;
       wasPaused = this.paused;
       core.start({ participants, seed });
@@ -96,7 +101,26 @@ export class GameRuntime<View> {
     this.advanceTankAuthority();
     this.held = this.paused ? 0 : held;
     if (this.mode === "online" && this.session.isHost)
-      this.core.input(this.session.slot, this.held);
+      this.core.input(this.session.slot, this.held, this.viewAspect);
+  }
+
+  /** Actual mounted exterior CSS projection, reported on the existing ordered
+   * identity-bound input channel. Resize changes no simulation clock/input. */
+  setViewAspect(aspect: number | undefined) {
+    if (aspect === this.viewAspect) {
+      // The active canvas can re-enter with identical CSS dimensions after an
+      // interior mode. Its host observer was invalidated on that mode change.
+      if (aspect !== undefined && this.mode === "online" && this.session.isHost)
+        this.core.input(this.session.slot, this.paused ? 0 : this.held, aspect);
+      return;
+    }
+    this.advanceTankAuthority();
+    this.viewAspect = aspect;
+    if (this.mode === "online") {
+      if (this.session.isHost)
+        this.core.input(this.session.slot, this.paused ? 0 : this.held, aspect);
+      else this.session.input(this.paused ? 0 : this.held, aspect);
+    }
   }
 
   /** Discrete actions keep their multiplicity; held input remains coalesced. */
@@ -105,11 +129,11 @@ export class GameRuntime<View> {
     // Preserve key-release → action causality instead of waiting for the next held update.
     if (this.session.isHost) {
       this.advanceTankAuthority();
-      this.core.input(this.session.slot, this.held);
+      this.core.input(this.session.slot, this.held, this.viewAspect);
       this.core.action?.(this.session.slot, action);
     } else {
       // Input and action share the reliable ordered channel and sequence counter.
-      this.session.input(this.held);
+      this.session.input(this.held, this.viewAspect);
       this.session.action(action);
     }
   }
@@ -118,7 +142,11 @@ export class GameRuntime<View> {
     this.advanceTankAuthority();
     this.held = 0;
     if (this.mode === "online" && this.session.isHost)
-      this.core.input(this.session.slot, 0);
+      this.core.input(this.session.slot, 0, this.viewAspect);
+    else if (this.mode === "online")
+      // A hidden tab may stop receiving animation frames. Release on the same
+      // reliable ordered channel now, without waiting for its next frame.
+      this.session.input(0, this.viewAspect);
   }
 
   frame(now: number): { participant: number; view: View } {
@@ -129,7 +157,7 @@ export class GameRuntime<View> {
       this.lastNetwork = now;
       if (this.session.isHost) this.session.state(this.core.snapshot());
       else {
-        this.session.input(this.held);
+        this.session.input(this.held, this.viewAspect);
       }
     }
     // Never rewind the event-advanced authority cursor to a stale rAF timestamp.

@@ -226,5 +226,389 @@
   "downloaded_asset_bytes": 18454407,
   "hdri_candidate_manifest": "hdri-candidate.json",
   "human_readable_manifest": "asset-manifest.md",
-  "visual_inspection": "All three actual diffuse textures opened locally and inspected. No preview renders downloaded."
+  "visual_inspection": "All three actual diffuse textures opened locally and inspected. No preview renders downloaded.",
+  "generated_vehicles": {
+    "note": "Original tank models built by tools/blender/build_tank.py (Blender 5.4, `npm run art:tanks`). The bake inputs below are not shipped; only the baked GLB atlases are.",
+    "outputs": [
+      "public/art/vehicles/sherman.glb",
+      "public/art/vehicles/panzer.glb",
+      "public/art/vehicles/tiger.glb"
+    ],
+    "bake_inputs": [
+      {
+        "file": "blue_metal_plate_diff_2k.jpg",
+        "sha256": "82855f6297ad07ea7ea4d1c501e6b56ed4c9c758653ca126bda9fd0ebba63c59",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/blue_metal_plate",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/blue_metal_plate/blue_metal_plate_diff_2k.jpg"
+      },
+      {
+        "file": "blue_metal_plate_nor_gl_2k.jpg",
+        "sha256": "4cd3069a918cf891295b369b26f47c0a0631c634d0fd1006b6b7412a8f2b3550",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/blue_metal_plate",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/blue_metal_plate/blue_metal_plate_nor_gl_2k.jpg"
+      },
+      {
+        "file": "blue_metal_plate_rough_2k.jpg",
+        "sha256": "dd1726d8217fe4f6c3947cb20700d51774a0773e9abaeb4120769c8f6fce1d69",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/blue_metal_plate",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/blue_metal_plate/blue_metal_plate_rough_2k.jpg"
+      },
+      {
+        "file": "brown_mud_02_diff_2k.jpg",
+        "sha256": "5c735b1df784ab1990f4e209c55d27fa4e7a19508e40484ed5aa783266783726",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/brown_mud_02",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/brown_mud_02/brown_mud_02_diff_2k.jpg"
+      },
+      {
+        "file": "brown_mud_02_nor_gl_2k.jpg",
+        "sha256": "3d6eec0adba8fd514d5634c56f806ad40206975c3ef17de1e2468b9e3ebcf719",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/brown_mud_02",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/brown_mud_02/brown_mud_02_nor_gl_2k.jpg"
+      },
+      {
+        "file": "brown_mud_02_rough_2k.jpg",
+        "sha256": "00ef047ecda114930311efd31cbdb371c7a236f211a00f1dfeb6b1b73ac2f674",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/brown_mud_02",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/brown_mud_02/brown_mud_02_rough_2k.jpg"
+      },
+      {
+        "file": "green_metal_rust_diff_2k.jpg",
+        "sha256": "727515554ffb6410be82d3625a2837fe46612cb186ec391f77c50bd52c4d7ab2",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/green_metal_rust",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/green_metal_rust/green_metal_rust_diff_2k.jpg"
+      },
+      {
+        "file": "green_metal_rust_nor_gl_2k.jpg",
+        "sha256": "45ec5d256c91ccf4a87dd4c4a90f6c58b460f3862287f014bfde432055ece239",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/green_metal_rust",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/green_metal_rust/green_metal_rust_nor_gl_2k.jpg"
+      },
+      {
+        "file": "green_metal_rust_rough_2k.jpg",
+        "sha256": "0a691b35df773ab86dbbc86b787f8efaa81497780820abec0832b1e7aac309a6",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/green_metal_rust",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/green_metal_rust/green_metal_rust_rough_2k.jpg"
+      },
+      {
+        "file": "rusty_painted_metal_diff_2k.jpg",
+        "sha256": "883118fafabb56304f9e33ea2da3c183379b1c1b1c5a4702fdc335b0cf84614f",
+        "author": "Amal Kumar",
+        "asset_page": "https://polyhaven.com/a/rusty_painted_metal",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rusty_painted_metal/rusty_painted_metal_diff_2k.jpg"
+      },
+      {
+        "file": "rusty_painted_metal_nor_gl_2k.jpg",
+        "sha256": "2289c10422d5082aea3cf37661008b281c4aec20f6d0b574df6d7887573eb70c",
+        "author": "Amal Kumar",
+        "asset_page": "https://polyhaven.com/a/rusty_painted_metal",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rusty_painted_metal/rusty_painted_metal_nor_gl_2k.jpg"
+      },
+      {
+        "file": "rusty_painted_metal_rough_2k.jpg",
+        "sha256": "17e6a4cab6d42576ce0bffecc53ba364d18a40b5d941471273b947e6f347a3b5",
+        "author": "Amal Kumar",
+        "asset_page": "https://polyhaven.com/a/rusty_painted_metal",
+        "license": "CC0-1.0",
+        "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rusty_painted_metal/rusty_painted_metal_rough_2k.jpg"
+      }
+    ]
+  },
+  "generated_map": {
+    "note": "Normandy farm scenery generated by tools/blender/build_map.py (Blender 5.4, `npm run art:map`). Buildings, walls, terrain, trees and hedges are original procedural geometry; trees and hedges use a leaf atlas rendered from generated leaf shapes. Rocks, stumps, dead wood, weeds, barrels and crates are Poly Haven CC0 scanned models, decimated. The four cover models fill web/tank-core.ts BATTLEFIELD.cover exactly; gameplay never reads this geometry. Inputs and checksums: tools/blender/sources/map-sources.json.",
+    "outputs": [
+      {
+        "file": "art/map/normandy.glb",
+        "sha256": "ca0318a5653228d7e99c7751801f6c662934a7b4ff866e619fcc9e342f4a5028",
+        "bytes": 9679592
+      },
+      {
+        "file": "art/map/foliage.glb",
+        "sha256": "c74a3d2371b4f35beb75dd7d581c1c970e8f31e7b4d0ec3b556f308b8fe13649",
+        "bytes": 7002016
+      },
+      {
+        "file": "art/map/splat_a.png",
+        "sha256": "da0a64e7f251b1af4eca2be056f7b0af0a171fa6b01e98ab5ae4589b2e411015",
+        "bytes": 76324
+      },
+      {
+        "file": "art/map/splat_b.png",
+        "sha256": "90ce3809c9efc86892f5cf5dcb3bda76aee76ece4db099135bc54374c30c376a",
+        "bytes": 95591
+      }
+    ],
+    "shipped_ground_textures": [
+      {
+        "file": "art/terrain/leafy_grass_diff_1k.jpg",
+        "sha256": "84f704f7e2ac0c7fab3391a26787c8770d4e3ed46c03350e8d7c44b12f8e346b",
+        "bytes": 691063,
+        "color_space": "sRGB",
+        "derived_from": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/leafy_grass/leafy_grass_diff_2k.jpg",
+        "source_sha256": "8e1c6d21365d4b89bc5a35ab664da98a78dbc3ab9ba6100474881c8619a5b113",
+        "author": "Charlotte Baglioni",
+        "asset_page": "https://polyhaven.com/a/leafy_grass",
+        "license": "CC0-1.0",
+        "note": "Downscaled 2K to 1K with sips; tiled in the runtime terrain shader."
+      },
+      {
+        "file": "art/terrain/muddy_tracks_diff_1k.jpg",
+        "sha256": "bff576cb82932175df3ddf6e7f85f67f5f255226ef6eef335b1e6826684b39d3",
+        "bytes": 388825,
+        "color_space": "sRGB",
+        "derived_from": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/muddy_tracks/muddy_tracks_diff_2k.jpg",
+        "source_sha256": "09d45e99ae5338b4cdb0aa1897519bc096bc38a4249c5042512e5ee74b21125c",
+        "author": "Amal Kumar",
+        "asset_page": "https://polyhaven.com/a/muddy_tracks",
+        "license": "CC0-1.0",
+        "note": "Downscaled 2K to 1K with sips; tiled in the runtime terrain shader."
+      },
+      {
+        "file": "art/terrain/burned_ground_01_diff_1k.jpg",
+        "sha256": "4ba0e32f7b9d34da45f1a8057893dc460a7ab4664c3f8228c5bebb5336cbeb1a",
+        "bytes": 830013,
+        "color_space": "sRGB",
+        "derived_from": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/burned_ground_01/burned_ground_01_diff_2k.jpg",
+        "source_sha256": "3d7f67558e6ec57a50b56e196c37665ea4a1b3d7f8dc4049618f9002e08c109d",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/burned_ground_01",
+        "license": "CC0-1.0",
+        "note": "Downscaled 2K to 1K with sips; tiled in the runtime terrain shader."
+      },
+      {
+        "file": "art/terrain/brown_mud_leaves_01_diff_1k.jpg",
+        "sha256": "179d73510c5ae469bb5e2a7fb78f828f8c7b22a2178a75a0279239fdbc59840a",
+        "bytes": 710944,
+        "color_space": "sRGB",
+        "derived_from": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/brown_mud_leaves_01/brown_mud_leaves_01_diff_2k.jpg",
+        "source_sha256": "29c997d77f56e4ea16d3e998a306be0c17fddb28ab4822657c7cd8249040ffda",
+        "author": "Rob Tuytel",
+        "asset_page": "https://polyhaven.com/a/brown_mud_leaves_01",
+        "license": "CC0-1.0",
+        "note": "Downscaled 2K to 1K with sips; tiled in the runtime terrain shader."
+      }
+    ],
+    "draco_decoder": {
+      "files": [
+        "draco/draco_decoder.wasm",
+        "draco/draco_wasm_wrapper.js"
+      ],
+      "source": "three/examples/jsm/libs/draco/gltf (Google Draco, Apache-2.0), copied unmodified"
+    },
+    "poly_haven_inputs": [
+      {
+        "id": "leafy_grass",
+        "type": "texture",
+        "authors": [
+          "Charlotte Baglioni"
+        ],
+        "asset_page": "https://polyhaven.com/a/leafy_grass",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "muddy_tracks",
+        "type": "texture",
+        "authors": [
+          "Amal Kumar"
+        ],
+        "asset_page": "https://polyhaven.com/a/muddy_tracks",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "brown_mud_leaves_01",
+        "type": "texture",
+        "authors": [
+          "Rob Tuytel"
+        ],
+        "asset_page": "https://polyhaven.com/a/brown_mud_leaves_01",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "burned_ground_01",
+        "type": "texture",
+        "authors": [
+          "Rob Tuytel"
+        ],
+        "asset_page": "https://polyhaven.com/a/burned_ground_01",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "rustic_stone_wall",
+        "type": "texture",
+        "authors": [
+          "Dimitrios Savva"
+        ],
+        "asset_page": "https://polyhaven.com/a/rustic_stone_wall",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "castle_wall_slates",
+        "type": "texture",
+        "authors": [
+          "Rob Tuytel"
+        ],
+        "asset_page": "https://polyhaven.com/a/castle_wall_slates",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "plastered_stone_wall",
+        "type": "texture",
+        "authors": [
+          "Rob Tuytel"
+        ],
+        "asset_page": "https://polyhaven.com/a/plastered_stone_wall",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "roof_slates_02",
+        "type": "texture",
+        "authors": [
+          "Rob Tuytel"
+        ],
+        "asset_page": "https://polyhaven.com/a/roof_slates_02",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "clay_roof_tiles_02",
+        "type": "texture",
+        "authors": [
+          "Amal Kumar"
+        ],
+        "asset_page": "https://polyhaven.com/a/clay_roof_tiles_02",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "old_planks_02",
+        "type": "texture",
+        "authors": [
+          "Rob Tuytel"
+        ],
+        "asset_page": "https://polyhaven.com/a/old_planks_02",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "bark_brown_02",
+        "type": "texture",
+        "authors": [
+          "Rob Tuytel"
+        ],
+        "asset_page": "https://polyhaven.com/a/bark_brown_02",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "rock_moss_set_01",
+        "type": "model",
+        "authors": [
+          "Kless Gyzen"
+        ],
+        "asset_page": "https://polyhaven.com/a/rock_moss_set_01",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "rock_moss_set_02",
+        "type": "model",
+        "authors": [
+          "Kless Gyzen"
+        ],
+        "asset_page": "https://polyhaven.com/a/rock_moss_set_02",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "tree_stump_01",
+        "type": "model",
+        "authors": [
+          "Rob Tuytel"
+        ],
+        "asset_page": "https://polyhaven.com/a/tree_stump_01",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "dead_tree_trunk_02",
+        "type": "model",
+        "authors": [
+          "Jenelle van Heerden",
+          "Rico Cilliers"
+        ],
+        "asset_page": "https://polyhaven.com/a/dead_tree_trunk_02",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "dry_branches_medium_01",
+        "type": "model",
+        "authors": [
+          "Rico Cilliers"
+        ],
+        "asset_page": "https://polyhaven.com/a/dry_branches_medium_01",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "nettle_plant",
+        "type": "model",
+        "authors": [
+          "Rob Tuytel",
+          "Rico Cilliers"
+        ],
+        "asset_page": "https://polyhaven.com/a/nettle_plant",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "fern_02",
+        "type": "model",
+        "authors": [
+          "Rob Tuytel",
+          "Rico Cilliers"
+        ],
+        "asset_page": "https://polyhaven.com/a/fern_02",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "weed_plant_02",
+        "type": "model",
+        "authors": [
+          "Rob Tuytel",
+          "Rico Cilliers"
+        ],
+        "asset_page": "https://polyhaven.com/a/weed_plant_02",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "wooden_barrels_01",
+        "type": "model",
+        "authors": [
+          "James Ray Cock"
+        ],
+        "asset_page": "https://polyhaven.com/a/wooden_barrels_01",
+        "license": "CC0-1.0"
+      },
+      {
+        "id": "wooden_crate_02",
+        "type": "model",
+        "authors": [
+          "James Ray Cock",
+          "Jurita Burger"
+        ],
+        "asset_page": "https://polyhaven.com/a/wooden_crate_02",
+        "license": "CC0-1.0"
+      }
+    ]
+  }
 }

@@ -1,5 +1,19 @@
 /** Approved starting balance. Geometry/map data and fixed five-second stun stay outside tuning. */
 export const TANK_RULES = { maxHp: 100, waves: 3 } as const;
+export const REPAIR_RULES = {
+  hpPerSecond: 2,
+  damageWait: 3,
+  calibrationMinWork: 3,
+  calibrationWorkRange: 3,
+  calibrationDuration: 2,
+  calibrationWidth: 0.25,
+  perfectWidth: 0.06,
+  successHp: 1,
+  perfectHp: 3,
+  failureWait: 2,
+  stoppedSpeed: 0.01,
+  stoppedTurnRate: 0.01,
+} as const;
 export const DRIVING = {
   reverse: 3,
   forward: 6,
@@ -9,10 +23,9 @@ export const DRIVING = {
   turnAcceleration: 1.4,
 } as const;
 export const AIMING = {
-  impulse: 0.18,
+  rampSeconds: 0.5,
   maxYawRate: 0.85,
   maxPitchRate: 0.5,
-  drag: 0.23,
   minPitch: -0.18,
   maxPitch: 0.5,
 } as const;
@@ -49,6 +62,8 @@ export const MG_RULES = {
 export const SMOKE_SECONDS = 8;
 export const SMOKE_RADIUS = 5;
 export const LAST_SEEN_SECONDS = 2.5;
+/** Crew memory is separate from the enemy AI's last-seen player position. */
+export const TEAM_INTEL_SECONDS = 5;
 export const ENEMY_RULES = {
   hp: { panzer: 200, tiger: 360 },
   speed: { panzer: 1.25, tiger: 0.9 },
