@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { tankCrew, aimAtHeading } from "./tank-helpers";
+import { tankCrew, aimAtHeading, nativeHeldKey } from "./tank-helpers";
 
 const evidence =
   process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/38/smoke";
@@ -263,9 +263,11 @@ test("敵車已預告時放煙，仍射向最後已見點，側移後不再精�
       correction++
     ) {
       const error = ((90 - actualHull + 540) % 360) - 180;
-      await c.driver.keyboard.press(error > 0 ? "d" : "a", {
-        delay: Math.min(500, Math.sqrt(Math.abs(error) / 80) * 1000),
-      });
+      await nativeHeldKey(
+        c.driver,
+        error > 0 ? "d" : "a",
+        Math.min(500, Math.sqrt(Math.abs(error) / 80) * 1000),
+      );
       actualHull = await settledHull();
     }
     expect(actualHull).toBeGreaterThanOrEqual(85);

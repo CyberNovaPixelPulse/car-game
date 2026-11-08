@@ -28,9 +28,9 @@ export async function aimAtHeading(page: Page, target: number) {
       Math.abs(error) > 24.4
         ? Math.abs(error) * 20.5
         : Math.sqrt(Math.abs(error)) * 100;
-    // One real held-key operation avoids adding two variable browser-RPC
-    // round trips to a short correction's intended hold time.
-    await page.keyboard.press(key, { delay: duration });
+    // Start the release timer when sending down, without waiting for its CDP
+    // acknowledgment to inflate the real hold (observed223.6ms→862.7ms).
+    await nativeHeldKey(page, key, duration);
     // Do not accept the pre-keydown zero-rate HUD as a completed coast. The
     // host may not have painted (or a client received) this short pulse yet.
     await expect(heading).not.toHaveText(displayed);
@@ -38,6 +38,40 @@ export async function aimAtHeading(page: Page, target: number) {
   }
   const current = Number((await heading.textContent())!.replace("°", ""));
   expect(Math.abs(((target - current + 540) % 360) - 180)).toBeLessThan(1);
+}
+
+/** Real browser events on the session attached before navigation. The original
+ * pilot duration schedules up independently of down's protocol acknowledgment. */
+export async function nativeHeldKey(
+  page: Page,
+  key: "ArrowLeft" | "ArrowRight" | "a" | "d",
+  durationMs: number,
+) {
+  const keyboard = keyboards.get(page)!;
+  const descriptor = {
+    key,
+    code: key === "a" ? "KeyA" : key === "d" ? "KeyD" : key,
+    windowsVirtualKeyCode: { ArrowLeft: 37, ArrowRight: 39, a: 65, d: 68 }[key],
+  };
+  const down = keyboard.send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    ...descriptor,
+    ...(["a", "d"].includes(key) ? { text: key, unmodifiedText: key } : {}),
+    autoRepeat: false,
+  });
+  down.catch(() => {}); // Still inspected below, even if it rejects before up.
+  await new Promise<void>((resolve) => setTimeout(resolve, durationMs));
+  const up = keyboard.send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    ...descriptor,
+  });
+  const results = await Promise.allSettled([down, up]);
+  const failed = results.filter((result) => result.status === "rejected");
+  if (failed.length)
+    throw new AggregateError(
+      failed.map((result) => result.reason),
+      "Native held-key delivery failed",
+    );
 }
 
 export async function elevateCannon(page: Page) {

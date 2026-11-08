@@ -5,6 +5,7 @@ import {
   aimAtHeading,
   observeTiger,
   aimAtObservedEnemy,
+  nativeTaps,
 } from "./tank-helpers";
 
 const evidence =
@@ -102,29 +103,58 @@ async function repairDuringReinforcement(
       ),
     captureTiming,
   );
+  perfectBand.catch(() => {}); // Retain its original rejection until joined.
   const onset = c.loader.waitForFunction(
     () => {
       const circle = document.querySelector<HTMLElement>(
         '[data-testid="repair-calibration"]',
       );
-      return !!circle && !circle.hidden;
+      if (!circle || circle.hidden) return false;
+      const values = document
+        .querySelector('[data-testid="repair-calibration-position"]')!
+        .textContent!.match(/[\d.]+/g)!
+        .map(Number);
+      return { values, observedAt: performance.timeOrigin + performance.now() };
     },
     undefined,
     { timeout: 10000 },
   );
   await c.loader.keyboard.down("r");
-  await (await onset).dispose();
-  await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
+  const onsetHandle = await onset;
+  const firstCircle = await onsetHandle.jsonValue();
+  if (!firstCircle) throw new Error("First public calibration circle is absent");
+  const onsetReceivedAt = Date.now();
+  const [firstNeedle, , , perfectStart, perfectEnd] = firstCircle.values;
+  // The public two-second revolution and first visible readout give enough
+  // lead time to send a real key. A later narrow-band RPC may arrive stale.
+  const plannedNeedle = (perfectStart + perfectEnd) / 2 - 4;
+  const plannedAt =
+    firstCircle.observedAt + ((plannedNeedle - firstNeedle) / 180) * 1000;
+  const remaining = plannedAt - Date.now();
+  expect(
+    remaining,
+    "First public circle arrived too late to plan the original band",
+  ).toBeGreaterThan(0);
+  let inputSentAt = 0,
+    inputReturnedAt = 0;
+  const work = (async () => {
+    await new Promise<void>((resolve) => setTimeout(resolve, remaining));
+    inputSentAt = Date.now();
+    await nativeTaps(c.loader, 1, 0, "Space");
+    inputReturnedAt = Date.now();
+  })();
+  const visible = expect(
+    c.loader.getByTestId("repair-calibration"),
+  ).toBeVisible({
     timeout: 10000,
   });
+  await Promise.all([work, visible]);
   const {
     values: [needle, , , start, end],
     observedAt,
   } = await perfectBand;
   const responseAt = Date.now();
-  // No async matcher between the observed timing band and the real work key.
-  await c.loader.keyboard.press("Space");
-  const inputReturnedAt = Date.now();
+  await onsetHandle.dispose();
   if (captureTiming) {
     const timing = await c.loader.evaluate(() => {
       const observation = (window as any).__repairPublicInputTiming;
@@ -138,6 +168,11 @@ async function repairDuringReinforcement(
         {
           observedAt,
           responseAt,
+          firstCircle,
+          onsetReceivedAt,
+          plannedAt,
+          plannedNeedle,
+          inputSentAt,
           inputReturnedAt,
           values: [needle, start, end],
           ...timing,
@@ -258,133 +293,13 @@ async function loadAndFire(
   await c.loader.keyboard.up("c");
 }
 
-test("乘員以正常裝填瞄準開火清除三波並一致勝利", async ({ browser }) => {
-  test.setTimeout(240000);
-  const c = await tankCrew(
-    browser,
-    "loader",
-    0,
-    1000,
-    process.env.TANK_EVIDENCE_DIR
-      ? `${process.env.TANK_EVIDENCE_DIR}/win-videos`
-      : undefined,
-  );
-  try {
-    await loadAndFire(c);
-    const oldContacts = await c.gunner
-      .locator(".navigation-enemy")
-      .evaluateAll((nodes) =>
-        nodes.map((n) => n.getAttribute("data-contact")!),
-      );
-    await loadAndFire(c);
-    // Observe its ordinary flank and report its actual map bearing. A fixed
-    // wait and stale 320° guess can waste the crew's remaining health.
-    await observeTiger(c);
-    await expect(c.gunner.getByTestId("turret-yaw-rate")).toHaveText("0.0°/s");
-    await loadAndFire(c, "2", () => aimAtObservedEnemy(c.gunner, "虎式 I 型"));
-    await loadAndFire(c, "2", () => aimAtObservedEnemy(c.gunner, "虎式 I 型"));
-    for (const page of [c.driver, c.loader, c.gunner])
-      await expect(page.getByTestId("wave-status")).toHaveText(
-        "第 2 / 3 波 · 目前觀測敵車 3",
-      );
-    for (const id of oldContacts)
-      for (const page of [c.driver, c.loader, c.gunner])
-        await expect(
-          page.locator(`.navigation-enemy[data-contact="${id}"]`),
-        ).toHaveCount(0);
-    await Promise.all([
-      repairDuringReinforcement(c),
-      aimAtHeading(c.gunner, 0),
-    ]);
-    await expect(c.gunner.getByTestId("turret-yaw-rate")).toHaveText("0.0°/s");
-    for (const wave of [2, 3]) {
-      await loadAndFire(c, "1");
-      // A real HE hit damages all three approaching tanks in this formation.
-      if (wave === 2) {
-        const visible = await c.gunner
-          .getByTestId("target-status")
-          .textContent();
-        const hp = [...visible!.matchAll(/四號 H 型 (\d+)\/200/g)].map((m) =>
-          Number(m[1]),
-        );
-        expect(hp).toHaveLength(3);
-        expect(hp.every((value) => value < 200)).toBe(true);
-      }
-      await loadAndFire(c, "1");
-      await loadAndFire(c, "2", () =>
-        aimAtObservedEnemy(c.gunner, "四號 H 型", 0),
-      );
-      await loadAndFire(c, "2", () =>
-        aimAtObservedEnemy(c.gunner, "四號 H 型", 0),
-      );
-      if (wave === 2) {
-        for (const page of [c.driver, c.loader, c.gunner])
-          await expect(page.getByTestId("wave-status")).toHaveText(
-            "第 3 / 3 波 · 目前觀測敵車 3",
-          );
-        // Same-battle work survives the actual wave transition; only a new
-        // battle resets repair/calibration. Health is carried, never refilled.
-        for (const page of [c.driver, c.loader, c.gunner]) {
-          await expect(
-            page.getByTestId("repair-calibration-result"),
-          ).toHaveText("完美校準・額外 +3 HP");
-          expect(await health(page)).toBeGreaterThan(0);
-          expect(await health(page)).toBeLessThan(100);
-        }
-        await Promise.all([
-          repairDuringReinforcement(c),
-          aimAtHeading(c.gunner, 0),
-        ]);
-      } else {
-        await observeTiger(c);
-        await loadAndFire(c, "2", () =>
-          aimAtObservedEnemy(c.gunner, "虎式 I 型"),
-        );
-        await loadAndFire(c, "2", () =>
-          aimAtObservedEnemy(c.gunner, "虎式 I 型"),
-        );
-      }
-    }
-    for (const page of [c.driver, c.loader, c.gunner])
-      await expect(
-        page.getByRole("heading", { name: "戰鬥勝利", exact: true }),
-      ).toBeVisible();
-    for (const [page, role] of [
-      [c.driver, "driver"],
-      [c.loader, "loader"],
-      [c.gunner, "gunner"],
-    ] as const) {
-      for (const [width, height] of [
-        [1280, 720],
-        [1440, 1050],
-      ] as const) {
-        await page.setViewportSize({ width, height });
-        await expect(
-          page.getByRole("heading", { name: "戰鬥勝利", exact: true }),
-        ).toBeInViewport();
-        await expect(page.getByTestId("tank-health")).toBeInViewport();
-        await page.evaluate(() => window.scrollTo(0, 0));
-        await page.screenshot({
-          path: `${evidence}/victory-${role}-${width}.png`,
-        });
-        await page.screenshot({
-          path: `${evidence}/victory-${role}-${width}-full.png`,
-          fullPage: true,
-        });
-      }
-    }
-  } finally {
-    await c.close();
-  }
-});
-
-const replayTest = test.extend<{ crewCleanup: (() => Promise<void>)[] }>({
+const recordedTest = test.extend<{ crewCleanup: (() => Promise<void>)[] }>({
   crewCleanup: async ({}, use) => {
     await use([]);
   },
 });
-replayTest.describe(() => {
-  replayTest.afterEach(async ({ crewCleanup }) => {
+recordedTest.describe(() => {
+  recordedTest.afterEach(async ({ crewCleanup }) => {
     const results = await Promise.allSettled(
       crewCleanup.map((close) => close()),
     );
@@ -392,11 +307,139 @@ replayTest.describe(() => {
     if (failed.length)
       throw new AggregateError(
         failed.map((result) => result.reason),
-        "Replay crew cleanup failed",
+        "Recorded crew cleanup failed",
       );
   });
 
-  replayTest(
+  recordedTest(
+    "乘員以正常裝填瞄準開火清除三波並一致勝利",
+    async ({ browser, crewCleanup }) => {
+      test.setTimeout(240000);
+      const c = await tankCrew(
+        browser,
+        "loader",
+        0,
+        1000,
+        process.env.TANK_EVIDENCE_DIR
+          ? `${process.env.TANK_EVIDENCE_DIR}/win-videos`
+          : undefined,
+      );
+      crewCleanup.push(c.close);
+      await loadAndFire(c);
+      const oldContacts = await c.gunner
+        .locator(".navigation-enemy")
+        .evaluateAll((nodes) =>
+          nodes.map((n) => n.getAttribute("data-contact")!),
+        );
+      await loadAndFire(c);
+      // Observe its ordinary flank and report its actual map bearing. A fixed
+      // wait and stale 320° guess can waste the crew's remaining health.
+      await observeTiger(c);
+      await expect(c.gunner.getByTestId("turret-yaw-rate")).toHaveText(
+        "0.0°/s",
+      );
+      await loadAndFire(c, "2", () =>
+        aimAtObservedEnemy(c.gunner, "虎式 I 型"),
+      );
+      await loadAndFire(c, "2", () =>
+        aimAtObservedEnemy(c.gunner, "虎式 I 型"),
+      );
+      for (const page of [c.driver, c.loader, c.gunner])
+        await expect(page.getByTestId("wave-status")).toHaveText(
+          "第 2 / 3 波 · 目前觀測敵車 3",
+        );
+      for (const id of oldContacts)
+        for (const page of [c.driver, c.loader, c.gunner])
+          await expect(
+            page.locator(`.navigation-enemy[data-contact="${id}"]`),
+          ).toHaveCount(0);
+      await Promise.all([
+        repairDuringReinforcement(c),
+        aimAtHeading(c.gunner, 0),
+      ]);
+      await expect(c.gunner.getByTestId("turret-yaw-rate")).toHaveText(
+        "0.0°/s",
+      );
+      for (const wave of [2, 3]) {
+        await loadAndFire(c, "1");
+        // A real HE hit damages all three approaching tanks in this formation.
+        if (wave === 2) {
+          const visible = await c.gunner
+            .getByTestId("target-status")
+            .textContent();
+          const hp = [...visible!.matchAll(/四號 H 型 (\d+)\/200/g)].map((m) =>
+            Number(m[1]),
+          );
+          expect(hp).toHaveLength(3);
+          expect(hp.every((value) => value < 200)).toBe(true);
+        }
+        await loadAndFire(c, "1");
+        await loadAndFire(c, "2", () =>
+          aimAtObservedEnemy(c.gunner, "四號 H 型", 0),
+        );
+        await loadAndFire(c, "2", () =>
+          aimAtObservedEnemy(c.gunner, "四號 H 型", 0),
+        );
+        if (wave === 2) {
+          for (const page of [c.driver, c.loader, c.gunner])
+            await expect(page.getByTestId("wave-status")).toHaveText(
+              "第 3 / 3 波 · 目前觀測敵車 3",
+            );
+          // Same-battle work survives the actual wave transition; only a new
+          // battle resets repair/calibration. Health is carried, never refilled.
+          for (const page of [c.driver, c.loader, c.gunner]) {
+            await expect(
+              page.getByTestId("repair-calibration-result"),
+            ).toHaveText("完美校準・額外 +3 HP");
+            expect(await health(page)).toBeGreaterThan(0);
+            expect(await health(page)).toBeLessThan(100);
+          }
+          await Promise.all([
+            repairDuringReinforcement(c),
+            aimAtHeading(c.gunner, 0),
+          ]);
+        } else {
+          await observeTiger(c);
+          await loadAndFire(c, "2", () =>
+            aimAtObservedEnemy(c.gunner, "虎式 I 型"),
+          );
+          await loadAndFire(c, "2", () =>
+            aimAtObservedEnemy(c.gunner, "虎式 I 型"),
+          );
+        }
+      }
+      for (const page of [c.driver, c.loader, c.gunner])
+        await expect(
+          page.getByRole("heading", { name: "戰鬥勝利", exact: true }),
+        ).toBeVisible();
+      for (const [page, role] of [
+        [c.driver, "driver"],
+        [c.loader, "loader"],
+        [c.gunner, "gunner"],
+      ] as const) {
+        for (const [width, height] of [
+          [1280, 720],
+          [1440, 1050],
+        ] as const) {
+          await page.setViewportSize({ width, height });
+          await expect(
+            page.getByRole("heading", { name: "戰鬥勝利", exact: true }),
+          ).toBeInViewport();
+          await expect(page.getByTestId("tank-health")).toBeInViewport();
+          await page.evaluate(() => window.scrollTo(0, 0));
+          await page.screenshot({
+            path: `${evidence}/victory-${role}-${width}.png`,
+          });
+          await page.screenshot({
+            path: `${evidence}/victory-${role}-${width}-full.png`,
+            fullPage: true,
+          });
+        }
+      }
+    },
+  );
+
+  recordedTest(
     "血量歸零一致失敗且停止操作，同房回廳換職準備並重設新戰鬥",
     async ({ browser, crewCleanup }) => {
       test.setTimeout(180000);
