@@ -6,6 +6,7 @@ import {
   observeTiger,
   aimAtObservedEnemy,
   nativeTaps,
+  createPublicObservationBridge,
 } from "./tank-helpers";
 
 const evidence =
@@ -23,210 +24,246 @@ async function repairDuringReinforcement(
   await c.loader.keyboard.press("Tab");
   await expect(c.loader.getByTestId("loader-mode")).toHaveText("維修模式");
   const captureTiming = process.env.TANK_PUBLIC_INPUT_TIMING === "1";
-  // Read the first actually painted 8° band locally. Serial browser RPC polls
-  // can miss this 44ms stimulus despite requesting a 10ms polling interval.
-  const perfectBand = c.loader.evaluate(
-    (captureTiming) =>
-      new Promise<{ values: number[]; observedAt: number }>(
-        (resolve, reject) => {
-          const circle = document.querySelector<HTMLElement>(
-            '[data-testid="repair-calibration"]',
-          )!;
-          const readout = document.querySelector(
-            '[data-testid="repair-calibration-position"]',
-          )!;
-          const timing: { resolvedAt?: number; keys: object[] } = { keys: [] };
-          const key = (event: KeyboardEvent) => {
-            if (event.code !== "Space") return;
-            const target =
-              event.target instanceof HTMLElement ? event.target : null;
-            timing.keys.push({
-              at: performance.timeOrigin + performance.now(),
-              type: event.type,
-              trusted: event.isTrusted,
-              targetTag: target?.tagName,
-              targetTestId: target?.dataset.testid,
-              focused: document.hasFocus(),
-              visibility: document.visibilityState,
-              readout: readout.textContent,
-              health: document.querySelector('[data-testid="tank-health"]')
-                ?.textContent,
-              result: document.querySelector(
-                '[data-testid="repair-calibration-result"]',
-              )?.textContent,
-            });
-          };
-          if (captureTiming) {
-            document.addEventListener("keydown", key, true);
-            document.addEventListener("keyup", key, true);
-            (window as any).__repairPublicInputTiming = {
+  type Band = {
+    kind: "band" | "deadline";
+    values?: number[];
+    observedAt: number;
+  };
+  const bridge = await createPublicObservationBridge<Band>(c.loader);
+  let notification: { value: Band; receivedAt: number } | undefined;
+  let inputSentAt = 0,
+    inputReturnedAt = 0,
+    bandJoinedAt = 0;
+  let primary: unknown;
+  try {
+    // The bridge is observation only. This Node callback sends the genuine key
+    // only after the original narrow sector has actually appeared in the HUD.
+    const work = bridge.event.then(async (event) => {
+      notification = event;
+      if (event.value.kind !== "band")
+        throw new Error("實際圓針未在原期限內呈現完美操作區");
+      inputSentAt = Date.now();
+      await nativeTaps(c.loader, 1, 0, "Space");
+      inputReturnedAt = Date.now();
+    });
+    work.catch(() => {});
+    const perfectBand = c.loader.evaluate(
+      ({ captureTiming, binding }) =>
+        new Promise<{ values: number[]; observedAt: number }>(
+          (resolve, reject) => {
+            const circle = document.querySelector<HTMLElement>(
+              '[data-testid="repair-calibration"]',
+            )!;
+            const readout = document.querySelector(
+              '[data-testid="repair-calibration-position"]',
+            )!;
+            const timing: {
+              keys: object[];
+              band?: number[];
+              resolvedAt?: number;
+              rejectedAt?: number;
+            } = { keys: [] };
+            const key = (event: KeyboardEvent) => {
+              if (event.code !== "Space") return;
+              const target =
+                event.target instanceof HTMLElement ? event.target : null;
+              timing.keys.push({
+                at: performance.timeOrigin + performance.now(),
+                type: event.type,
+                trusted: event.isTrusted,
+                targetTag: target?.tagName,
+                targetTestId: target?.dataset.testid,
+                focused: document.hasFocus(),
+                visibility: document.visibilityState,
+                readout: readout.textContent,
+                health: document.querySelector('[data-testid="tank-health"]')
+                  ?.textContent,
+                result: document.querySelector(
+                  '[data-testid="repair-calibration-result"]',
+                )?.textContent,
+              });
+            };
+            if (captureTiming) {
+              document.addEventListener("keydown", key, true);
+              document.addEventListener("keyup", key, true);
+            }
+            let active = false,
+              finished = false;
+            let deadline: ReturnType<typeof setTimeout>;
+            const finish = (values?: number[]) => {
+              if (finished) return;
+              finished = true;
+              clearTimeout(deadline);
+              observer.disconnect();
+              const observedAt = performance.timeOrigin + performance.now();
+              if (values) {
+                timing.band = values;
+                timing.resolvedAt = observedAt;
+              } else timing.rejectedAt = observedAt;
+              // Only public text values and an observation timestamp cross this
+              // bridge. No game function, key dispatch or clock change runs here.
+              (window as any)[binding](
+                JSON.stringify({
+                  kind: values ? "band" : "deadline",
+                  values,
+                  observedAt,
+                }),
+              );
+              values
+                ? resolve({ values, observedAt })
+                : reject(new Error("實際圓針未在原期限內呈現完美操作區"));
+            };
+            const observe = () => {
+              if (circle.hidden) return;
+              if (!active) {
+                active = true;
+                clearTimeout(deadline);
+                deadline = setTimeout(() => finish(), 1800);
+              }
+              const values = readout.textContent!.match(/[\d.]+/g)!.map(Number);
+              const [needle, , , start, end] = values;
+              if (
+                needle >= (start + end) / 2 - 8 &&
+                needle <= (start + end) / 2
+              )
+                finish(values);
+            };
+            const observer = new MutationObserver(observe);
+            const entry = {
               timing,
               dispose: () => {
+                clearTimeout(deadline);
+                observer.disconnect();
                 document.removeEventListener("keydown", key, true);
                 document.removeEventListener("keyup", key, true);
+                if (!finished) {
+                  finished = true;
+                  reject(new Error("Public calibration observer disposed"));
+                }
               },
             };
-          }
-          let active = false;
-          let deadline: ReturnType<typeof setTimeout>;
-          const finish = (values?: number[]) => {
-            clearTimeout(deadline);
-            observer.disconnect();
-            const observedAt = performance.timeOrigin + performance.now();
-            timing.resolvedAt = observedAt;
-            values
-              ? resolve({ values, observedAt })
-              : reject(new Error("實際圓針未在原期限內呈現完美操作區"));
-          };
-          const observe = () => {
-            if (circle.hidden) return;
-            if (!active) {
-              active = true;
-              clearTimeout(deadline);
-              deadline = setTimeout(() => finish(), 1800);
-            }
-            const values = readout.textContent!.match(/[\d.]+/g)!.map(Number);
-            const [needle, , , start, end] = values;
-            if (needle >= (start + end) / 2 - 8 && needle <= (start + end) / 2)
-              finish(values);
-          };
-          const observer = new MutationObserver(observe);
-          deadline = setTimeout(() => finish(), 10000);
-          observer.observe(document.querySelector(".battle-station")!, {
-            childList: true,
-            characterData: true,
-            attributes: true,
-            subtree: true,
-          });
-          observe();
-        },
-      ),
-    captureTiming,
-  );
-  perfectBand.catch(() => {}); // Retain its original rejection until joined.
-  const onset = c.loader.waitForFunction(
-    () => {
-      const circle = document.querySelector<HTMLElement>(
-        '[data-testid="repair-calibration"]',
-      );
-      if (!circle || circle.hidden) return false;
-      const values = document
-        .querySelector('[data-testid="repair-calibration-position"]')!
-        .textContent!.match(/[\d.]+/g)!
-        .map(Number);
-      return { values, observedAt: performance.timeOrigin + performance.now() };
-    },
-    undefined,
-    { timeout: 10000 },
-  );
-  await c.loader.keyboard.down("r");
-  const onsetHandle = await onset;
-  const firstCircle = await onsetHandle.jsonValue();
-  if (!firstCircle) throw new Error("First public calibration circle is absent");
-  const onsetReceivedAt = Date.now();
-  const [firstNeedle, , , perfectStart, perfectEnd] = firstCircle.values;
-  // The public two-second revolution and first visible readout give enough
-  // lead time to send a real key. A later narrow-band RPC may arrive stale.
-  // Start inside the leading part of the same observed 8° band, leaving room
-  // for real browser delivery and the authority's elapsed-time advancement.
-  const plannedNeedle = (perfectStart + perfectEnd) / 2 - 7;
-  const plannedAt =
-    firstCircle.observedAt + ((plannedNeedle - firstNeedle) / 180) * 1000;
-  const remaining = plannedAt - Date.now();
-  expect(
-    remaining,
-    "First public circle arrived too late to plan the original band",
-  ).toBeGreaterThan(0);
-  let inputSentAt = 0,
-    inputReturnedAt = 0;
-  const work = (async () => {
-    await new Promise<void>((resolve) => setTimeout(resolve, remaining));
-    inputSentAt = Date.now();
-    await nativeTaps(c.loader, 1, 0, "Space");
-    inputReturnedAt = Date.now();
-  })();
-  const visible = expect(
-    c.loader.getByTestId("repair-calibration"),
-  ).toBeVisible({
-    timeout: 10000,
-  });
-  await Promise.all([work, visible]);
-  const {
-    values: [needle, , , start, end],
-    observedAt,
-  } = await perfectBand;
-  const responseAt = Date.now();
-  await onsetHandle.dispose();
-  if (captureTiming) {
-    const timing = await c.loader.evaluate(() => {
-      const observation = (window as any).__repairPublicInputTiming;
-      observation.dispose();
-      delete (window as any).__repairPublicInputTiming;
-      return observation.timing;
-    });
-    await writeFile(
-      `${evidence}/perfect-public-input-${responseAt}.json`,
-      JSON.stringify(
-        {
-          observedAt,
-          responseAt,
-          firstCircle,
-          onsetReceivedAt,
-          plannedAt,
-          plannedNeedle,
-          inputSentAt,
-          inputReturnedAt,
-          values: [needle, start, end],
-          ...timing,
-        },
-        null,
-        2,
-      ),
+            (window as any)[`${binding}Observer`] = entry;
+            deadline = setTimeout(() => finish(), 10000);
+            observer.observe(document.querySelector(".battle-station")!, {
+              childList: true,
+              characterData: true,
+              attributes: true,
+              subtree: true,
+            });
+            observe();
+          },
+        ),
+      { captureTiming, binding: bridge.name },
     );
-  }
-  expect(needle >= (start + end) / 2 - 8 && needle <= (start + end) / 2).toBe(
-    true,
-  );
-  await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
-    "完美校準・額外 +3 HP",
-  );
-  await c.loader.keyboard.up("r");
-  // Key-up is transported to the authority. Its public ready status confirms
-  // repair has stopped before fixing the exact shared-health comparison target.
-  await expect(c.loader.getByTestId("repair-status")).toHaveText(
-    "已停穩・按住 R 維修",
-  );
-  let restored: number | undefined;
-  await expect
-    .poll(
-      async () => {
-        const current = await health(c.loader);
-        const stable = current === restored;
-        restored = current;
-        return stable;
+    perfectBand.catch(() => {});
+    const onset = c.loader.waitForFunction(
+      () => {
+        const circle = document.querySelector<HTMLElement>(
+          '[data-testid="repair-calibration"]',
+        );
+        return !!circle && !circle.hidden;
       },
-      { timeout: 1500, intervals: [100] },
-    )
-    .toBe(true);
-  expect(restored).toBeGreaterThan(before + 8);
-  await Promise.all(
-    [c.driver, c.gunner, c.loader].map(async (page) => {
-      await expect(page.getByTestId("tank-health")).toHaveText(
-        `${restored}/100`,
+      undefined,
+      { timeout: 10000 },
+    );
+    await c.loader.keyboard.down("r");
+    await (await onset).dispose();
+    await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
+      timeout: 10000,
+    });
+    await work;
+    const {
+      values: [needle, , , start, end],
+    } = await perfectBand;
+    bandJoinedAt = Date.now();
+    expect(needle >= (start + end) / 2 - 8 && needle <= (start + end) / 2).toBe(
+      true,
+    );
+    await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
+      "完美校準・額外 +3 HP",
+    );
+    await c.loader.keyboard.up("r");
+    // Key-up is transported to the authority. Its public ready status confirms
+    // repair has stopped before fixing the exact shared-health comparison target.
+    await expect(c.loader.getByTestId("repair-status")).toHaveText(
+      "已停穩・按住 R 維修",
+    );
+    let restored: number | undefined;
+    await expect
+      .poll(
+        async () => {
+          const current = await health(c.loader);
+          const stable = current === restored;
+          restored = current;
+          return stable;
+        },
+        { timeout: 1500, intervals: [100] },
+      )
+      .toBe(true);
+    expect(restored).toBeGreaterThan(before + 8);
+    await Promise.all(
+      [c.driver, c.gunner, c.loader].map(async (page) => {
+        await expect(page.getByTestId("tank-health")).toHaveText(
+          `${restored}/100`,
+        );
+        await expect(page.getByTestId("repair-calibration-result")).toHaveText(
+          "完美校準・額外 +3 HP",
+        );
+      }),
+    );
+    await c.loader.screenshot({
+      path: `${evidence}/repaired-wave-${await c.loader
+        .getByTestId("wave-status")
+        .textContent()
+        .then((t) => t!.match(/第 (\d)/)![1])}.png`,
+    });
+    await c.loader.keyboard.press("Tab");
+    await expect(c.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
+  } catch (error) {
+    primary = error;
+    throw error;
+  } finally {
+    const observer = (async () => {
+      const timing = await c.loader.evaluate((binding) => {
+        const key = `${binding}Observer`;
+        const entry = (window as any)[key];
+        if (!entry) return null;
+        entry.dispose();
+        delete (window as any)[key];
+        return entry.timing;
+      }, bridge.name);
+      if (captureTiming)
+        await writeFile(
+          `${evidence}/perfect-public-input-${Date.now()}.json`,
+          JSON.stringify(
+            {
+              binding: bridge.name,
+              notification,
+              inputSentAt,
+              inputReturnedAt,
+              bandJoinedAt,
+              observedAt: timing?.resolvedAt,
+              values: timing?.band
+                ? [timing.band[0], timing.band[3], timing.band[4]]
+                : null,
+              ...timing,
+            },
+            null,
+            2,
+          ),
+        );
+    })();
+    const results = await Promise.allSettled([observer, bridge.dispose()]);
+    const failed = results.filter((result) => result.status === "rejected");
+    if (failed.length)
+      throw new AggregateError(
+        [
+          ...(primary ? [primary] : []),
+          ...failed.map((result) => result.reason),
+        ],
+        "Public calibration observation cleanup failed",
       );
-      await expect(page.getByTestId("repair-calibration-result")).toHaveText(
-        "完美校準・額外 +3 HP",
-      );
-    }),
-  );
-  await c.loader.screenshot({
-    path: `${evidence}/repaired-wave-${await c.loader
-      .getByTestId("wave-status")
-      .textContent()
-      .then((t) => t!.match(/第 (\d)/)![1])}.png`,
-  });
-  await c.loader.keyboard.press("Tab");
-  await expect(c.loader.getByTestId("loader-mode")).toHaveText("裝填模式");
+  }
 }
 
 test("三位乘員看見同一個第一波與目前觀測敵車數", async ({ browser }) => {
