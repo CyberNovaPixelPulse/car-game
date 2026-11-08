@@ -1,5 +1,6 @@
 import { ROLE_LABELS, type CrewRole } from "./crew";
 import { TANK_RULES } from "./tank-settings";
+import { speedometerMarkup } from "./tank-speedometer";
 
 const weaponStatus = `<div class="weapon-status">
   <p>選擇 <strong data-testid="selected-shell">高爆彈</strong></p>
@@ -18,7 +19,7 @@ export function stationMarkup(role: CrewRole, soundEnabled: boolean) {
       <p class="crew-health">共用坦克血量 <strong data-testid="tank-health">${TANK_RULES.maxHp}/${TANK_RULES.maxHp}</strong></p>
       <p data-testid="wave-status"></p>
       <div class="driver-instruments">
-        <p class="speed-readout">速度 <strong data-testid="tank-speed">0.0</strong> m/s</p>
+        ${role === "driver" ? speedometerMarkup() : '<p class="speed-readout">速度 <strong data-testid="tank-speed">0.0</strong> m/s</p>'}
         <p><span data-testid="tank-motion">靜止</span> · <span data-testid="tank-contact">車體正常</span></p>
       </div>
       <p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong><br>砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p>

@@ -830,6 +830,42 @@ legend {
   margin: 8px 0;
   border-block: 1px solid var(--hud-rule);
 }
+.speedometer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.speedometer svg {
+  width: 116px;
+  height: 108px;
+  flex: none;
+  fill: none;
+  stroke: var(--hud-muted);
+  stroke-width: 1.5;
+}
+.speedometer text {
+  fill: var(--hud-foreground);
+  stroke: none;
+  font:
+    13px "Noto Serif TC",
+    serif;
+  text-anchor: middle;
+}
+.speedometer .speed-needle {
+  fill: var(--hud-danger);
+  stroke: none;
+}
+.speedometer .speed-hub {
+  fill: var(--hud-foreground);
+}
+.speedometer .speed-readout {
+  display: grid;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.speedometer .speed-readout span {
+  font-size: 14px;
+}
 .battle-overview .speed-readout strong {
   font-size: 22px;
   line-height: 1.2;
@@ -1450,4 +1486,96 @@ legend {
     width: 160px;
     height: 160px;
   }
+}
+
+/* Local training extends the manual entry and the existing utility corner. */
+.practice-select {
+  max-width: 620px;
+  margin-inline: auto;
+}
+.practice-select fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-block: 24px;
+}
+.practice-select button[aria-pressed="true"] {
+  color: var(--ink-red);
+  border-bottom-width: 3px;
+}
+.practice-controls {
+  margin-top: 12px;
+  max-width: 340px;
+}
+.practice-controls p {
+  margin: 0 0 8px;
+}
+.practice-controls button {
+  margin: 4px 6px 4px 0;
+}
+#practice-pause-menu {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hud-rule);
+}
+
+.practice-controls {
+  max-height: calc(100dvh - 290px);
+  overflow-y: auto;
+  font-size: 14px;
+}
+.practice-controls summary {
+  cursor: pointer;
+  font-weight: 700;
+  padding-block: 4px 10px;
+}
+.practice-controls select {
+  min-height: 38px;
+  padding: 4px;
+  border: 1px solid var(--hud-muted);
+  background: var(--interior-background, #171e1c);
+  color: var(--hud-foreground);
+}
+.practice-teaching {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-block: 10px;
+}
+.practice-teaching input {
+  width: auto;
+  accent-color: var(--hud-foreground);
+}
+.practice-hint {
+  color: var(--hud-muted);
+  line-height: 1.6;
+  border-top: 1px solid var(--hud-rule);
+  padding-top: 10px;
+}
+.practice-pause-dialog {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 24px;
+  border: 1px solid var(--hud-rule);
+  color: var(--hud-foreground);
+  background: var(--hud-background);
+}
+.practice-pause-dialog[open] {
+  display: grid;
+  gap: 14px;
+}
+.practice-pause-dialog::backdrop {
+  background: color-mix(in srgb, var(--hud-background) 70%, transparent);
+}
+.practice-pause-dialog fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.practice-pause-dialog h2 {
+  margin: 0;
+}
+.ai-fire-warning {
+  color: var(--hud-danger);
 }

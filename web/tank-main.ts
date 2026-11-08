@@ -28,6 +28,9 @@ import {
   JAM_RULES,
 } from "./tank-weapons";
 import { stationMarkup } from "./tank-station";
+import { practiceControlsMarkup, practiceHint } from "./tank-practice-ui";
+import { PracticeCrew } from "./tank-practice-crew";
+import { presentSpeedometer } from "./tank-speedometer";
 import { attachFullscreenControl } from "./tank-fullscreen";
 import "./tank.css";
 
@@ -45,9 +48,13 @@ retryButton.onclick = async () => {
 session.onRetryAvailable = () => {
   retryButton.hidden = false;
 };
-const core = new TankCore(
-  (slot) =>
-    session.room?.members.find((m) => m.slot === slot)?.role ?? undefined,
+let practiceRole: CrewRole | undefined;
+let practiceCrew: PracticeCrew | undefined;
+let practiceHints = true;
+const core = new TankCore((slot) =>
+  practiceCrew
+    ? practiceCrew.roleOf(slot)
+    : (session.room?.members.find((m) => m.slot === slot)?.role ?? undefined),
 );
 const runtime = new GameRuntime(core, session);
 let scene: TankScene | undefined;
@@ -90,6 +97,28 @@ function artCanvas(label: string) {
   canvas.setAttribute("role", "img");
   return canvas;
 }
+async function loadRoleViews(views: PreparedViews) {
+  const role = views.role;
+  if (role === "gunner" || role === "driver") {
+    views.exteriorCanvas = artCanvas(
+      role === "driver" ? "駕駛裝甲觀察窗" : "主炮戰場視野",
+    );
+    views.exterior = new TankScene(views.exteriorCanvas, role, sceneQuality);
+    await views.exterior.prepare(core.view());
+  } else if (role === "loader") {
+    views.interiorCanvas = artCanvas("車內炮膛與彈藥架");
+    views.interior = new TankInteriorScene(views.interiorCanvas, sceneQuality);
+    views.exteriorCanvas = artCanvas("機槍戰場視野");
+    views.exterior = new TankScene(
+      views.exteriorCanvas,
+      "machine-gun",
+      sceneQuality,
+    );
+    // Both actual views are prepared before the loader's existing ready vote.
+    await views.interior.prepare(core.view());
+    await views.exterior.prepare(core.view());
+  }
+}
 async function prepareVote(room: Room, role: CrewRole) {
   clearViews();
   const version = ++preparationVersion;
@@ -103,28 +132,7 @@ async function prepareVote(room: Room, role: CrewRole) {
       requestAnimationFrame(() => resolve()),
     );
     if (version !== preparationVersion) return;
-    if (role === "gunner" || role === "driver") {
-      views.exteriorCanvas = artCanvas(
-        role === "driver" ? "駕駛裝甲觀察窗" : "主炮戰場視野",
-      );
-      views.exterior = new TankScene(views.exteriorCanvas, role, sceneQuality);
-      await views.exterior.prepare(core.view());
-    } else if (role === "loader") {
-      views.interiorCanvas = artCanvas("車內炮膛與彈藥架");
-      views.interior = new TankInteriorScene(
-        views.interiorCanvas,
-        sceneQuality,
-      );
-      views.exteriorCanvas = artCanvas("機槍戰場視野");
-      views.exterior = new TankScene(
-        views.exteriorCanvas,
-        "machine-gun",
-        sceneQuality,
-      );
-      // Both actual views are prepared before the loader's existing ready vote.
-      await views.interior.prepare(core.view());
-      await views.exterior.prepare(core.view());
-    }
+    await loadRoleViews(views);
     const current = session.room;
     const currentRole = current?.members.find(
       (member) => member.slot === session.slot,
@@ -218,13 +226,17 @@ function menu() {
   content.after(recovery);
   document.documentElement.dataset.surface = "manual";
   retryButton.hidden = true;
-  runtime.mode = "idle";
   runtime.clearInput();
+  runtime.mode = "idle";
+  practiceRole = undefined;
+  practiceCrew = undefined;
   held = 0;
   clearViews();
   stationRole = undefined;
-  content.innerHTML = `<div class="plate-layout"><div class="plate-figure">${hullPlate({ driver: "free", gunner: "free", loader: "free" })}<ol class="plate-legend">${CREW_ROLES.map((role) => `<li><strong>${ROLE_LABELS[role]}</strong>${ROLE_TASKS[role]}</li>`).join("")}</ol></div><div class="plate-panel"><h2>與隊友集合</h2><form id="crew-create"><label for="crew-name">乘員名稱</label><input id="crew-name" maxlength="16" autocomplete="nickname" required><button type="submit">建立房間</button></form><p class="plate-or">或加入隊友的房間</p><form id="crew-join"><label for="crew-code">房間代碼</label><div class="join-line"><input id="crew-code" maxlength="6" autocomplete="off" autocapitalize="characters" required><button type="submit" class="secondary">加入房間</button></div></form><p class="note">需要三位玩家、三台電腦與實體鍵盤。</p></div></div>`;
+  content.innerHTML = `<div class="plate-layout"><div class="plate-figure">${hullPlate({ driver: "free", gunner: "free", loader: "free" })}<ol class="plate-legend">${CREW_ROLES.map((role) => `<li><strong>${ROLE_LABELS[role]}</strong>${ROLE_TASKS[role]}</li>`).join("")}</ol></div><div class="plate-panel"><h2>與隊友集合</h2><form id="crew-create"><label for="crew-name">乘員名稱</label><input id="crew-name" maxlength="16" autocomplete="nickname" required><button type="submit">建立房間</button></form><p class="plate-or">或加入隊友的房間</p><form id="crew-join"><label for="crew-code">房間代碼</label><div class="join-line"><input id="crew-code" maxlength="6" autocomplete="off" autocapitalize="characters" required><button type="submit" class="secondary">加入房間</button></div></form><p class="note">多人需要三位玩家、三台電腦與實體鍵盤。</p><hr><h2>自己熟悉操作</h2><p>一人上車，練習三個職位。</p><button id="practice-entry" type="button">單人練習</button></div></div>`;
   window.scrollTo(0, 0);
+  content.querySelector<HTMLButtonElement>("#practice-entry")!.onclick = () =>
+    practiceMenu();
   const name = () => {
     const value = document
       .querySelector<HTMLInputElement>("#crew-name")!
@@ -318,11 +330,196 @@ function lobby(room: Room) {
     message.textContent = "";
   };
 }
-function station(room: Room) {
-  const role = room.members.find((m) => m.slot === session.slot)?.role;
+function practiceMenu(selected: CrewRole = "driver") {
+  session.leave();
+  menu();
+  content.innerHTML = `<div class="plate-panel practice-select"><h2>單人練習</h2><p>選擇你的職位，其餘兩席由 AI 配合。使用實體鍵盤。</p><fieldset><legend>選擇你的職位</legend>${CREW_ROLES.map((role) => `<button type="button" data-practice-role="${role}" aria-pressed="${role === selected}">擔任${ROLE_LABELS[role]}</button>`).join("")}</fieldset><p>先自由熟悉操作，準備好再開始交戰。</p><button id="practice-begin" type="button">開始練習</button><button id="practice-back" class="secondary" type="button">返回首頁</button></div>`;
+  content
+    .querySelectorAll<HTMLButtonElement>("[data-practice-role]")
+    .forEach(
+      (button) =>
+        (button.onclick = () =>
+          practiceMenu(button.dataset.practiceRole as CrewRole)),
+    );
+  content.querySelector<HTMLButtonElement>("#practice-begin")!.onclick = () =>
+    void enterPractice(selected);
+  content.querySelector<HTMLButtonElement>("#practice-back")!.onclick = menu;
+}
+
+async function enterPractice(role: CrewRole, preserve = false) {
+  const previousRole = practiceRole;
+  if (preserve) runtime.pausePractice(true);
+  held = 0;
+  disposeFullscreen?.();
+  disposeFullscreen = undefined;
+  content.after(recovery);
+  clearViews();
+  stationRole = undefined;
+  if (!preserve) {
+    practiceRole = role;
+    practiceCrew = new PracticeCrew(core, role);
+    runtime.startPractice(crypto.getRandomValues(new Uint32Array(1))[0], (dt) =>
+      practiceCrew?.step(dt),
+    );
+    runtime.pausePractice(true);
+  }
+  const version = ++preparationVersion;
+  const views: PreparedViews = { role, code: "practice" };
+  prepared = views;
+  document.documentElement.dataset.surface = "manual";
+  content.innerHTML = `<div class="plate-panel"><h2>單人練習</h2><p role="status">正在準備${ROLE_LABELS[role]}工作畫面…</p><button id="practice-cancel">取消準備</button></div>`;
+  content.querySelector<HTMLButtonElement>("#practice-cancel")!.onclick = () =>
+    preserve && previousRole
+      ? void enterPractice(previousRole, true)
+      : practiceMenu(role);
+  try {
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+    if (version !== preparationVersion) return;
+    await loadRoleViews(views);
+    if (version !== preparationVersion) return;
+    message.textContent = "";
+    if (preserve) practiceCrew!.switchRole(role);
+    practiceRole = role;
+    station(role);
+    if (preserve)
+      content
+        .querySelector<HTMLDialogElement>("#practice-pause-menu")!
+        .showModal();
+    else runtime.pausePractice(false);
+  } catch (e) {
+    if (version !== preparationVersion) return;
+    if (preserve && previousRole) {
+      content.innerHTML = `<div class="plate-panel"><h2>工作畫面準備失敗</h2><p role="status"></p><button id="practice-retry-role">返回原職位並重試準備</button><button id="practice-exit-error">離開練習</button></div>`;
+      content.querySelector('[role="status"]')!.textContent =
+        e instanceof Error ? e.message : String(e);
+      content.querySelector<HTMLButtonElement>(
+        "#practice-retry-role",
+      )!.onclick = () => void enterPractice(previousRole, true);
+      content.querySelector<HTMLButtonElement>(
+        "#practice-exit-error",
+      )!.onclick = menu;
+    } else {
+      practiceMenu(role);
+      message.textContent = `${e instanceof Error ? e.message : e} 請重新開始練習以重試。`;
+    }
+  }
+}
+
+function mountPracticeControls() {
+  const surface = content.querySelector<HTMLElement>(".battle-station")!;
+  surface.dataset.practice = "true";
+  surface.querySelector<HTMLButtonElement>("#station-leave")!.textContent =
+    "離開練習";
+  surface
+    .querySelector(".battle-utility")!
+    .insertAdjacentHTML("beforeend", practiceControlsMarkup(practiceRole!));
+  surface
+    .querySelector(".battle-alerts")!
+    .insertAdjacentHTML(
+      "beforeend",
+      '<p class="hud-panel ai-fire-warning" data-testid="ai-fire-warning" role="status" hidden></p>',
+    );
+  const hints = content.querySelector<HTMLInputElement>("#practice-hints")!;
+  hints.checked = practiceHints;
+  hints.onchange = () => {
+    practiceHints = hints.checked;
+  };
+  content.querySelector<HTMLButtonElement>("#practice-exit")!.onclick = menu;
+  content
+    .querySelectorAll<HTMLButtonElement>("[data-switch-role]")
+    .forEach(
+      (button) =>
+        (button.onclick = () =>
+          void enterPractice(button.dataset.switchRole as CrewRole, true)),
+    );
+  const driveButton =
+    content.querySelector<HTMLButtonElement>("#practice-drive");
+  if (driveButton)
+    driveButton.onclick = () => {
+      if (!practiceCrew) return;
+      runtime.setInput(held);
+      practiceCrew.driverStopped = !practiceCrew.driverStopped;
+      driveButton.textContent = practiceCrew.driverStopped
+        ? "恢復 AI 駕駛"
+        : "AI 停車";
+      driveButton.blur();
+    };
+  const fireButton = content.querySelector<HTMLButtonElement>("#practice-fire");
+  if (fireButton)
+    fireButton.onclick = () => {
+      if (!practiceCrew) return;
+      runtime.setInput(held);
+      practiceCrew.firing = !practiceCrew.firing;
+      fireButton.textContent = practiceCrew.firing
+        ? "暫停 AI 開火"
+        : "恢復 AI 開火";
+      fireButton.blur();
+    };
+  const shellSelect =
+    content.querySelector<HTMLSelectElement>("#practice-shell");
+  if (shellSelect && practiceCrew) shellSelect.value = practiceCrew.shell;
+  if (driveButton && practiceCrew)
+    driveButton.textContent = practiceCrew.driverStopped
+      ? "恢復 AI 駕駛"
+      : "AI 停車";
+  if (fireButton && practiceCrew)
+    fireButton.textContent = practiceCrew.firing
+      ? "暫停 AI 開火"
+      : "恢復 AI 開火";
+  if (shellSelect)
+    shellSelect.onchange = () => {
+      runtime.setInput(held);
+      const shell = shellSelect.value;
+      if (
+        practiceCrew &&
+        (shell === "he" || shell === "ap" || shell === "smoke")
+      )
+        practiceCrew.shell = shell;
+      shellSelect.blur();
+    };
+  content.querySelector<HTMLButtonElement>("#practice-round")!.onclick = () => {
+    runtime.setInput(held);
+    core.startPracticeRound();
+    (document.activeElement as HTMLElement)?.blur();
+  };
+  content.querySelector<HTMLButtonElement>("#practice-restart")!.onclick = () =>
+    void enterPractice(practiceRole!);
+  const returnButton =
+    content.querySelector<HTMLButtonElement>("#battle-return")!;
+  returnButton.textContent = "重新開始練習";
+  returnButton.onclick = () => void enterPractice(practiceRole!);
+  content.querySelector<HTMLButtonElement>("#practice-pause")!.onclick = () => {
+    releaseControlsForPause();
+    content
+      .querySelector<HTMLDialogElement>("#practice-pause-menu")!
+      .showModal();
+  };
+  const pauseMenu = content.querySelector<HTMLDialogElement>(
+    "#practice-pause-menu",
+  )!;
+  pauseMenu.oncancel = (event) => {
+    event.preventDefault();
+    content.querySelector<HTMLButtonElement>("#practice-resume")!.click();
+  };
+  content.querySelector<HTMLButtonElement>("#practice-resume")!.onclick =
+    () => {
+      held = 0;
+      runtime.pausePractice(false);
+      content.querySelector<HTMLDialogElement>("#practice-pause-menu")!.close();
+      (document.activeElement as HTMLElement)?.blur();
+    };
+}
+function releaseControlsForPause() {
+  runtime.pausePractice(true);
+  held = 0;
+}
+
+function station(role: CrewRole | null | undefined, code = "practice") {
   if (!role || stationRole === role) return;
   document.documentElement.dataset.surface = "battle";
-  const ready = prepared?.role === role && prepared.code === room.code;
+  const ready = prepared?.role === role && prepared.code === code;
   if (!ready) clearViews();
   stationRole = role;
   mechanicalAudio.reset();
@@ -425,16 +622,60 @@ function station(room: Room) {
     menu();
   };
   // A lobby button may have scrolled a short viewport. Enter the station at its HUD.
+  if (practiceRole) mountPracticeControls();
   window.scrollTo(0, 0);
 }
 core.present = (state) => {
   if (!stationRole) return;
   presentBattleNavigation(content, state);
+  if (practiceRole) {
+    const hint = content.querySelector<HTMLElement>(
+      "[data-testid=practice-hint]",
+    );
+    if (hint) {
+      hint.hidden = !practiceHints;
+      hint.textContent = practiceHint(state, practiceRole);
+    }
+    const warning = content.querySelector<HTMLElement>(
+      "[data-testid=ai-fire-warning]",
+    );
+    if (warning && practiceCrew) {
+      warning.textContent = practiceCrew.gunnerStatus.startsWith("即將開火")
+        ? practiceCrew.gunnerStatus
+        : "";
+      warning.hidden = !warning.textContent;
+    }
+    const status = content.querySelector("[data-testid=practice-status]");
+    const driver = content.querySelector("[data-testid=ai-driver-status]");
+    if (driver && practiceCrew) driver.textContent = practiceCrew.driverStatus;
+    const gunner = content.querySelector("[data-testid=ai-gunner-status]");
+    if (gunner && practiceCrew) gunner.textContent = practiceCrew.gunnerStatus;
+    const loader = content.querySelector("[data-testid=ai-loader-status]");
+    if (loader && practiceCrew) loader.textContent = practiceCrew.loaderStatus;
+    const active = state.weapon.targets.some((target) => target.hp > 0);
+    if (status)
+      status.textContent = state.battle.failed
+        ? "練習失敗・可重新開始"
+        : core.practiceRound === 0
+          ? "等待交戰・自由練習"
+          : `第 ${core.practiceRound} 輪・${active ? "交戰中" : "目標已擊毀・等待下一輪"}`;
+    const round = content.querySelector<HTMLButtonElement>("#practice-round");
+    if (round) {
+      round.disabled = active || runtime.paused || state.battle.failed;
+      round.textContent = active
+        ? "交戰中"
+        : core.practiceRound
+          ? "下一輪"
+          : "開始交戰";
+    }
+  }
   const wave = content.querySelector('[data-testid="wave-status"]');
   if (wave)
     wave.textContent = `第 ${state.battle.wave} / ${TANK_RULES.waves} 波 · 目前觀測敵車 ${state.intel.contacts.filter((e) => e.hp > 0 && e.visible).length}${state.intel.contacts.some((e) => e.hp > 0 && !e.visible) ? ` · 舊情報 ${state.intel.contacts.filter((e) => e.hp > 0 && !e.visible).length}` : ""}`;
+  if (wave && practiceRole) wave.textContent = "單人練習・一位真人與兩位 AI";
   const speed = content.querySelector('[data-testid="tank-speed"]');
   if (speed) speed.textContent = Math.abs(state.tank.speed).toFixed(1);
+  presentSpeedometer(content, state.tank.speed);
   const motion = content.querySelector('[data-testid="tank-motion"]');
   if (motion)
     motion.textContent = state.tank.blocked
@@ -773,7 +1014,11 @@ const aimKeys: Record<string, number> = {
   ArrowDown: AIM.down,
 };
 window.addEventListener("keydown", (event) => {
-  if (runtime.mode !== "online" || runtime.paused) return;
+  if (
+    (runtime.mode !== "online" && runtime.mode !== "practice") ||
+    runtime.paused
+  )
+    return;
   // Let native controls own their keys. Space/Enter activate a display button;
   // Tab navigates it and arrows change a select, without firing or doing work.
   if (
@@ -863,7 +1108,7 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden) releaseControls();
 });
 function frame(now: number) {
-  if (runtime.mode === "online") {
+  if (runtime.mode === "online" || runtime.mode === "practice") {
     const canvas = content.querySelector<HTMLCanvasElement>(
       stationRole === "gunner"
         ? 'canvas[aria-label="主炮戰場視野"]'
@@ -878,7 +1123,7 @@ function frame(now: number) {
       if (validViewAspect(aspect)) runtime.setViewAspect(aspect);
     } else runtime.setViewAspect(undefined);
     runtime.frame(now);
-    updatePause();
+    if (runtime.mode === "online") updatePause();
   }
   requestAnimationFrame(frame);
 }
@@ -936,7 +1181,7 @@ runtime.onRoom = (room) => {
     lobby(room);
     if (enteringLobby) window.scrollTo(0, 0);
   } else {
-    station(room);
+    station(room.members.find((m) => m.slot === session.slot)?.role, room.code);
     if (runtime.paused) {
       held = 0;
       runtime.clearInput();
@@ -945,7 +1190,11 @@ runtime.onRoom = (room) => {
   }
 };
 runtime.onStart = () => {
-  if (session.room) station(session.room);
+  if (session.room)
+    station(
+      session.room.members.find((m) => m.slot === session.slot)?.role,
+      session.room.code,
+    );
 };
 runtime.onRestoreError = error;
 window.addEventListener("pagehide", () => {

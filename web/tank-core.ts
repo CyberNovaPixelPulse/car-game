@@ -5,7 +5,13 @@ import {
   validRepair,
   type RepairState,
 } from "./tank-repair";
-import { AIMING, DRIVING, MG_AIMING, TANK_RULES } from "./tank-settings";
+import {
+  AIMING,
+  DRIVING,
+  MG_AIMING,
+  TANK_RULES,
+  ENEMY_RULES,
+} from "./tank-settings";
 import {
   createEnemyBattle,
   createWaveTargets,
@@ -27,6 +33,7 @@ import {
   stopJam,
   loaderCanWork,
   createWeaponState,
+  createEnemyTarget,
   fireWeapon,
   stepWeapon,
   validWeapon,
@@ -102,14 +109,51 @@ export class TankCore implements GameCore<TankState> {
   private aspects = new Map<number, number>();
   private participants: number[] = [];
   private paused = false;
+  private practice = false;
+  practiceRound = 0;
   present: (state: TankState, participant: number) => void = () => {};
   constructor(private roleOf: (participant: number) => CrewRole | undefined) {}
   start(options: GameStart) {
     this.state = initial(options.seed);
+    this.practice = !!options.practice;
+    this.practiceRound = 0;
+    if (this.practice) this.state.weapon.targets = [];
     this.controls.clear();
     this.aspects.clear();
     this.participants = options.participants;
     this.paused = false;
+  }
+  startPracticeRound() {
+    if (
+      !this.practice ||
+      this.paused ||
+      this.state.battle.failed ||
+      this.state.weapon.targets.some((target) => target.hp > 0)
+    )
+      return;
+    const tank = this.state.tank;
+    const positions = [
+      [0, -13],
+      [25, 4],
+      [0, 28],
+      [-26, 18],
+      [-28, -28],
+    ];
+    const [x, z] =
+      positions.find(([x, z]) => Math.hypot(x - tank.x, z - tank.z) >= 10) ??
+      positions[0];
+    this.practiceRound++;
+    this.state.weapon.targets = [
+      createEnemyTarget(
+        "panzer",
+        1000 + this.practiceRound,
+        x,
+        z,
+        this.state.time + ENEMY_RULES.spawnGrace,
+      ),
+    ];
+    this.state.intel = createTeamIntel();
+    this.observe();
   }
   pause(paused: boolean) {
     this.paused = paused;
@@ -275,7 +319,10 @@ export class TankCore implements GameCore<TankState> {
       this.observe();
       return;
     }
-    if (this.state.weapon.targets.every((enemy) => enemy.hp <= 0)) {
+    if (
+      !this.practice &&
+      this.state.weapon.targets.every((enemy) => enemy.hp <= 0)
+    ) {
       if (this.state.battle.wave === TANK_RULES.waves) {
         this.state.battle.won = true;
         stepRepair(this.state, false, dt);
