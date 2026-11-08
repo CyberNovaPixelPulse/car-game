@@ -32,8 +32,9 @@ import { attachFullscreenControl } from "./tank-fullscreen";
 import "./tank.css";
 
 const app = document.querySelector<HTMLDivElement>("#tank-app")!;
-app.innerHTML = `<main class="crew-shell"><header><h1>三人坦克合作戰鬥</h1><p class="setting">1944 年・諾曼第</p><p>一台坦克，三個職位。請先和隊友開啟語音通話。</p></header><section id="crew-content" aria-label="房間與職位"></section><p id="crew-message" role="status" aria-live="polite"></p><button id="crew-retry" class="secondary" hidden>重新連線</button></main>`;
+app.innerHTML = `<main class="crew-shell"><header><h1>三人坦克合作戰鬥</h1><p class="setting">1944 年・諾曼第</p><p>一台坦克，三個職位。請先和隊友開啟語音通話。</p></header><section id="crew-content" aria-label="房間與職位"></section><div id="crew-recovery"><p id="crew-message" role="status" aria-live="polite"></p><button id="crew-retry" class="secondary" hidden>重新連線</button></div></main>`;
 const content = document.querySelector<HTMLElement>("#crew-content")!;
+const recovery = document.querySelector<HTMLElement>("#crew-recovery")!;
 const message = document.querySelector<HTMLElement>("#crew-message")!;
 const retryButton = document.querySelector<HTMLButtonElement>("#crew-retry")!;
 const session = new Session();
@@ -214,6 +215,7 @@ function hullPlate(states: Record<CrewRole, SeatState>) {
 function menu() {
   disposeFullscreen?.();
   disposeFullscreen = undefined;
+  content.after(recovery);
   document.documentElement.dataset.surface = "manual";
   retryButton.hidden = true;
   runtime.mode = "idle";
@@ -261,6 +263,7 @@ function menu() {
 function lobby(room: Room) {
   disposeFullscreen?.();
   disposeFullscreen = undefined;
+  content.after(recovery);
   document.documentElement.dataset.surface = "manual";
   const me = room.members.find((m) => m.slot === session.slot);
   const complete =
@@ -327,10 +330,12 @@ function station(room: Room) {
   soundedStun = 0;
   soundedDamage = -100;
   content.innerHTML = stationMarkup(role, soundEnabled);
+  const stationElement = content.querySelector<HTMLElement>(".battle-station")!;
+  // Keep the live status and retry handler inside the browser's fullscreen
+  // surface; menu/lobby move the same nodes out before replacing this station.
+  stationElement.append(recovery);
   disposeFullscreen?.();
-  disposeFullscreen = attachFullscreenControl(
-    content.querySelector<HTMLElement>(".battle-station")!,
-  );
+  disposeFullscreen = attachFullscreenControl(stationElement);
   mountBattleNavigation(content.querySelector(".battle-station")!);
   if (role === "loader") {
     const interiorViewport =
