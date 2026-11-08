@@ -1172,6 +1172,7 @@ legend {
 }
 [data-surface="battle"] #crew-message {
   margin: 0;
+  color: var(--hud-foreground);
 }
 .visually-hidden {
   position: absolute;
