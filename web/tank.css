@@ -1499,8 +1499,13 @@ legend {
   gap: 12px;
   margin-block: 24px;
 }
-.practice-select button[aria-pressed="true"] {
+[data-surface="manual"] .practice-select button[aria-pressed="true"],
+[data-surface="manual"]
+  .practice-select
+  button[aria-pressed="true"]:hover:not(:disabled) {
+  background: var(--paper-field);
   color: var(--ink-red);
+  border-color: var(--ink-red);
   border-bottom-width: 3px;
 }
 .practice-controls {
