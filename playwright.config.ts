@@ -1,4 +1,11 @@
 import { defineConfig } from "@playwright/test";
+import { browserPolicyError } from "./tools/validation-policy";
+const policyError = browserPolicyError(
+  process.argv,
+  process.env,
+  process.platform,
+);
+if (policyError) throw new Error(policyError);
 const webPort = Number(process.env.WEB_PORT || 4273);
 const peerPort = Number(process.env.PEER_PORT || 4274);
 export default defineConfig({

@@ -30,7 +30,7 @@
 
 ## 開發與建置
 
-`npm run check` 檢查型別，`npm run build` 產生可部署的 `dist/`，`npm test` 跑真實瀏覽器端到端驗證。沒有 C、SDL2、Python 或 Emscripten 建置依賴。只使用根目錄入口，舊賽車及 Wasm 已移除。建置不會部署。
+`npm run check` 檢查型別，`npm run build` 產生可部署的 `dist/`，`npm test` 執行型別與驗證政策檢查、收集端到端案例，預設不開瀏覽器。E2E須經 `npm run test:e2e -- ...` 並符合 [專案執行草案](docs/agents/execution-plan.md) 的主機與時間限制。沒有 C、SDL2、Python 或 Emscripten 建置依賴。只使用根目錄入口，舊賽車及 Wasm 已移除。建置不會部署。
 
 可用 `WEB_PORT`、`PEER_PORT` 設定測試服務埠；開發前端的 relay 使用 `VITE_PEER_HOST/PORT/PATH/SECURE`（見 [.env.example](.env.example)）。正式靜態建置未設定自架 relay 時使用 PeerJS Cloud，實際連線仍受 NAT／網路環境影響。正式網站已於 2026-11-07 更新為坦克版本，並以三個獨立瀏覽器在公開網址完成入房、準備、開戰、裝填、卡彈排除、射擊、退殼與機槍視角驗證；不需本機連線服務。
 
