@@ -127,7 +127,9 @@ async function repairDuringReinforcement(
   const [firstNeedle, , , perfectStart, perfectEnd] = firstCircle.values;
   // The public two-second revolution and first visible readout give enough
   // lead time to send a real key. A later narrow-band RPC may arrive stale.
-  const plannedNeedle = (perfectStart + perfectEnd) / 2 - 4;
+  // Start inside the leading part of the same observed 8° band, leaving room
+  // for real browser delivery and the authority's elapsed-time advancement.
+  const plannedNeedle = (perfectStart + perfectEnd) / 2 - 7;
   const plannedAt =
     firstCircle.observedAt + ((plannedNeedle - firstNeedle) / 180) * 1000;
   const remaining = plannedAt - Date.now();
