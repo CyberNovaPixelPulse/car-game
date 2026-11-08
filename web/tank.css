@@ -1579,3 +1579,68 @@ legend {
 .ai-fire-warning {
   color: var(--hud-danger);
 }
+
+/* Reserve optical and work surfaces; only the training panel scrolls. */
+.practice-member {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  margin-block: 8px;
+}
+.practice-member p {
+  margin: 0;
+  line-height: 1.45;
+}
+.practice-controls {
+  scrollbar-color: var(--hud-muted) var(--hud-background);
+}
+.practice-controls summary:focus-visible,
+.practice-controls input:focus-visible {
+  outline: 3px solid var(--hud-danger);
+  outline-offset: 3px;
+}
+.battle-station[data-role="driver"] .battle-overview {
+  padding: 8px 12px;
+}
+.battle-station[data-role="driver"] .speedometer svg {
+  width: 80px;
+  height: 80px;
+}
+.battle-station[data-role="driver"] .speed-readout strong {
+  font-size: 28px;
+}
+.speedometer .speed-motion,
+.speedometer .speed-motion span {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.battle-station[data-role="driver"] .heading-readout {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.practice-session-actions {
+  display: flex;
+  gap: 8px;
+}
+.practice-scroll-note {
+  display: none;
+  margin-left: 8px;
+  color: var(--hud-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.practice-controls[data-scrollable="true"] .practice-scroll-note {
+  display: inline;
+}
+.speedometer text {
+  font-size: 24px;
+}
+
+.battle-station[data-practice="true"][data-role="driver"] .practice-controls {
+  position: fixed;
+  right: var(--hud-inset);
+  width: var(--work-width);
+  margin-top: 0;
+}

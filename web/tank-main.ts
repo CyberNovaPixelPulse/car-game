@@ -28,7 +28,11 @@ import {
   JAM_RULES,
 } from "./tank-weapons";
 import { stationMarkup } from "./tank-station";
-import { practiceControlsMarkup, practiceHint } from "./tank-practice-ui";
+import {
+  practiceControlsMarkup,
+  practiceHint,
+  fitPracticePanel,
+} from "./tank-practice-ui";
 import { PracticeCrew } from "./tank-practice-crew";
 import { presentSpeedometer } from "./tank-speedometer";
 import { attachFullscreenControl } from "./tank-fullscreen";
@@ -437,25 +441,25 @@ function mountPracticeControls() {
   const driveButton =
     content.querySelector<HTMLButtonElement>("#practice-drive");
   if (driveButton)
-    driveButton.onclick = () => {
+    driveButton.onclick = (event) => {
       if (!practiceCrew) return;
       runtime.setInput(held);
       practiceCrew.driverStopped = !practiceCrew.driverStopped;
       driveButton.textContent = practiceCrew.driverStopped
         ? "恢復 AI 駕駛"
         : "AI 停車";
-      driveButton.blur();
+      if (event.detail > 0) driveButton.blur();
     };
   const fireButton = content.querySelector<HTMLButtonElement>("#practice-fire");
   if (fireButton)
-    fireButton.onclick = () => {
+    fireButton.onclick = (event) => {
       if (!practiceCrew) return;
       runtime.setInput(held);
       practiceCrew.firing = !practiceCrew.firing;
       fireButton.textContent = practiceCrew.firing
         ? "暫停 AI 開火"
         : "恢復 AI 開火";
-      fireButton.blur();
+      if (event.detail > 0) fireButton.blur();
     };
   const shellSelect =
     content.querySelector<HTMLSelectElement>("#practice-shell");
@@ -477,12 +481,13 @@ function mountPracticeControls() {
         (shell === "he" || shell === "ap" || shell === "smoke")
       )
         practiceCrew.shell = shell;
-      shellSelect.blur();
     };
-  content.querySelector<HTMLButtonElement>("#practice-round")!.onclick = () => {
+  content.querySelector<HTMLButtonElement>("#practice-round")!.onclick = (
+    event,
+  ) => {
     runtime.setInput(held);
     core.startPracticeRound();
-    (document.activeElement as HTMLElement)?.blur();
+    if (event.detail > 0) (document.activeElement as HTMLElement)?.blur();
   };
   content.querySelector<HTMLButtonElement>("#practice-restart")!.onclick = () =>
     void enterPractice(practiceRole!);
@@ -514,6 +519,9 @@ function mountPracticeControls() {
 function releaseControlsForPause() {
   runtime.pausePractice(true);
   held = 0;
+  // The receipt advances to the click before freezing. Paint that final state
+  // now, so the paused HUD cannot retain a pre-click needle until the next rAF.
+  core.draw(0);
 }
 
 function station(role: CrewRole | null | undefined, code = "practice") {
@@ -996,6 +1004,7 @@ core.present = (state) => {
           ? `未命中，重試倒數 ${Math.max(0, weapon.jam.retryAt - state.time).toFixed(1)} 秒`
           : "按空白鍵停針";
   }
+  if (practiceRole) fitPracticePanel(content, practiceRole);
   if (stationRole === "loader" && weapon.mode !== "machine-gun")
     interiorScene?.render(state);
   if (stationRole !== "loader" || weapon.mode === "machine-gun")
@@ -1024,7 +1033,7 @@ window.addEventListener("keydown", (event) => {
   if (
     event.target instanceof Element &&
     event.target.closest(
-      "button, input, select, textarea, a[href], [contenteditable]",
+      "button, summary, input, select, textarea, a[href], [contenteditable]",
     )
   )
     return;

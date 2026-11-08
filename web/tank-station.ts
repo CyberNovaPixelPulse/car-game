@@ -20,9 +20,9 @@ export function stationMarkup(role: CrewRole, soundEnabled: boolean) {
       <p data-testid="wave-status"></p>
       <div class="driver-instruments">
         ${role === "driver" ? speedometerMarkup() : '<p class="speed-readout">速度 <strong data-testid="tank-speed">0.0</strong> m/s</p>'}
-        <p><span data-testid="tank-motion">靜止</span> · <span data-testid="tank-contact">車體正常</span></p>
+        ${role === "driver" ? "" : '<p><span data-testid="tank-motion">靜止</span> · <span data-testid="tank-contact">車體正常</span></p>'}
       </div>
-      <p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong><br>砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p>
+      <p class="heading-readout">車身朝向 <strong data-testid="hull-heading">0°</strong>${role === "driver" ? " · " : "<br>"}砲管朝向 <strong data-testid="turret-heading">0.0°</strong> · 仰角 <strong data-testid="turret-pitch">0.0°</strong></p>
       ${role === "loader" ? '<p class="loader-mode-line"><strong data-testid="loader-mode">裝填模式</strong> · Tab 切換工作</p>' : ""}
     </div>
     <div class="battle-utility"><div class="battle-actions">

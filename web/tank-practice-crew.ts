@@ -1,6 +1,12 @@
 import { CREW_ROLES, type CrewRole } from "./crew";
 import { TankCore, BATTLEFIELD, AIM, DRIVE } from "./tank-core";
-import { JAM_RULES, BALLISTICS, DRIVING, REPAIR_RULES } from "./tank-settings";
+import {
+  JAM_RULES,
+  BALLISTICS,
+  DRIVING,
+  REPAIR_RULES,
+  PRACTICE_RULES,
+} from "./tank-settings";
 import { nextCoverWaypoint } from "./tank-enemies";
 import { createTeamIntel, stepTeamIntel } from "./tank-intel";
 import {
@@ -23,6 +29,7 @@ export class PracticeCrew {
   firing = true;
   driverStopped = false;
   driverStatus = "等待交戰";
+  private escapeGoal?: { x: number; z: number };
   private searchPoint = 0;
   private fireAt?: number;
   constructor(
@@ -31,6 +38,7 @@ export class PracticeCrew {
   ) {}
   switchRole(role: CrewRole) {
     this.role = role;
+    this.escapeGoal = undefined;
     this.fireAt = undefined;
     this.searchPoint = 0;
   }
@@ -45,7 +53,7 @@ export class PracticeCrew {
   step(elapsed: number) {
     let remaining = elapsed;
     while (remaining > 0) {
-      const dt = Math.min(remaining, 0.025);
+      const dt = Math.min(remaining, PRACTICE_RULES.stepSeconds);
       this.drive();
       this.load();
       this.aim();
@@ -56,56 +64,105 @@ export class PracticeCrew {
   private drive() {
     const slot = this.botSlot("driver");
     if (slot === undefined) return;
-    const state = this.core.view();
-    const tank = state.tank;
-    let keys = 0;
-    if (this.driverStopped) this.driverStatus = "依指令停車";
-    else if (state.weapon.mode === "repair") this.driverStatus = "停車配合維修";
-    else if (
+    const state = this.core.view(),
+      tank = state.tank;
+    const stop = (status: string) => {
+      this.driverStatus = status;
+      this.core.input(slot, 0);
+    };
+    if (this.driverStopped) return stop("依指令停車");
+    if (state.weapon.mode === "repair") return stop("停車配合維修");
+    if (
       state.battle.failed ||
       !state.weapon.targets.some((target) => target.hp > 0)
     )
-      this.driverStatus = "等待交戰・停車";
-    else {
-      const target = state.intel.contacts.find(
-        (contact) => contact.visible && contact.hp > 0,
+      return stop("等待交戰・停車");
+    const target = state.intel.contacts.find(
+      (contact) => contact.visible && contact.hp > 0,
+    );
+    const search = [
+      [8, -9],
+      [24, 6],
+      [-5, 8],
+      [-24, 24],
+    ][this.searchPoint];
+    const goal = target ?? { x: search[0], z: search[1] };
+    const distance = Math.hypot(goal.x - tank.x, goal.z - tank.z);
+    const braking = (tank.speed * tank.speed) / (2 * DRIVING.coast);
+    if (
+      !this.escapeGoal &&
+      target &&
+      distance <= PRACTICE_RULES.driverStopDistance + braking
+    )
+      return stop("交戰停車");
+    if (!target && distance < PRACTICE_RULES.searchArrival)
+      this.searchPoint = (this.searchPoint + 1) % 4;
+    const size = BATTLEFIELD.tankRadius * Math.SQRT2;
+    let [x, z] = nextCoverWaypoint(
+      { ...tank, width: size, depth: size },
+      goal,
+      BATTLEFIELD.cover,
+    );
+    // A human can park legally inside the navigator's extra safety margin.
+    // Retain an outward goal until clear, rather than steering toward a zero vector.
+    if (
+      !this.escapeGoal &&
+      (Math.hypot(x - tank.x, z - tank.z) < 0.1 || tank.blocked)
+    ) {
+      const margin = BATTLEFIELD.tankRadius + 0.2;
+      const cover = BATTLEFIELD.cover.find(
+        (c) =>
+          Math.abs(tank.x - c.x) < c.width / 2 + margin &&
+          Math.abs(tank.z - c.z) < c.depth / 2 + margin,
       );
-      const search = [
-        [8, -9],
-        [24, 6],
-        [-5, 8],
-        [-24, 24],
-      ][this.searchPoint];
-      const goal = target ?? { x: search[0], z: search[1] };
-      const distance = Math.hypot(goal.x - tank.x, goal.z - tank.z);
-      const stopDistance = 10 + (tank.speed * tank.speed) / (2 * DRIVING.coast);
-      if (target && distance <= stopDistance) this.driverStatus = "交戰停車";
-      else {
-        if (!target && distance < 2)
-          this.searchPoint = (this.searchPoint + 1) % 4;
-        const size = BATTLEFIELD.tankRadius * Math.SQRT2;
-        const [x, z] = nextCoverWaypoint(
-          { ...tank, width: size, depth: size },
-          goal,
-          BATTLEFIELD.cover,
-        );
-        const error = Math.atan2(
-          Math.sin(Math.atan2(x - tank.x, -(z - tank.z)) - tank.yaw),
-          Math.cos(Math.atan2(x - tank.x, -(z - tank.z)) - tank.yaw),
-        );
-        const correction = error - tank.turnRate * 0.25;
-        keys =
-          Math.abs(correction) > 0.06
-            ? correction > 0
-              ? DRIVE.right
-              : DRIVE.left
-            : 0;
-        if (Math.abs(error) < 0.2 && !tank.blocked) keys |= DRIVE.forward;
-        // A blocked approach turns clear before trying forward again; never warp.
-        if (tank.blocked) keys = DRIVE.reverse | DRIVE.right;
-        this.driverStatus = "前進中・接近交戰區";
-      }
+      if (cover) {
+        const exits = [
+          { x: cover.x - cover.width / 2 - margin - 0.5, z: tank.z },
+          { x: cover.x + cover.width / 2 + margin + 0.5, z: tank.z },
+          { x: tank.x, z: cover.z - cover.depth / 2 - margin - 0.5 },
+          { x: tank.x, z: cover.z + cover.depth / 2 + margin + 0.5 },
+        ];
+        this.escapeGoal = exits.sort(
+          (a, b) =>
+            Math.hypot(a.x - tank.x, a.z - tank.z) -
+            Math.hypot(b.x - tank.x, b.z - tank.z),
+        )[0];
+      } else return stop("路線受阻・可換職調整車身");
     }
+    if (this.escapeGoal) {
+      x = this.escapeGoal.x;
+      z = this.escapeGoal.z;
+    }
+    const escapeDistance = Math.hypot(x - tank.x, z - tank.z);
+    if (
+      this.escapeGoal &&
+      escapeDistance <= PRACTICE_RULES.escapeArrival &&
+      Math.abs(tank.speed) < 0.1
+    ) {
+      this.escapeGoal = undefined;
+      return stop("脫困完成");
+    }
+    const normalize = (angle: number) =>
+      Math.atan2(Math.sin(angle), Math.cos(angle));
+    let error = normalize(Math.atan2(x - tank.x, -(z - tank.z)) - tank.yaw);
+    const reverse = !!this.escapeGoal && Math.abs(error) > Math.PI / 2;
+    if (reverse) error = normalize(error + Math.PI);
+    const correction = error - tank.turnRate * PRACTICE_RULES.steeringDamping;
+    let keys =
+      Math.abs(correction) > PRACTICE_RULES.steeringTolerance
+        ? correction > 0
+          ? DRIVE.right
+          : DRIVE.left
+        : 0;
+    if (
+      Math.abs(error) < PRACTICE_RULES.driveAlignment &&
+      (!this.escapeGoal ||
+        escapeDistance > braking + PRACTICE_RULES.escapeArrival)
+    )
+      keys |= reverse ? DRIVE.reverse : DRIVE.forward;
+    this.driverStatus = this.escapeGoal
+      ? "正在脫困・退出掩體邊界"
+      : "前進中・接近交戰區";
     this.core.input(slot, keys);
   }
   private aim() {
@@ -113,7 +170,7 @@ export class PracticeCrew {
     if (slot === undefined) return;
     const state = this.core.view();
     // The AI has its own 16:9 optical view, independent of the player's canvas.
-    this.core.input(slot, 0, 16 / 9);
+    this.core.input(slot, 0, PRACTICE_RULES.observerAspect);
     if (
       state.battle.failed ||
       !state.weapon.targets.some((target) => target.hp > 0)
@@ -125,7 +182,7 @@ export class PracticeCrew {
     const observation = { ...state, intel: createTeamIntel() };
     stepTeamIntel(
       observation,
-      [{ role: "gunner", aspect: 16 / 9 }],
+      [{ role: "gunner", aspect: PRACTICE_RULES.observerAspect }],
       BATTLEFIELD.cover,
     );
     const target = observation.intel.contacts.find(
@@ -134,7 +191,7 @@ export class PracticeCrew {
     if (!target) {
       this.fireAt = undefined;
       this.gunnerStatus = "搜尋可見敵車";
-      this.core.input(slot, AIM.right, 16 / 9);
+      this.core.input(slot, AIM.right, PRACTICE_RULES.observerAspect);
       return;
     }
     const dx = target.x - state.tank.x,
@@ -156,20 +213,24 @@ export class PracticeCrew {
       positive: number,
       negative: number,
     ) => {
-      const correction = error - rate * 0.3;
-      return correction > 0.025 ? positive : correction < -0.025 ? negative : 0;
+      const correction = error - rate * PRACTICE_RULES.aimDamping;
+      return correction > PRACTICE_RULES.aimTolerance
+        ? positive
+        : correction < -PRACTICE_RULES.aimTolerance
+          ? negative
+          : 0;
     };
     this.core.input(
       slot,
       axis(yawError, state.turret.yawRate, AIM.right, AIM.left) |
         axis(pitchError, state.turret.pitchRate, AIM.up, AIM.down),
-      16 / 9,
+      PRACTICE_RULES.observerAspect,
     );
     const settled =
-      Math.abs(yawError) < 0.07 &&
-      Math.abs(pitchError) < 0.06 &&
-      Math.abs(state.turret.yawRate) < 0.15 &&
-      Math.abs(state.turret.pitchRate) < 0.15;
+      Math.abs(yawError) < PRACTICE_RULES.fireYawTolerance &&
+      Math.abs(pitchError) < PRACTICE_RULES.firePitchTolerance &&
+      Math.abs(state.turret.yawRate) < PRACTICE_RULES.fireRateTolerance &&
+      Math.abs(state.turret.pitchRate) < PRACTICE_RULES.fireRateTolerance;
     if (!this.firing || !settled || state.weapon.chamber !== "loaded") {
       this.fireAt = undefined;
       this.gunnerStatus = !this.firing
@@ -179,7 +240,7 @@ export class PracticeCrew {
           : "轉砲瞄準";
       return;
     }
-    this.fireAt ??= state.time + 1.2;
+    this.fireAt ??= state.time + PRACTICE_RULES.firingWarning;
     this.gunnerStatus = `即將開火・${Math.max(0, this.fireAt - state.time).toFixed(1)} 秒後射擊，注意退殼`;
     if (state.time >= this.fireAt) {
       this.core.action(slot, FIRE);
@@ -230,7 +291,7 @@ export class PracticeCrew {
         calibration.result === "active" &&
         Math.abs(
           needle - calibration.target - REPAIR_RULES.calibrationWidth / 4,
-        ) < 0.015
+        ) < PRACTICE_RULES.calibrationTolerance
       )
         this.core.action(slot, STOP_JAM);
       this.loaderStatus =
@@ -251,7 +312,8 @@ export class PracticeCrew {
       this.loaderStatus = "排除卡彈";
       if (
         w.jam.result === "trying" &&
-        Math.abs(w.jam.needle - w.jam.zone - JAM_RULES.width / 2) < 0.025
+        Math.abs(w.jam.needle - w.jam.zone - JAM_RULES.width / 2) <
+          PRACTICE_RULES.jamTolerance
       )
         this.core.action(slot, STOP_JAM);
       return;

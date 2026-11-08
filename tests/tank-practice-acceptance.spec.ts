@@ -3,6 +3,41 @@ import { mkdir } from "node:fs/promises";
 
 test.use({ actionTimeout: 10_000 });
 
+async function capture(page: Page, name: string) {
+  const out =
+    process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-practice-tests/extras";
+  await mkdir(out, { recursive: true });
+  await page.screenshot({ path: `${out}/${name}.png` });
+}
+
+test("單人入口、窄螢幕選職與暫停選單保持可讀", async ({ page }) => {
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 720 });
+    await page.goto("/");
+    await expect(
+      page.getByRole("button", { name: "單人練習", exact: true }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBe(width);
+    await capture(page, `entry-${width}`);
+    await page.getByRole("button", { name: "單人練習", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "開始練習", exact: true }),
+    ).toBeVisible();
+    await capture(page, `role-selection-${width}`);
+  }
+  await page.getByRole("button", { name: "開始練習", exact: true }).click();
+  await page.getByRole("button", { name: "暫停練習", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "練習暫停" })).toBeVisible();
+  await capture(page, "pause-dialog-1280");
+  await page.getByRole("button", { name: "繼續練習", exact: true }).click();
+  await page.locator(".practice-controls").evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await capture(page, "driver-panel-scrolled-1280");
+});
+
 async function practice(page: Page, role: string, seed = 1000) {
   await page.addInitScript((seed) => {
     const original = crypto.getRandomValues.bind(crypto);
@@ -20,6 +55,39 @@ async function practice(page: Page, role: string, seed = 1000) {
   await page.getByRole("button", { name: "開始練習", exact: true }).click();
   await expect(page.getByTestId("practice-status")).toContainText("等待交戰");
 }
+
+test("真人靠牆停車後換職，AI 駕駛能離開保守導航邊界", async ({ page }) => {
+  await practice(page, "駕駛");
+  await page.getByRole("button", { name: "暫停 AI 開火", exact: true }).click();
+  await page.locator("canvas").click();
+  await page.keyboard.down("w");
+  await expect(page.getByTestId("tank-contact")).toHaveText("車體受阻", {
+    timeout: 15_000,
+  });
+  await page.keyboard.up("w");
+  await expect(page.getByTestId("tank-speed")).toHaveText("0.0");
+  const position = async () =>
+    (await page.locator(".navigation-player").getAttribute("transform"))!
+      .match(/-?[\d.]+/g)!
+      .map(Number);
+  const parked = await position();
+  await page.getByRole("button", { name: "暫停練習", exact: true }).click();
+  await page.getByRole("button", { name: "切換為砲手", exact: true }).click();
+  await page.getByRole("button", { name: "繼續練習", exact: true }).click();
+  await page.getByRole("button", { name: "開始交戰", exact: true }).click();
+  await expect
+    .poll(
+      async () => {
+        const current = await position();
+        return Math.hypot(current[0] - parked[0], current[1] - parked[1]);
+      },
+      { timeout: 20_000 },
+    )
+    .toBeGreaterThan(3);
+  await expect(page.getByTestId("ai-driver-status")).not.toHaveText(
+    "等待交戰・停車",
+  );
+});
 
 test("真人駕駛與兩位 AI 擊毀單敵後等待，下一輪沿用戰況", async ({ page }) => {
   await practice(page, "駕駛");
@@ -125,6 +193,7 @@ test("煙霧彈遮住 AI 砲手後不繼續射擊，教學與面板關閉仍保�
     timeout: 20_000,
   });
   await expect(page.getByTestId("practice-hint")).toBeHidden();
+  await capture(page, "ai-fire-warning-closed-panel");
 });
 
 test("練習中真實 HP0 失敗後可以完整重來", async ({ page }) => {
@@ -137,11 +206,41 @@ test("練習中真實 HP0 失敗後可以完整重來", async ({ page }) => {
     timeout: 220_000,
   });
   await expect(page.getByTestId("tank-health")).toHaveText("0/100");
+  await capture(page, "actual-defeat");
   await page.getByRole("button", { name: "重新開始練習", exact: true }).click();
   await expect(page.getByTestId("practice-status")).toContainText("等待交戰");
   await expect(page.getByTestId("tank-health")).toHaveText("100/100");
   await expect(page.getByTestId("shot-count")).toHaveText("0");
   await expect(page.getByTestId("load-progress")).toHaveText("0");
+  await capture(page, "defeat-restarted");
+});
+
+test("維修校準在單人暫停與換職中原位續接", async ({ page }) => {
+  await practice(page, "駕駛");
+  await page.getByRole("button", { name: "暫停 AI 開火", exact: true }).click();
+  await page.getByRole("button", { name: "開始交戰", exact: true }).click();
+  await expect(page.getByTestId("repair-calibration-result")).toContainText(
+    "維修校準中",
+    { timeout: 50_000 },
+  );
+  await page.getByRole("button", { name: "暫停練習", exact: true }).click();
+  const needle = await page.locator(".calibration-shared-needle").textContent();
+  await page.getByRole("button", { name: "切換為裝填手", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "練習暫停" })).toBeVisible();
+  await expect(page.locator(".calibration-shared-needle")).toHaveText(needle!);
+  await page.getByRole("button", { name: "繼續練習", exact: true }).click();
+  await page.waitForTimeout(600);
+  await expect(page.locator(".calibration-shared-needle")).toHaveText(needle!);
+  await capture(page, "calibration-handed-to-human");
+  await page.locator(".repair-workspace").click({ position: { x: 20, y: 20 } });
+  await page.keyboard.down("r");
+  await expect(page.locator(".calibration-shared-needle")).not.toHaveText(
+    needle!,
+  );
+  await page.keyboard.up("r");
+  await expect(page.getByTestId("repair-calibration-result")).toContainText(
+    "校準失敗",
+  );
 });
 
 test("單人三職與裝填三模式在兩種桌機尺寸及全螢幕可操作", async ({ page }) => {
@@ -180,6 +279,14 @@ test("單人三職與裝填三模式在兩種桌機尺寸及全螢幕可操作",
             page.getByRole("button", { name: "離開練習", exact: true }),
           ])
             await expect(control).toBeInViewport({ ratio: 1 });
+          const panel = await page.locator(".practice-controls").boundingBox();
+          const work = await page
+            .locator(".battle-work:visible, .battle-mg-work:visible")
+            .first()
+            .boundingBox();
+          expect(panel && work && panel.y + panel.height + 8 <= work.y).toBe(
+            true,
+          );
           await page.screenshot({
             path: `${out}/${size.width}-${mode}-${full ? "fullscreen" : "page"}.png`,
           });

@@ -2,6 +2,25 @@ import { test, expect } from "@playwright/test";
 
 test.use({ actionTimeout: 10_000 });
 
+test("原生練習控制保留鍵盤焦點，Space 收合面板而不開炮", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "單人練習", exact: true }).click();
+  await page.getByRole("button", { name: "擔任砲手", exact: true }).click();
+  await page.getByRole("button", { name: "開始練習", exact: true }).click();
+  await expect(page.getByTestId("chamber-state")).toHaveText("主炮就緒");
+  const select = page.getByLabel("AI 下一發彈種");
+  await select.focus();
+  await select.selectOption("he");
+  await expect(select).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(select).toBeFocused();
+  await expect(page.getByTestId("turret-heading")).toHaveText("0.0°");
+  await page.locator(".practice-controls summary").focus();
+  await page.keyboard.press("Space");
+  await expect(page.locator(".practice-controls")).not.toHaveAttribute("open");
+  await expect(page.getByTestId("shot-count")).toHaveText("0");
+});
+
 test("情境教學可關閉，收合面板後仍可暫停與恢復", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "單人練習", exact: true }).click();
@@ -12,7 +31,7 @@ test("情境教學可關閉，收合面板後仍可暫停與恢復", async ({ pa
   await expect(page.getByTestId("practice-hint")).toBeHidden();
   await page.getByText("練習控制", { exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "開始交戰", exact: true }),
+    page.getByRole("button", { name: "AI 停車", exact: true }),
   ).toBeHidden();
   await page.getByRole("button", { name: "暫停練習", exact: true }).click();
   await expect(

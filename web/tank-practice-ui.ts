@@ -1,14 +1,15 @@
 import { CREW_ROLES, ROLE_LABELS, type CrewRole } from "./crew";
+import { battleProjection } from "./tank-battle-view";
+import { DRIVER_VIEW } from "./tank-driver-view";
 import type { TankState } from "./tank-core";
 
 export function practiceControlsMarkup(role: CrewRole) {
-  return `<button id="practice-pause" type="button">暫停練習</button>
-    <details class="practice-controls hud-panel" open><summary>練習控制</summary>
+  return `<div class="practice-session-actions"><button id="practice-round" type="button">開始交戰</button><button id="practice-pause" type="button">暫停練習</button></div>
+    <details class="practice-controls hud-panel" open><summary><span>練習控制</span><small class="practice-scroll-note">捲動查看 AI 與教學</small></summary>
       <p data-testid="practice-status" role="status"></p>
-      ${role !== "driver" ? '<p>AI 駕駛：<span data-testid="ai-driver-status"></span></p><button id="practice-drive" type="button">AI 停車</button>' : ""}
-      ${role !== "gunner" ? '<p>AI 砲手：<span data-testid="ai-gunner-status"></span></p><button id="practice-fire" type="button">暫停 AI 開火</button>' : ""}
+      ${role !== "driver" ? '<div class="practice-member"><p>AI 駕駛：<span data-testid="ai-driver-status"></span></p><button id="practice-drive" type="button">AI 停車</button></div>' : ""}
+      ${role !== "gunner" ? '<div class="practice-member"><p>AI 砲手：<span data-testid="ai-gunner-status"></span></p><button id="practice-fire" type="button">暫停 AI 開火</button></div>' : ""}
       ${role !== "loader" ? '<p>AI 裝填手：<span data-testid="ai-loader-status"></span></p><label>AI 下一發彈種 <select id="practice-shell"><option value="ap">穿甲彈</option><option value="he">高爆彈</option><option value="smoke">煙霧彈</option></select></label>' : ""}
-      <button id="practice-round" type="button">開始交戰</button>
       <label class="practice-teaching"><input id="practice-hints" type="checkbox" checked> 顯示情境教學</label>
       <p class="practice-hint" data-testid="practice-hint" role="status"></p>
     </details>
@@ -55,4 +56,39 @@ export function practiceHint(state: TankState, role: CrewRole) {
   return w.chamber === "loaded"
     ? "主炮已就緒。可恢復 AI 開火；留意開火提醒並按住 C 避殼。"
     : "1 高爆、2 穿甲、3 煙霧；按住 R 裝填，放開保留進度。同發開始後鎖定彈種。";
+}
+
+/** Reserve the actual visible work HUD, and keep the driver's optical opening clear. */
+export function fitPracticePanel(root: HTMLElement, role: CrewRole) {
+  const panel = root.querySelector<HTMLElement>(".practice-controls");
+  const surface = root.querySelector<HTMLElement>(".battle-station");
+  if (!panel || !surface) return;
+  const work = [
+    ...root.querySelectorAll<HTMLElement>(".battle-work, .battle-mg-work"),
+  ].find((element) => element.getClientRects().length > 0);
+  const box = surface.getBoundingClientRect();
+  let bottom = Math.min(
+    box.bottom - 16,
+    work?.getBoundingClientRect().top ?? box.bottom,
+  );
+  if (role === "driver") {
+    const projection = battleProjection("driver", box.width / box.height);
+    const openingBottom =
+      box.top +
+      (box.height / 2) *
+        (1 +
+          Math.tan(DRIVER_VIEW.verticalFov / 2) /
+            Math.tan(projection.verticalFov / 2));
+    const top = `${Math.ceil(openingBottom + 12)}px`;
+    if (panel.style.top !== top) panel.style.top = top;
+  }
+  const height = Math.max(
+    60,
+    Math.floor(bottom - panel.getBoundingClientRect().top - 12),
+  );
+  const value = `${height}px`;
+  if (panel.style.maxHeight !== value) panel.style.maxHeight = value;
+  panel.dataset.scrollable = String(
+    panel.scrollHeight > panel.clientHeight + 1,
+  );
 }

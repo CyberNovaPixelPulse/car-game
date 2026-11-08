@@ -3,10 +3,12 @@ import { tankCrew } from "./tank-helpers";
 
 test("駕駛指針時速表以公里顯示前進與倒車，其他乘員保留速度讀數", async ({
   browser,
-}) => {
+}, testInfo) => {
   const crew = await tankCrew(browser);
   try {
-    await crew.driver.screenshot({ path: "/tmp/car-game-practice-before.png" });
+    await crew.driver.screenshot({
+      path: testInfo.outputPath("driver-speedometer.png"),
+    });
     const dial = crew.driver.getByRole("group", { name: "駕駛時速表" });
     await expect(dial).toBeVisible();
     await expect(dial).toContainText("km/h");
