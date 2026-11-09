@@ -11,6 +11,37 @@ async function repairMode(page: Page) {
   await expect(page.getByTestId("loader-mode")).toHaveText("維修模式");
 }
 
+async function pressPerfectCalibration(page: Page, timeout: number) {
+  let before = 0;
+  // Multiplayer HUD updates can skip an artificial eight-degree slice. Use
+  // the visible perfect zone and read HP in the same observation so the next
+  // browser command can immediately send the normal work key.
+  await expect
+    .poll(
+      async () => {
+        const sample = await page
+          .getByTestId("repair-calibration-position")
+          .evaluate((node) => ({
+            position: node.textContent!,
+            hp: Number(
+              document
+                .querySelector('[data-testid="tank-health"]')!
+                .textContent!.split("/")[0],
+            ),
+          }));
+        const [needle, , , start, end] = sample.position
+          .match(/[\d.]+/g)!
+          .map(Number);
+        before = sample.hp;
+        return needle >= start && needle <= end;
+      },
+      { intervals: [10], timeout },
+    )
+    .toBe(true);
+  await page.keyboard.press("Space");
+  return before;
+}
+
 test("實際維修才啟動兩秒圓形校準，正常空白鍵完美成功額外3HP並由三方共享", async ({
   browser,
 }) => {
@@ -29,25 +60,7 @@ test("實際維修才啟動兩秒圓形校準，正常空白鍵完美成功額�
     ).toHaveAccessibleName("維修時機校準");
     // All observations are visible user readouts. The actual keyboard still
     // travels over WebRTC to the host's authoritative needle and HP rule.
-    await expect
-      .poll(
-        async () => {
-          const text = await c.loader
-            .getByTestId("repair-calibration-position")
-            .textContent();
-          const [needle, , , perfectStart, perfectEnd] = text!
-            .match(/[\d.]+/g)!
-            .map(Number);
-          return (
-            needle >= (perfectStart + perfectEnd) / 2 - 8 &&
-            needle <= (perfectStart + perfectEnd) / 2
-          );
-        },
-        { intervals: [10], timeout: 1800 },
-      )
-      .toBe(true);
-    const before = await hp(c.loader);
-    await c.loader.keyboard.press("Space");
+    const before = await pressPerfectCalibration(c.loader, 1800);
     await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
       "完美校準・額外 +3 HP",
     );
@@ -733,23 +746,9 @@ test("完美獎勵在真實受損後封頂100HP，三方共享並保留實際校
     await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
       timeout: 12000,
     });
-    await expect
-      .poll(
-        async () => {
-          const [needle, , , start, end] = (await c.loader
-            .getByTestId("repair-calibration-position")
-            .textContent())!
-            .match(/[\d.]+/g)!
-            .map(Number);
-          return needle >= (start + end) / 2 - 8 && needle <= (start + end) / 2;
-        },
-        { intervals: [10], timeout: 1500 },
-      )
-      .toBe(true);
-    const before = await hp(c.loader);
+    const before = await pressPerfectCalibration(c.loader, 1500);
     expect(before).toBeGreaterThan(97);
     expect(before).toBeLessThan(100);
-    await c.loader.keyboard.press("Space");
     await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
       "完美校準・額外 +3 HP",
     );
