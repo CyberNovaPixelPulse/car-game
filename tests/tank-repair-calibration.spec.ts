@@ -350,9 +350,15 @@ test("實際敵彈中斷校準，三秒受擊與兩秒失敗取較晚且兩種�
       .poll(() => hp(c.loader), { timeout: 45000 })
       .toBeLessThanOrEqual(82);
     await c.loader.keyboard.down("r");
-    await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
-      timeout: 12000,
-    });
+    // A real enemy hit can end the active attempt between the default
+    // visibility assertion's polls. Observe the visible HUD at the same
+    // cadence as the damage below, without changing any gameplay timing.
+    await expect
+      .poll(() => c.loader.getByTestId("repair-calibration").isVisible(), {
+        intervals: [20],
+        timeout: 12000,
+      })
+      .toBe(true);
     const before = await hp(c.loader);
     await expect
       .poll(() => hp(c.loader), { intervals: [20], timeout: 1800 })
