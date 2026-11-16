@@ -22,7 +22,7 @@ const LOD_RANGE = 28;
 
 /** Role-specific exterior presentation; authority alone moves the shared hull. */
 export class TankScene {
-  private renderer: THREE.WebGLRenderer;
+  private renderer!: THREE.WebGLRenderer;
   private disposed = false;
   private sky?: THREE.DataTexture;
   private lastVisual = "";
@@ -30,19 +30,20 @@ export class TankScene {
   private lastDraw = -Infinity;
   private scene = new THREE.Scene();
   private smoke = new SmokeScene(this.scene);
-  private cannonFlash = new MuzzleFlash(this.scene, 0.6);
-  private mgFlash = new MuzzleFlash(this.scene, 0.22);
+  private cannonFlash!: MuzzleFlash;
+  private mgFlash!: MuzzleFlash;
   private mgMuzzle = new THREE.Group();
   private enemyFlashes = new Map<number, MuzzleFlash>();
   private camera = new THREE.PerspectiveCamera(65, 1, 0.1, 180);
   private assets = new ArtPreparation();
-  private player: VehicleModel;
+  private environment = new AbortController();
+  private player!: VehicleModel;
   private width = 0;
   private height = 0;
-  private tank: THREE.Group;
-  private turret: THREE.Group;
-  private elevation: THREE.Group;
-  private observer: ResizeObserver;
+  private tank!: THREE.Group;
+  private turret!: THREE.Group;
+  private elevation!: THREE.Group;
+  private observer?: ResizeObserver;
   private targetMeshes = new Map<number, THREE.Group>();
   private enemyModels = new Map<number, VehicleModel>();
   private enemyProjectiles = new Map<number, THREE.Mesh>();
@@ -54,7 +55,17 @@ export class TankScene {
     private view: "gunner" | "machine-gun" | "driver" = "gunner",
     private quality: SceneQuality = "medium",
   ) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    try {
+      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      this.build();
+    } catch (error) {
+      this.dispose();
+      throw error;
+    }
+  }
+  private build() {
+    this.cannonFlash = new MuzzleFlash(this.scene, 0.6);
+    this.mgFlash = new MuzzleFlash(this.scene, 0.22);
     const software = noteRenderer(this.renderer);
     this.player = new VehicleModel("sherman", this.assets.manager);
     this.tank = this.player.root;
@@ -99,7 +110,7 @@ export class TankScene {
         this.scene.backgroundIntensity = 0.8;
       },
     );
-    buildNormandy(this.scene, this.assets.manager);
+    buildNormandy(this.scene, this.environment.signal, this.assets.manager);
     preloadVehicles(this.assets.manager);
     this.scene.add(this.tank);
     if (this.view === "driver") {
@@ -133,7 +144,7 @@ export class TankScene {
       this.scene.add(this.camera);
     }
     this.observer = new ResizeObserver(() => this.resize());
-    this.observer.observe(canvas);
+    this.observer.observe(this.canvas);
     this.resize();
   }
   setQuality(quality: SceneQuality) {
@@ -387,15 +398,20 @@ export class TankScene {
     (mesh.material as THREE.Material).dispose();
   }
   dispose() {
+    if (this.disposed) return;
     this.disposed = true;
+    this.assets.cancel();
+    this.environment.abort();
     this.sky?.dispose();
-    this.cannonFlash.dispose();
-    this.mgFlash.dispose();
+    this.cannonFlash?.dispose();
+    this.mgFlash?.dispose();
     for (const flash of this.enemyFlashes.values()) flash.dispose();
     this.enemyFlashes.clear();
-    this.observer.disconnect();
-    this.scene.remove(this.player.root);
-    this.player.dispose();
+    this.observer?.disconnect();
+    if (this.player) {
+      this.scene.remove(this.player.root);
+      this.player.dispose();
+    }
     for (const model of this.enemyModels.values()) {
       this.scene.remove(model.root);
       model.dispose();
@@ -407,6 +423,7 @@ export class TankScene {
       line.geometry.dispose();
       (line.material as THREE.Material).dispose();
     }
-    this.renderer.dispose();
+    this.renderer?.dispose();
+    this.renderer?.forceContextLoss();
   }
 }

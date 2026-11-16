@@ -49,12 +49,12 @@ export function stationMarkup(role: CrewRole, soundEnabled: boolean) {
     ${
       role === "gunner"
         ? `
-      <div class="battle-viewport"><canvas aria-label="主炮戰場視野" role="img"></canvas><span class="sight" aria-hidden="true"></span></div>
+      <div class="battle-viewport"><span class="sight" aria-hidden="true"></span></div>
       <div class="battle-work hud-panel">${weaponStatus}<p>水平轉速 <strong data-testid="turret-yaw-rate">0.0°/s</strong> · 俯仰轉速 <strong data-testid="turret-pitch-rate">0.0°/s</strong></p><p class="note gunner-controls">按住方向鍵左右轉砲、上下俯仰；約半秒加速與停止，反向先煞停再反轉。</p><p class="note">主炮就緒後，按空白鍵開火。</p></div>
     `
         : role === "driver"
           ? `
-      <div class="battle-viewport driver-viewport"><canvas aria-label="駕駛裝甲觀察窗" role="img"></canvas></div>
+      <div class="battle-viewport driver-viewport"></div>
       <div class="battle-work hud-panel"><p class="note">觀察窗固定朝車頭，側後方請隊友協助觀察。</p><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。</p></div>
     `
           : `
@@ -70,7 +70,7 @@ export function stationMarkup(role: CrewRole, soundEnabled: boolean) {
           </div>
         </div>
         <div class="loading-workspace">
-          <div class="interior-viewport"><canvas role="img" aria-label="車內炮膛與彈藥架"></canvas></div>
+          <div class="interior-viewport"></div>
           <section class="jam-game hud-panel" aria-label="卡彈排除" hidden><h3>卡彈：停在目標區</h3><div class="jam-track"><span class="jam-zone" data-testid="jam-zone">目標</span><span class="jam-needle" data-testid="jam-needle"></span></div><p data-testid="jam-result">按空白鍵停針</p></section>
         </div>
       </div>

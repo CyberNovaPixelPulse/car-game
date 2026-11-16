@@ -1,21 +1,23 @@
 import * as THREE from "three";
+import { disposeArt } from "./tank-art-materials";
 import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import type { TankState } from "./tank-core";
 import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
 
 /** Enclosed loader workspace. Deliberately owns no battlefield geometry or rules. */
 export class TankInteriorScene {
-  private renderer: THREE.WebGLRenderer;
+  private renderer!: THREE.WebGLRenderer;
   private assets = new ArtPreparation();
   private disposed = false;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(58, 1, 0.05, 16);
-  private observer: ResizeObserver;
+  private observer?: ResizeObserver;
   private recoil = new THREE.Group();
   private block = new THREE.Group();
   private round = new THREE.Group();
   private case = new THREE.Group();
   private textures: THREE.Texture[] = [];
+  private materials: THREE.Material[] = [];
   private dirty = true;
   private visualStamp = "";
   private width = 0;
@@ -26,7 +28,15 @@ export class TankInteriorScene {
     private canvas: HTMLCanvasElement,
     private quality: SceneQuality = "medium",
   ) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    try {
+      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      this.build();
+    } catch (error) {
+      this.dispose();
+      throw error;
+    }
+  }
+  private build() {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.shadowMap.enabled = true;
@@ -45,8 +55,15 @@ export class TankInteriorScene {
     const fill = new THREE.PointLight(0xc6d5d0, 14, 7, 2);
     fill.position.set(-1.4, 1.9, 0.8);
     this.scene.add(fill);
-    const mat = (color: number, metalness = 0.15, roughness = 0.65) =>
-      new THREE.MeshStandardMaterial({ color, metalness, roughness });
+    const mat = (color: number, metalness = 0.15, roughness = 0.65) => {
+      const material = new THREE.MeshStandardMaterial({
+        color,
+        metalness,
+        roughness,
+      });
+      this.materials.push(material);
+      return material;
+    };
     const paint = mat(0x697367),
       darkPaint = mat(0x39473c),
       steel = mat(0x81877f, 0.7, 0.32),
@@ -54,23 +71,24 @@ export class TankInteriorScene {
       brass = mat(0xb8a06a, 0.72, 0.3),
       rubber = mat(0x242925, 0, 0.92);
     const textureLoader = new THREE.TextureLoader(this.assets.manager);
-    const diffuse = textureLoader.load(
+    const loadTexture = (url: string) => {
+      const texture = textureLoader.load(url, () => this.invalidate());
+      this.textures.push(texture);
+      return texture;
+    };
+    const diffuse = loadTexture(
       "/assets/interior/green_metal_rust_diff_1k.jpg",
-      () => this.invalidate(),
     );
     diffuse.colorSpace = THREE.SRGBColorSpace;
-    const normal = textureLoader.load(
+    const normal = loadTexture(
       "/assets/interior/green_metal_rust_nor_gl_1k.png",
-      () => this.invalidate(),
     );
-    const roughness = textureLoader.load(
+    const roughness = loadTexture(
       "/assets/interior/green_metal_rust_rough_1k.jpg",
-      () => this.invalidate(),
     );
     for (const texture of [diffuse, normal, roughness]) {
       texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
       texture.repeat.set(2, 2);
-      this.textures.push(texture);
     }
     for (const material of [paint, darkPaint]) {
       material.map = diffuse;
@@ -216,18 +234,18 @@ export class TankInteriorScene {
         band.rotation.x = Math.PI / 2;
       }
     };
+    this.scene.add(this.round, this.case);
     makeShell(this.round);
     makeShell(this.case, true);
-    this.scene.add(this.round, this.case);
     // Ready rack and strapped, nose-up ammunition against the right wall.
     box(0.82, 0.17, 1.65, darkPaint, 1.72, 0.5, -0.35);
     for (let row = 0; row < 2; row++)
       for (let i = 0; i < 4; i++) {
         const round = new THREE.Group();
+        this.scene.add(round);
         makeShell(round, false, row ? 0x4a5050 : 0x606746);
         round.position.set(1.48 + row * 0.32, 0.88, -0.95 + i * 0.4);
         round.rotation.x = Math.PI / 2;
-        this.scene.add(round);
         mesh(
           new THREE.TorusGeometry(0.12, 0.018, 8, 20),
           darkPaint,
@@ -266,7 +284,7 @@ export class TankInteriorScene {
       1.4,
     );
     this.observer = new ResizeObserver(() => this.resize());
-    this.observer.observe(canvas);
+    this.observer.observe(this.canvas);
     this.resize();
   }
   private beveledBox(w: number, h: number, d: number) {
@@ -371,18 +389,12 @@ export class TankInteriorScene {
     this.renderer.render(this.scene, this.camera);
   }
   dispose() {
+    if (this.disposed) return;
     this.disposed = true;
-    this.observer.disconnect();
-    this.scene.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) {
-        obj.geometry.dispose();
-        for (const m of Array.isArray(obj.material)
-          ? obj.material
-          : [obj.material])
-          m.dispose();
-      }
-    });
-    for (const texture of this.textures) texture.dispose();
-    this.renderer.dispose();
+    this.assets.cancel();
+    this.observer?.disconnect();
+    disposeArt(this.scene, { materials: this.materials, textures: this.textures });
+    this.renderer?.dispose();
+    this.renderer?.forceContextLoss();
   }
 }

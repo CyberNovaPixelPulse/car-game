@@ -16,9 +16,15 @@ export class ArtPreparation {
       for (const waiter of this.waiters.splice(0)) waiter.resolve();
     };
     this.manager.onError = () => {
-      this.failure = new Error("無法載入視野材質，請重試準備。");
-      for (const waiter of this.waiters.splice(0)) waiter.reject(this.failure);
+      this.fail(new Error("無法載入視野材質，請重試準備。"));
     };
+  }
+  cancel() {
+    this.fail(new Error("視野準備已取消。"));
+  }
+  private fail(error: Error) {
+    this.failure ??= error;
+    for (const waiter of this.waiters.splice(0)) waiter.reject(this.failure);
   }
   wait() {
     if (this.failure) return Promise.reject(this.failure);
