@@ -3,7 +3,7 @@ import { MG_FIRE } from "./tank-machine-gun";
 import { Session, type Room } from "./network";
 import { CREW_ROLES, ROLE_LABELS, ROLE_TASKS, type CrewRole } from "./crew";
 import { GameRuntime } from "./game-runtime";
-import { TankCore, DRIVE, AIM, type TankState } from "./tank-core";
+import { DRIVE, AIM, type TankState } from "./tank-core";
 import { TankRoleViews } from "./tank-role-views";
 import type { SceneQuality } from "./tank-scene-quality";
 import { TankMechanicalAudio } from "./tank-mechanical-audio";
@@ -19,7 +19,6 @@ import {
 } from "./tank-weapons";
 import { mountStation } from "./tank-station";
 import type { PracticeControls } from "./tank-practice-ui";
-import { PracticeCrew } from "./tank-practice-crew";
 import "./tank.css";
 
 const app = document.querySelector<HTMLDivElement>("#tank-app")!;
@@ -37,14 +36,9 @@ session.onRetryAvailable = () => {
   retryButton.hidden = false;
 };
 let practiceRole: CrewRole | undefined;
-let practiceCrew: PracticeCrew | undefined;
 let practiceHints = true;
-const core = new TankCore((slot) =>
-  practiceCrew
-    ? practiceCrew.roleOf(slot)
-    : (session.room?.members.find((m) => m.slot === slot)?.role ?? undefined),
-);
-const runtime = new GameRuntime(core, session);
+const runtime = new GameRuntime(session);
+const core = runtime.presentation;
 const views = new TankRoleViews();
 let activeStation: ReturnType<typeof mountStation> | undefined;
 function clearStation() {
@@ -171,7 +165,6 @@ function menu() {
   runtime.clearInput();
   runtime.mode = "idle";
   practiceRole = undefined;
-  practiceCrew = undefined;
   practiceMatch = undefined;
   roomMatch = undefined;
   choosingRole = undefined;
@@ -304,10 +297,7 @@ function enterPractice(role: CrewRole, preserve = false) {
   if (!preserve) {
     practiceMatch = Symbol();
     practiceRole = role;
-    practiceCrew = new PracticeCrew(core, role);
-    runtime.startPractice(crypto.getRandomValues(new Uint32Array(1))[0], (dt) =>
-      practiceCrew?.step(dt),
-    );
+    runtime.startPractice(crypto.getRandomValues(new Uint32Array(1))[0], role);
     runtime.pausePractice(true);
   }
   const context = { match: practiceMatch!, role };
@@ -321,7 +311,7 @@ function enterPractice(role: CrewRole, preserve = false) {
     onReady: () => {
       const surface = station(role);
       if (!views.mount(context, surface)) return;
-      if (preserve) practiceCrew!.switchRole(role);
+      if (preserve) runtime.switchPracticeRole(role);
       practiceRole = role;
       message.textContent = "";
       if (preserve) activeStation?.showPracticePause();
@@ -346,7 +336,9 @@ function enterPractice(role: CrewRole, preserve = false) {
   });
 }
 
-function practiceControls(crew: PracticeCrew): PracticeControls {
+function practiceControls(
+  crew: NonNullable<GameRuntime["practice"]>,
+): PracticeControls {
   return {
     hints: practiceHints,
     driverStopped: crew.driverStopped,
@@ -356,22 +348,18 @@ function practiceControls(crew: PracticeCrew): PracticeControls {
       practiceHints = enabled;
     },
     onToggleDrive: () => {
-      runtime.setInput(held);
-      crew.driverStopped = !crew.driverStopped;
-      return crew.driverStopped;
+      runtime.commandPractice({ type: "toggle-driver" });
+      return runtime.practice!.driverStopped;
     },
     onToggleFire: () => {
-      runtime.setInput(held);
-      crew.firing = !crew.firing;
-      return crew.firing;
+      runtime.commandPractice({ type: "toggle-fire" });
+      return runtime.practice!.firing;
     },
     onShell: (shell) => {
-      runtime.setInput(held);
-      crew.shell = shell;
+      runtime.commandPractice({ type: "select-shell", shell });
     },
     onRound: () => {
-      runtime.setInput(held);
-      core.startPracticeRound();
+      runtime.commandPractice({ type: "start-round" });
     },
     onPause: releaseControlsForPause,
     onResume: () => {
@@ -396,7 +384,7 @@ function station(role: CrewRole) {
   soundedShot = 0;
   soundedStun = 0;
   soundedDamage = -100;
-  const practice = practiceCrew && practiceControls(practiceCrew);
+  const practice = runtime.practice && practiceControls(runtime.practice);
   activeStation = mountStation(content, role, recovery, {
     quality: sceneQuality,
     soundEnabled,
@@ -457,12 +445,12 @@ core.present = (state) => {
   if (!station) return;
   station.present(
     state,
-    practiceCrew && {
-      round: core.practiceRound,
+    runtime.practice && {
+      round: runtime.practice.round,
       paused: runtime.paused,
-      driverStatus: practiceCrew.driverStatus,
-      gunnerStatus: practiceCrew.gunnerStatus,
-      loaderStatus: practiceCrew.loaderStatus,
+      driverStatus: runtime.practice.driverStatus,
+      gunnerStatus: runtime.practice.gunnerStatus,
+      loaderStatus: runtime.practice.loaderStatus,
     },
   );
   if (

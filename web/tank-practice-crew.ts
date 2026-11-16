@@ -21,14 +21,20 @@ import {
   type ShellType,
 } from "./tank-weapons";
 
+export type PracticeCommand =
+  | { type: "toggle-driver" }
+  | { type: "toggle-fire" }
+  | { type: "select-shell"; shell: ShellType }
+  | { type: "start-round" };
+
 /** Local crew sends the same role-checked controls as a human. No state injection. */
 export class PracticeCrew {
-  shell: ShellType = "ap";
-  loaderStatus = "等待工作";
-  gunnerStatus = "等待交戰";
-  firing = true;
-  driverStopped = false;
-  driverStatus = "等待交戰";
+  private shell: ShellType = "ap";
+  private loaderStatus = "等待工作";
+  private gunnerStatus = "等待交戰";
+  private firing = true;
+  private driverStopped = false;
+  private driverStatus = "等待交戰";
   private escapeGoal?: { x: number; z: number };
   private searchPoint = 0;
   private fireAt?: number;
@@ -36,6 +42,33 @@ export class PracticeCrew {
     private core: TankCore,
     private role: CrewRole,
   ) {}
+  get status() {
+    return {
+      round: this.core.practiceRound,
+      shell: this.shell,
+      loaderStatus: this.loaderStatus,
+      gunnerStatus: this.gunnerStatus,
+      firing: this.firing,
+      driverStopped: this.driverStopped,
+      driverStatus: this.driverStatus,
+    } as const;
+  }
+  applyCommand(command: PracticeCommand) {
+    switch (command.type) {
+      case "toggle-driver":
+        this.driverStopped = !this.driverStopped;
+        break;
+      case "toggle-fire":
+        this.firing = !this.firing;
+        break;
+      case "select-shell":
+        this.shell = command.shell;
+        break;
+      case "start-round":
+        this.core.startPracticeRound();
+        break;
+    }
+  }
   switchRole(role: CrewRole) {
     this.role = role;
     this.escapeGoal = undefined;

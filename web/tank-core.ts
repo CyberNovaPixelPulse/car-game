@@ -110,13 +110,16 @@ export class TankCore implements GameCore<TankState> {
   private participants: number[] = [];
   private paused = false;
   private practice = false;
-  practiceRound = 0;
+  private round = 0;
+  get practiceRound() {
+    return this.round;
+  }
   present: (state: TankState, participant: number) => void = () => {};
   constructor(private roleOf: (participant: number) => CrewRole | undefined) {}
   start(options: GameStart) {
     this.state = initial(options.seed);
     this.practice = !!options.practice;
-    this.practiceRound = 0;
+    this.round = 0;
     if (this.practice) this.state.weapon.targets = [];
     this.controls.clear();
     this.aspects.clear();
@@ -142,11 +145,11 @@ export class TankCore implements GameCore<TankState> {
     const [x, z] =
       positions.find(([x, z]) => Math.hypot(x - tank.x, z - tank.z) >= 10) ??
       positions[0];
-    this.practiceRound++;
+    this.round++;
     this.state.weapon.targets = [
       createEnemyTarget(
         "panzer",
-        1000 + this.practiceRound,
+        1000 + this.round,
         x,
         z,
         this.state.time + ENEMY_RULES.spawnGrace,

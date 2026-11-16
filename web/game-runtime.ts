@@ -1,5 +1,8 @@
 import { TRANSPORT } from "./tank-settings";
 import type { Room, Session } from "./network";
+import type { CrewRole } from "./crew";
+import { TankCore, type TankState } from "./tank-core";
+import { PracticeCrew, type PracticeCommand } from "./tank-practice-crew";
 
 export interface GameStart {
   participants: number[];
@@ -23,16 +26,18 @@ export interface GameCore<View> {
 }
 
 /** Runs a core locally or under the room's existing host-authority contract. */
-export class GameRuntime<View> {
+export class GameRuntime {
+  private readonly core: TankCore;
+  readonly presentation: Pick<TankCore, "view" | "draw" | "present">;
   mode: "idle" | "online" | "practice" = "idle";
   private localPaused = false;
-  private localStep?: (elapsed: number) => void;
+  private practiceCrew?: PracticeCrew;
   onStart: () => void = () => {};
   onRoom: (room: Room) => void = () => {};
   onRestoreError: (error: Error) => void = () => {};
   private held = 0;
   private viewAspect?: number;
-  private previous = performance.now();
+  private previous: number;
   private lastNetwork = 0;
   // Session.room is replaced before callbacks. Keep the OLD authority pause state.
   private tankPaused = false;
@@ -44,10 +49,23 @@ export class GameRuntime<View> {
     );
   }
 
+  get practice() {
+    if (this.mode === "practice") return this.practiceCrew?.status;
+  }
+
   constructor(
-    private core: GameCore<View>,
     private session: Session,
+    private readonly now = () => performance.now(),
   ) {
+    this.previous = this.now();
+    const core = new TankCore((slot) =>
+      this.mode === "practice"
+        ? this.practiceCrew?.roleOf(slot)
+        : (session.room?.members.find((member) => member.slot === slot)?.role ??
+          undefined),
+    );
+    this.core = core;
+    this.presentation = core;
     session.onInput = (participant, keys, aspect) => {
       this.advanceTankAuthority();
       core.input(participant, this.paused ? 0 : keys, aspect);
@@ -71,7 +89,7 @@ export class GameRuntime<View> {
         core.pause?.(this.paused);
         this.clearInput();
         for (const member of room.members) core.input(member.slot, 0);
-        this.previous = performance.now();
+        this.previous = this.now();
         wasPaused = this.paused;
       }
       this.tankPaused = this.paused;
@@ -81,12 +99,13 @@ export class GameRuntime<View> {
     };
     session.onStart = (participants, seed) => {
       this.mode = "online";
+      this.practiceCrew = undefined;
       this.held = 0;
       this.viewAspect = undefined;
       this.tankPaused = this.paused;
       wasPaused = this.paused;
       core.start({ participants, seed });
-      this.previous = performance.now();
+      this.previous = this.now();
       this.lastNetwork = 0;
       this.onStart();
     };
@@ -95,15 +114,14 @@ export class GameRuntime<View> {
   /** Consume past time under old controls, then install a newly received state. */
   private advanceTankAuthority() {
     if (this.mode === "practice") {
-      const now = performance.now();
+      const now = this.now();
       const elapsed = Math.max(0, now - this.previous) / 1000;
       this.previous = now;
-      if (!this.localPaused)
-        (this.localStep ?? ((dt) => this.core.step(dt)))(elapsed);
+      if (!this.localPaused) this.practiceCrew?.step(elapsed);
       return;
     }
     if (this.mode !== "online" || !this.session.isHost) return;
-    const now = performance.now();
+    const now = this.now();
     const elapsed = Math.max(0, now - this.previous);
     this.previous = Math.max(this.previous, now);
     if (!this.tankPaused && elapsed > 0) this.core.step(elapsed / 1000);
@@ -177,7 +195,7 @@ export class GameRuntime<View> {
       this.session.input(0, this.viewAspect);
   }
 
-  frame(now: number): { participant: number; view: View } {
+  frame(now: number): { participant: number; view: TankState } {
     const online = this.mode === "online";
     const participant = online ? this.session.slot : 0;
     if (online || this.mode === "practice") this.advanceTankAuthority();
@@ -197,14 +215,26 @@ export class GameRuntime<View> {
     if (this.session.isHost) this.session.finish(this.core.snapshot());
   }
 
-  startPractice(seed: number, step?: (elapsed: number) => void) {
+  startPractice(seed: number, role: CrewRole) {
     this.mode = "practice";
     this.localPaused = false;
     this.held = 0;
     this.viewAspect = undefined;
-    this.localStep = step;
+    this.practiceCrew = new PracticeCrew(this.core, role);
     this.core.start({ participants: [0, 1, 2], seed, practice: true });
-    this.previous = performance.now();
+    this.previous = this.now();
+  }
+
+  switchPracticeRole(role: CrewRole) {
+    if (this.mode === "practice" && this.localPaused)
+      this.practiceCrew?.switchRole(role);
+  }
+
+  commandPractice(command: PracticeCommand) {
+    if (this.mode !== "practice" || !this.practiceCrew) return;
+    // Settle old controls first, including the locally held keys and projection.
+    this.setInput(this.held);
+    this.practiceCrew.applyCommand(command);
   }
 
   pausePractice(paused: boolean) {
@@ -214,6 +244,6 @@ export class GameRuntime<View> {
     this.core.pause?.(paused);
     this.held = 0;
     for (const slot of [0, 1, 2]) this.core.input(slot, 0);
-    this.previous = performance.now();
+    this.previous = this.now();
   }
 }
