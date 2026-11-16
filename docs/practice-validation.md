@@ -62,3 +62,38 @@ Standards 與 Spec 獨立審查在修正鍵盤焦點、調參集中、換職失�
 此回合僅修改校準測試及驗證文件；遊戲程式與資產和初次固定來源回歸相同，因此未重跑整套 130 項。上面的 129／130 原始結果與本回合 10／10 分開保留，不相加宣稱新的單次完整 130 項全綠。
 
 本機證據在 `/tmp/car-game-calibration-fix-20261109/`：`reproduce/`、`green/`、`calibration-suite/`、`final-calibration-suite/` 分別保留重現、單項確認、第一批校準回歸及最後全綠批次；`review.md` 保留兩軸審查。正式發布使用已提交版本的乾淨來源副本，另核對部署版本與公開網站短流程。
+
+
+## 四項架構整合驗證（2026-11-17）
+
+整合工作樹為 `/Users/guanyuchen/side-project/car-game-worktrees/architecture-integration`，分支 `codex/architecture-integration`，共同基準 `a34be9d`。依序整合職位畫面生命週期、工作站呈現、單人練習命令、校準測試操作。產品與測試來源固定於 `eed4f3f`；`0a64913` 只新增使用者要求的內建瀏覽器規則。原 checkout 的其他既有工作保留，未推送或部署。
+
+整合將 HUD 工作區顯隱交給工作站，canvas 建立、掛載與渲染交給 TankRoleViews。換職保留「暫停 → 準備 → 掛載成功 → 同步交換職位」；四種練習意圖經過 GameRuntime.commandPractice 結算舊控制時間。另把第一項交付的延遲換職回覆及機槍重連驗證保留為 tank-role-view-integration.spec.ts。
+
+### 固定來源檢查
+
+`npm run check`、`npm run build` 及 `git diff --check a34be9d HEAD` 通過。Vite 保留既有的大型 bundle 提醒。整合冒煙 14/14 通過，包含權威時序四例、校準清理四例、地景取消／部分失敗兩例、延遲換職回覆／機槍重連兩例、駕駛資產準備及三職速度讀數。來源為 `439fde9` 加交付的兩項整合測試；後續 `eed4f3f` 僅將這兩項測試改為中文名稱、提交並更新 runtime 文件，產品碼相同。原始結果：`/tmp/car-game-architecture-integration/smoke/results.json`。
+
+使用者指定內建瀏覽器後，兩輪外部 Chromium 完整批次均停止，不能宣稱全套 142 例通過，也不把不同批次相加。第一輪為 3 通過、2 失敗、1 中斷、136 未執行；失敗是反向瞄準讀數 46.4 未小於 45，以及可信 Esc 全螢幕案例的 focus 斷言，原因未完成基準對照。第二輪中止前 4 通過，剩餘未完成。原始紀錄保留在 `/tmp/car-game-architecture-integration/full/` 與 `full-final/`。後續瀏覽器驗證依 AGENTS.md 使用內建瀏覽器。
+
+### 內建瀏覽器實際操作
+
+透過 Codex 內建瀏覽器及普通 UI／鍵盤操作本機整合版，未注入遊戲狀態或改動遊戲時鐘。
+
+- 單人：駕駛前進／倒車、km/h 與方向文字；暫停換至砲手，準備後保持暫停；砲手正常瞄準與開火一發；換至裝填手後發射數與膛內狀態保留；裝填→機槍→維修→裝填→機槍，機槍七發計數保留；高畫質切換及車內只保留內景呈現。實測 DOM 尺寸包括 1280×720、1440×1050。部分早期截圖被內建瀏覽器縮放，檔名的預期尺寸不能替代實際像素尺寸。
+- 入口：390×844 的 DOM 寬度與 scrollWidth 均為390，完整首頁無水平溢出。
+- 多人：同一內建瀏覽器三個分頁，透過真正本機 PeerServer／WebRTC 連線，不是三台電腦；三職選擇、取消準備、重新準備、開始戰鬥；裝填手機槍射擊六發後離頁，全隊顯示缺員暫停；返回同一分頁直接恢復機槍、保留六發計數，無須重新投準備票；自然受擊至 HP0，按 R 不復活；回到原房間後三人職位與準備狀態清空。
+- 全螢幕：內建瀏覽器拒絕 requestFullscreen，遊戲顯示錯誤提示並可繼續操作。僅驗證失敗回復，未認證成功全螢幕／可信 Esc。
+- 未完成：整合版全部142例、三波勝利、完美校準時序與完整HP獎勵矩陣、原始兩項失敗的基準對照。內建瀏覽器 raw CDP 不支援本次嘗試的 Input.dispatchKeyEvent，因此未藉此重跑時間敏感 helper。未測效能、人工音效聆聽、實體多機或部署。
+
+內建瀏覽器截圖及公開DOM紀錄保存在 `/tmp/car-game-architecture-integration/iab/`，包括 `machine-gun-1440x1050.jpg`、`menu-mobile.jpg`、`multiplayer-paused.jpg`、`multiplayer-loader-reconnected.jpg`、`multiplayer-failure-fullscreen-fallback.jpg` 及 `multiplayer-returned-lobby.jpg`。預覽為 `http://127.0.0.1:5375/`。
+
+### Standards
+
+唯讀規範審查 `a34be9d...439fde9`：0 項新增硬性違規、0 項具體可行的 smell 發現。核對資源所有權、舊控制結算、呈現與權威界線、真實輸入及清理。指出 docs/game-runtime.md 舊句「沒有 practice/idle 本機遊戲」與 ADR0003 衝突，已在 `eed4f3f` 修正。
+
+### Spec
+
+唯讀規格審查四份核可交接：0 項確定的缺漏、越界或錯誤實作。掛載後換職、HUD後渲染、可見外景比例、晚到資源回收、命令順序及校準操作契約均符合。此為靜態審查，不能代替未完成的瀏覽器案例。
+
+兩軸各0項新增問題；均無可指出的最高嚴重度問題，驗證限制如上。
