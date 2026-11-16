@@ -2,8 +2,32 @@ import { CREW_ROLES, ROLE_LABELS, type CrewRole } from "./crew";
 import { battleProjection } from "./tank-battle-view";
 import { DRIVER_VIEW } from "./tank-driver-view";
 import type { TankState } from "./tank-core";
+import type { ShellType } from "./tank-weapons";
 
-export function practiceControlsMarkup(role: CrewRole) {
+export interface PracticeControls {
+  hints: boolean;
+  driverStopped: boolean;
+  firing: boolean;
+  shell: ShellType;
+  onHints: (enabled: boolean) => void;
+  onToggleDrive: () => boolean;
+  onToggleFire: () => boolean;
+  onShell: (shell: ShellType) => void;
+  onRound: () => void;
+  onPause: () => void;
+  onResume: () => void;
+  onSwitchRole: (role: CrewRole) => void;
+}
+
+export interface PracticeFrame {
+  round: number;
+  paused: boolean;
+  driverStatus: string;
+  gunnerStatus: string;
+  loaderStatus: string;
+}
+
+function practiceControlsMarkup(role: CrewRole) {
   return `<div class="practice-session-actions"><button id="practice-round" type="button">開始交戰</button><button id="practice-pause" type="button">暫停練習</button></div>
     <details class="practice-controls hud-panel" open><summary><span>練習控制</span><small class="practice-scroll-note">捲動查看 AI 與教學</small></summary>
       <p data-testid="practice-status" role="status"></p>
@@ -29,7 +53,7 @@ export function practiceControlsMarkup(role: CrewRole) {
     </dialog>`;
 }
 
-export function practiceHint(state: TankState, role: CrewRole) {
+function practiceHint(state: TankState, role: CrewRole) {
   const w = state.weapon;
   if (state.battle.failed)
     return "坦克已被擊毀。重新開始練習即可回到完整初始狀態。";
@@ -59,15 +83,17 @@ export function practiceHint(state: TankState, role: CrewRole) {
 }
 
 /** Reserve the actual visible work HUD, and keep the driver's optical opening clear. */
-export function fitPracticePanel(root: HTMLElement, role: CrewRole) {
-  const panel = root.querySelector<HTMLElement>(".practice-controls");
-  const surface = root.querySelector<HTMLElement>(".battle-station");
-  if (!panel || !surface) return;
-  const work = [
-    ...root.querySelectorAll<HTMLElement>(".battle-work, .battle-mg-work"),
-  ].find((element) => element.getClientRects().length > 0);
+function fitPracticePanel(
+  panel: HTMLElement,
+  surface: HTMLElement,
+  role: CrewRole,
+  workPanels: HTMLElement[],
+) {
+  const work = workPanels.find(
+    (element) => element.getClientRects().length > 0,
+  );
   const box = surface.getBoundingClientRect();
-  let bottom = Math.min(
+  const bottom = Math.min(
     box.bottom - 16,
     work?.getBoundingClientRect().top ?? box.bottom,
   );
@@ -91,4 +117,139 @@ export function fitPracticePanel(root: HTMLElement, role: CrewRole) {
   panel.dataset.scrollable = String(
     panel.scrollHeight > panel.clientHeight + 1,
   );
+}
+
+export function mountPracticeControls(
+  surface: HTMLElement,
+  role: CrewRole,
+  controls: PracticeControls,
+  onLeave: () => void,
+  onRestart: () => void,
+) {
+  surface.dataset.practice = "true";
+  surface
+    .querySelector(".battle-utility")!
+    .insertAdjacentHTML("beforeend", practiceControlsMarkup(role));
+  surface
+    .querySelector(".battle-alerts")!
+    .insertAdjacentHTML(
+      "beforeend",
+      '<p class="hud-panel ai-fire-warning" data-testid="ai-fire-warning" role="status" hidden></p>',
+    );
+
+  const hints = surface.querySelector<HTMLInputElement>("#practice-hints")!;
+  const drive = surface.querySelector<HTMLButtonElement>("#practice-drive");
+  const fire = surface.querySelector<HTMLButtonElement>("#practice-fire");
+  const shell = surface.querySelector<HTMLSelectElement>("#practice-shell");
+  const round = surface.querySelector<HTMLButtonElement>("#practice-round")!;
+  const pause = surface.querySelector<HTMLButtonElement>("#practice-pause")!;
+  const dialog = surface.querySelector<HTMLDialogElement>(
+    "#practice-pause-menu",
+  )!;
+  const resume = surface.querySelector<HTMLButtonElement>("#practice-resume")!;
+  const panel = surface.querySelector<HTMLElement>(".practice-controls")!;
+  const workPanels = [
+    ...surface.querySelectorAll<HTMLElement>(".battle-work, .battle-mg-work"),
+  ];
+  const status = surface.querySelector('[data-testid="practice-status"]')!;
+  const hint = surface.querySelector<HTMLElement>(
+    '[data-testid="practice-hint"]',
+  )!;
+  const warning = surface.querySelector<HTMLElement>(
+    '[data-testid="ai-fire-warning"]',
+  )!;
+  const driverStatus = surface.querySelector(
+    '[data-testid="ai-driver-status"]',
+  );
+  const gunnerStatus = surface.querySelector(
+    '[data-testid="ai-gunner-status"]',
+  );
+  const loaderStatus = surface.querySelector(
+    '[data-testid="ai-loader-status"]',
+  );
+
+  const driveLabel = (stopped: boolean) =>
+    stopped ? "恢復 AI 駕駛" : "AI 停車";
+  const fireLabel = (firing: boolean) =>
+    firing ? "暫停 AI 開火" : "恢復 AI 開火";
+  hints.checked = controls.hints;
+  hints.onchange = () => controls.onHints(hints.checked);
+  if (drive) {
+    drive.textContent = driveLabel(controls.driverStopped);
+    drive.onclick = (event) => {
+      drive.textContent = driveLabel(controls.onToggleDrive());
+      if (event.detail > 0) drive.blur();
+    };
+  }
+  if (fire) {
+    fire.textContent = fireLabel(controls.firing);
+    fire.onclick = (event) => {
+      fire.textContent = fireLabel(controls.onToggleFire());
+      if (event.detail > 0) fire.blur();
+    };
+  }
+  if (shell) {
+    shell.value = controls.shell;
+    shell.onchange = () => {
+      const value = shell.value;
+      if (value === "he" || value === "ap" || value === "smoke")
+        controls.onShell(value);
+    };
+  }
+  round.onclick = (event) => {
+    controls.onRound();
+    if (event.detail > 0) (document.activeElement as HTMLElement)?.blur();
+  };
+  const showPause = () => dialog.showModal();
+  pause.onclick = () => {
+    controls.onPause();
+    showPause();
+  };
+  dialog.oncancel = (event) => {
+    event.preventDefault();
+    resume.click();
+  };
+  resume.onclick = () => {
+    controls.onResume();
+    dialog.close();
+    (document.activeElement as HTMLElement)?.blur();
+  };
+  for (const button of dialog.querySelectorAll<HTMLButtonElement>(
+    "[data-switch-role]",
+  )) {
+    button.onclick = () =>
+      controls.onSwitchRole(button.dataset.switchRole as CrewRole);
+  }
+
+  dialog.querySelector<HTMLButtonElement>("#practice-exit")!.onclick = onLeave;
+  dialog.querySelector<HTMLButtonElement>("#practice-restart")!.onclick =
+    onRestart;
+
+  return {
+    showPause,
+    present(state: TankState, frame: PracticeFrame) {
+      hint.hidden = !hints.checked;
+      hint.textContent = practiceHint(state, role);
+      warning.textContent = frame.gunnerStatus.startsWith("即將開火")
+        ? frame.gunnerStatus
+        : "";
+      warning.hidden = !warning.textContent;
+      if (driverStatus) driverStatus.textContent = frame.driverStatus;
+      if (gunnerStatus) gunnerStatus.textContent = frame.gunnerStatus;
+      if (loaderStatus) loaderStatus.textContent = frame.loaderStatus;
+      const active = state.weapon.targets.some((target) => target.hp > 0);
+      status.textContent = state.battle.failed
+        ? "練習失敗・可重新開始"
+        : frame.round === 0
+          ? "等待交戰・自由練習"
+          : `第 ${frame.round} 輪・${active ? "交戰中" : "目標已擊毀・等待下一輪"}`;
+      round.disabled = active || frame.paused || state.battle.failed;
+      round.textContent = active
+        ? "交戰中"
+        : frame.round
+          ? "下一輪"
+          : "開始交戰";
+      fitPracticePanel(panel, surface, role, workPanels);
+    },
+  };
 }

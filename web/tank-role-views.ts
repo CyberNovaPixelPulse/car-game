@@ -21,8 +21,6 @@ interface RoleViews {
   exterior?: ViewCanvas<TankScene>;
   interior?: ViewCanvas<TankInteriorScene>;
   loader?: {
-    interiorViewport: HTMLElement;
-    mgWorkspace: HTMLElement;
     mgViewport: HTMLElement;
   };
   onRestoreError?: (error: unknown) => void;
@@ -130,8 +128,6 @@ export class TankRoleViews {
     }
 
     const machineGun = state.weapon.mode === "machine-gun";
-    loader.mgWorkspace.hidden = !machineGun;
-    loader.interiorViewport.hidden = machineGun;
     if (machineGun) {
       if (!views.exterior && views.onRestoreError) {
         const onError = views.onRestoreError;
@@ -209,7 +205,7 @@ export class TankRoleViews {
       const mgWorkspace = station.querySelector<HTMLElement>(".mg-workspace")!;
       const mgViewport =
         mgWorkspace.querySelector<HTMLElement>(".battle-viewport")!;
-      views.loader = { interiorViewport, mgWorkspace, mgViewport };
+      views.loader = { mgViewport };
       interiorViewport.prepend(views.interior!.canvas);
     } else {
       station
