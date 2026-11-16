@@ -122,9 +122,18 @@ test("長按不依賴重複事件，反向先煞停再反轉，其他職位不�
     await expect(rate).toHaveText("48.7°/s");
     await crew.gunner.keyboard.up("ArrowRight");
     await crew.gunner.keyboard.down("ArrowLeft");
-    await crew.gunner.waitForTimeout(120);
-    expect(await number(rate)).toBeGreaterThan(0);
-    expect(await number(rate)).toBeLessThan(45);
+    // The remote HUD follows input delivery, host frames and snapshots. Observe
+    // one actual braking sample rather than assuming 120ms of wall time has
+    // already reached that client. An instant sign flip still fails this check.
+    await expect
+      .poll(
+        async () => {
+          const braking = await number(rate);
+          return braking > 0 && braking < 45;
+        },
+        { timeout: 1000, intervals: [20] },
+      )
+      .toBe(true);
     await expect.poll(() => number(rate)).toBeLessThan(-5);
     await expect(rate).toHaveText("-48.7°/s");
     await crew.gunner.keyboard.up("ArrowLeft");
