@@ -10,70 +10,6 @@ import { observeBrowser } from "./tank-browser-observations";
 import { createCrewCleanup } from "./tank-crew-cleanup";
 
 const keyboards = new WeakMap<Page, CDPSession>();
-let publicObservationId = 0;
-
-/** A page observer reports only its public HUD reading. CDP's notification
- * reaches the controller independently of an evaluate RPC acknowledgment.
- * The controller remains the sole source of real browser key events. */
-export async function createPublicObservationBridge<T>(page: Page) {
-  const session = keyboards.get(page)!;
-  const name = `__tankPublicObservation${++publicObservationId}`;
-  let resolve!: (event: { value: T; receivedAt: number }) => void;
-  let reject!: (error: unknown) => void;
-  let settled = false;
-  const event = new Promise<{ value: T; receivedAt: number }>((done, fail) => {
-    resolve = done;
-    reject = fail;
-  });
-  event.catch(() => {}); // Setup/disposal can precede the caller's join.
-  const receive = (message: { name: string; payload: string }) => {
-    if (message.name !== name || settled) return;
-    settled = true;
-    try {
-      resolve({
-        value: JSON.parse(message.payload) as T,
-        receivedAt: Date.now(),
-      });
-    } catch (error) {
-      reject(error);
-    }
-  };
-  session.on("Runtime.bindingCalled", receive);
-  try {
-    await session.send("Runtime.enable");
-    await session.send("Runtime.addBinding", { name });
-  } catch (error) {
-    session.off("Runtime.bindingCalled", receive);
-    reject(error);
-    throw error;
-  }
-  let disposing: Promise<void> | undefined;
-  return {
-    name,
-    event,
-    dispose: () =>
-      (disposing ??= (async () => {
-        session.off("Runtime.bindingCalled", receive);
-        if (!settled) {
-          settled = true;
-          reject(new Error("Public observation disposed before notification"));
-        }
-        const results = await Promise.allSettled([
-          session.send("Runtime.removeBinding", { name }),
-          page.evaluate((name) => {
-            delete (window as any)[name];
-          }, name),
-        ]);
-        const failed = results.filter((result) => result.status === "rejected");
-        if (failed.length)
-          throw new AggregateError(
-            failed.map((result) => result.reason),
-            "Public observation bridge disposal failed",
-          );
-      })()),
-  };
-}
-
 /** Aim through the visible compass with real held keys, then correct any
  * delivery/coasting error from the compass. No authority state is accessed.
  */
@@ -247,24 +183,17 @@ export async function aimAtObservedEnemy(
   await aimAtHeading(page, bearing);
 }
 
-/** Genuine browser key events, scheduled independently of protocol acknowledgement.
- * This keeps a rapid burst / 90ms rhythm rapid while screenshots stall individual RPCs.
- * Sessions are attached before navigation; no post-start warmup, DOM dispatch or clock hook.
- */
-export async function nativeTaps(
-  page: Page,
-  count: number,
-  intervalMs = 0,
-  key: "d" | "Space" = "d",
+/** Send both real events before waiting for either protocol acknowledgment. */
+export async function dispatchNativeTap(
+  keyboard: CDPSession,
+  key: "d" | "Space",
 ) {
-  const keyboard = keyboards.get(page)!;
-  const pending: Promise<unknown>[] = [];
   const descriptor =
     key === "Space"
       ? { key: " ", code: "Space", windowsVirtualKeyCode: 32 }
       : { key: "d", code: "KeyD", windowsVirtualKeyCode: 68 };
-  for (let i = 0; i < count; i++) {
-    pending.push(
+  await joinNativeKeys(
+    [
       keyboard.send("Input.dispatchKeyEvent", {
         type: "keyDown",
         ...descriptor,
@@ -272,17 +201,40 @@ export async function nativeTaps(
         unmodifiedText: descriptor.key,
         autoRepeat: false,
       }),
-    );
-    pending.push(
       keyboard.send("Input.dispatchKeyEvent", {
         type: "keyUp",
         ...descriptor,
       }),
-    );
+    ],
+    "Native tap delivery failed",
+  );
+}
+
+async function joinNativeKeys(commands: Promise<unknown>[], message: string) {
+  const failures = (await Promise.allSettled(commands)).flatMap((result) =>
+    result.status === "rejected" ? [result.reason] : [],
+  );
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) throw new AggregateError(failures, message);
+}
+
+/** Keep the original burst/rhythm even when screenshots stall individual RPCs. */
+export async function nativeTaps(
+  page: Page,
+  count: number,
+  intervalMs = 0,
+  key: "d" | "Space" = "d",
+) {
+  const keyboard = keyboards.get(page)!;
+  const pending: Promise<void>[] = [];
+  for (let i = 0; i < count; i++) {
+    const tap = dispatchNativeTap(keyboard, key);
+    tap.catch(() => {}); // The interval may elapse after the tap rejects.
+    pending.push(tap);
     if (intervalMs && i + 1 < count)
       await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
   }
-  await Promise.all(pending);
+  await joinNativeKeys(pending, "Native taps delivery failed");
 }
 
 export async function tankCrew(
