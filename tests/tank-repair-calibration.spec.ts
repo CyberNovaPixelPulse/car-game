@@ -66,9 +66,6 @@ test("校準中放開R立即失敗，兩秒停修保留既有HP且重複空白�
       timeout: 12000,
     });
     const before = await hp(c.loader);
-    await expect(
-      c.loader.getByTestId("repair-calibration"),
-    ).toHaveAccessibleName("維修時機校準");
     await c.loader.keyboard.up("r");
     await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
       "校準失敗・停修兩秒",
@@ -131,6 +128,9 @@ test("活躍校準在真實缺員暫停原位凍結，重連需重新按R且不�
       c.loader.getByTestId("repair-calibration-position"),
     ).toHaveText(position!);
     await expect(c.loader.getByTestId("tank-health")).toHaveText(health!);
+    await expect(
+      c.loader.getByTestId("repair-calibration"),
+    ).toHaveAccessibleName("維修時機校準");
     await c.loader.setViewportSize({ width: 1280, height: 720 });
     const panel = await c.loader.locator(".repair-workspace").boundingBox();
     const alerts = await c.loader.locator(".battle-alerts").boundingBox();
