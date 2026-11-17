@@ -4,11 +4,7 @@ import { TEAM_INTEL_SECONDS } from "./tank-settings";
 /** A north-up schematic of the playable square, independent of station/mode.
  * Terrain follows tools/blender/build_map.py; only BATTLEFIELD cover is solid.
  */
-export function mountBattleNavigation(station: Element) {
-  const navigation =
-    station.querySelector(".battle-navigation") ||
-    station.appendChild(document.createElement("aside"));
-  navigation.classList.add("battle-navigation");
+export function mountBattleNavigation(navigation: HTMLElement) {
   navigation.setAttribute("aria-label", "共用戰場導航");
   const limit = BATTLEFIELD.limit;
   navigation.innerHTML = `<div class="navigation-heading"><strong>戰場導航</strong><span><svg aria-hidden="true" viewBox="0 0 10 14"><path d="M5 13V2M1 6l4-4 4 4"/></svg>北</span></div>
@@ -32,31 +28,23 @@ export function mountBattleNavigation(station: Element) {
       </g>
       <g class="navigation-contacts" aria-label="隊伍觀測敵車"></g>
     </svg><p class="navigation-legend" aria-label="箭頭代表車頭，細線代表主炮；實心點為目前觀測，空心點為最後已知，舊情報約五秒淡出"><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><path class="navigation-hull" d="M0 -3L2.4 3L0 1.5L-2.4 3Z"/></svg>車頭</span><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><path class="navigation-gun" d="M0 3V-3"/></svg>主炮</span><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><rect class="navigation-enemy-key" x="-3.5" y="-1.5" width="3" height="3"/><rect class="navigation-stale-key" x="0.5" y="-1.5" width="3" height="3"/></svg>現／舊</span></p><p class="navigation-scale">地形示意 · 84 × 84 m</p>`;
-}
+  const player = navigation.querySelector(".navigation-player")!;
+  const hull = player.querySelector(".navigation-hull")!;
+  const gun = player.querySelector(".navigation-gun")!;
+  const contacts = navigation.querySelector(".navigation-contacts")!;
 
-/** SVG's positive rotation is clockwise; world -z is north (SVG's top). */
-export function presentBattleNavigation(
-  root: ParentNode,
-  state: Pick<TankState, "tank" | "turret" | "intel" | "time">,
-) {
-  const player = root.querySelector(".navigation-player");
-  if (!player) return;
-  const degrees = (yaw: number) => (((yaw * 180) / Math.PI) % 360).toFixed(1);
-  player.setAttribute(
-    "transform",
-    `translate(${state.tank.x.toFixed(2)} ${state.tank.z.toFixed(2)})`,
-  );
-  player
-    .querySelector(".navigation-hull")!
-    .setAttribute("transform", `rotate(${degrees(state.tank.yaw)})`);
-  player
-    .querySelector(".navigation-gun")!
-    .setAttribute(
+  /** SVG's positive rotation is clockwise; world -z is north (SVG's top). */
+  return (state: Pick<TankState, "tank" | "turret" | "intel" | "time">) => {
+    const degrees = (yaw: number) => (((yaw * 180) / Math.PI) % 360).toFixed(1);
+    player.setAttribute(
+      "transform",
+      `translate(${state.tank.x.toFixed(2)} ${state.tank.z.toFixed(2)})`,
+    );
+    hull.setAttribute("transform", `rotate(${degrees(state.tank.yaw)})`);
+    gun.setAttribute(
       "transform",
       `rotate(${degrees(state.tank.yaw + state.turret.yaw)})`,
     );
-  const contacts = root.querySelector(".navigation-contacts");
-  if (contacts) {
     const living = state.intel.contacts.filter((c) => c.hp > 0);
     const ids = new Set(living.map((c) => String(c.id)));
     for (const marker of contacts.querySelectorAll(".navigation-enemy"))
@@ -91,5 +79,5 @@ export function presentBattleNavigation(
         `${contact.visible ? "觀測敵車" : "最後已知敵車"} ${contact.kind === "panzer" ? "四號 H 型" : "虎式 I 型"}`,
       );
     }
-  }
+  };
 }

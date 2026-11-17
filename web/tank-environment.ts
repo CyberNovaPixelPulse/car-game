@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { BATTLEFIELD } from "./tank-core";
+import { disposeArt } from "./tank-art-materials";
 import { buildProceduralNormandy } from "./tank-environment-procedural";
 import { softwareRendering } from "./tank-vehicle-model";
 
@@ -45,19 +46,63 @@ interface MapArt {
 
 export function buildNormandy(
   scene: THREE.Scene,
+  signal: AbortSignal,
   manager?: THREE.LoadingManager,
 ) {
+  if (signal.aborted) return;
   // A CPU rasteriser cannot afford the baked map's textures and foliage without
   // stalling the page past the crew's peer-link timeout: keep the primitive map.
   if (softwareRendering()) return buildProceduralNormandy(scene, manager);
+
+  const staged = new THREE.Group();
+  const roots = new Set<THREE.Object3D>([staged]);
+  const textures: THREE.Texture[] = [];
+  const materials: THREE.Material[] = [];
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    signal.removeEventListener("abort", release);
+    staged.removeFromParent();
+    disposeArt([...roots], { textures, materials });
+    roots.clear();
+    textures.length = materials.length = 0;
+  };
+  signal.addEventListener("abort", release, { once: true });
+
+  // Own each individual load as soon as it resolves. Promise.all can reject
+  // while other requests are still decoding and will deliver assets later.
+  const ownGroup = (group: THREE.Group) => {
+    if (released) disposeArt(group);
+    else roots.add(group);
+    return group;
+  };
+  const ownTexture = (texture: THREE.Texture) => {
+    if (released) texture.dispose();
+    else textures.push(texture);
+    return texture;
+  };
   const key = `${ART}/normandy.glb`;
   // Hold the preparation barrier open until the map or its fallback is in place.
   manager?.itemStart(key);
-  void loadMap()
-    .then((art) => placeMap(scene, art))
+  void loadMap(ownGroup, ownTexture)
+    .then((art) => {
+      if (released) return;
+      roots.delete(art.map);
+      staged.add(art.map);
+      placeMap(staged, art, materials);
+      scene.add(staged);
+    })
     .catch((error: unknown) => {
+      release();
+      if (signal.aborted) return;
       console.warn("地圖模型載入失敗，改用簡易場景。", error);
-      buildProceduralNormandy(scene, manager);
+      try {
+        buildProceduralNormandy(scene, manager);
+      } catch (error) {
+        console.error("無法建立簡易地圖。", error);
+        manager?.itemError(key);
+      }
     })
     .finally(() => manager?.itemEnd(key));
 }
@@ -65,42 +110,44 @@ export function buildNormandy(
 /** One Draco decoder (wasm in public/draco, from three.js) shared by every scene. */
 const draco = new DRACOLoader().setDecoderPath("/draco/");
 
-async function loadMap(): Promise<MapArt> {
+async function loadMap(
+  ownGroup: (group: THREE.Group) => THREE.Group,
+  ownTexture: (texture: THREE.Texture) => THREE.Texture,
+): Promise<MapArt> {
   const gltf = new GLTFLoader().setDRACOLoader(draco);
   const textures = new THREE.TextureLoader();
-  const [map, foliage, ...images] = await Promise.all([
-    gltf.loadAsync(`${ART}/normandy.glb`),
-    gltf.loadAsync(`${ART}/foliage.glb`),
-    textures.loadAsync(`${ART}/splat_a.png`),
-    textures.loadAsync(`${ART}/splat_b.png`),
-    ...GROUND.map((id) => textures.loadAsync(`/art/terrain/${id}_diff_1k.jpg`)),
+  const loadModel = (file: string) =>
+    gltf.loadAsync(`${ART}/${file}`).then(({ scene }) => ownGroup(scene));
+  const loadTexture = (url: string) => textures.loadAsync(url).then(ownTexture);
+  const [map, foliage, splatA, splatB, ...groundImages] = await Promise.all([
+    loadModel("normandy.glb"),
+    loadModel("foliage.glb"),
+    loadTexture(`${ART}/splat_a.png`),
+    loadTexture(`${ART}/splat_b.png`),
+    ...GROUND.map((id) => loadTexture(`/art/terrain/${id}_diff_1k.jpg`)),
   ]);
-  const splat = images.slice(0, 2) as THREE.Texture[];
+  const splat = [splatA, splatB];
   for (const t of splat) {
     t.colorSpace = THREE.NoColorSpace;
     t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
   }
   const ground = {} as MapArt["ground"];
   GROUND.forEach((id, i) => {
-    const t = images[2 + i] as THREE.Texture;
+    const t = groundImages[i];
     t.colorSpace = THREE.SRGBColorSpace;
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 8;
     ground[id] = t;
   });
-  return {
-    map: (map as { scene: THREE.Group }).scene,
-    foliage: (foliage as { scene: THREE.Group }).scene,
-    splat,
-    ground,
-  };
+  return { map, foliage, splat, ground };
 }
 
-function placeMap(scene: THREE.Scene, art: MapArt) {
+function placeMap(staged: THREE.Group, art: MapArt, replaced: THREE.Material[]) {
   art.map.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return;
     if (object.name === "terrain") {
-      (object.material as THREE.Material).dispose();
+      const original = object.material;
+      replaced.push(...(Array.isArray(original) ? original : [original]));
       object.material = terrainMaterial(art);
       object.castShadow = false;
       object.receiveShadow = true;
@@ -108,9 +155,9 @@ function placeMap(scene: THREE.Scene, art: MapArt) {
       object.castShadow = object.receiveShadow = true;
     }
   });
-  scene.add(art.map);
-  placeFoliage(scene, art.foliage);
-  scene.add(meadowGrass());
+  // The drawn foliage instances share the retained prototype's resources.
+  placeFoliage(staged, art.foliage);
+  staged.add(meadowGrass());
 }
 
 /** Tiled CC0 ground sets blended by two baked weight maps.
@@ -175,7 +222,7 @@ diffuseColor.rgb *= ground;`,
 /** Trees, hedges, rocks and props. Placements are bucketed into square cells, one
  * InstancedMesh per prototype primitive per cell, so off-screen cells are culled and
  * only cells near the battlefield pay for the sun's shadow pass. */
-function placeFoliage(scene: THREE.Scene, foliage: THREE.Group) {
+function placeFoliage(scene: THREE.Group, foliage: THREE.Group) {
   const root = foliage.getObjectByName("foliage");
   if (!root || typeof root.userData.instances !== "string")
     throw new Error("foliage glTF is missing its instance table");
@@ -220,6 +267,7 @@ function placeFoliage(scene: THREE.Scene, foliage: THREE.Group) {
           mesh.material,
           starts.length,
         );
+        scene.add(instanced);
         starts.forEach((start, n) => {
           const [x, y, z, yaw, s, tiltX, tiltY] = data.slice(
             start,
@@ -237,7 +285,6 @@ function placeFoliage(scene: THREE.Scene, foliage: THREE.Group) {
         instanced.receiveShadow = true;
         instanced.computeBoundingSphere();
         instanced.name = proto;
-        scene.add(instanced);
       }
     }
   }

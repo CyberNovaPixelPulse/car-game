@@ -108,24 +108,32 @@ export function hullGeometry(
 
 /** Dispose one exclusive resource owner. Sharing within that owner is released once.
  * Vehicle models never borrow geometry/materials/textures from other models. */
-export function disposeArt(root: THREE.Object3D) {
+export function disposeArt(
+  root: THREE.Object3D | THREE.Object3D[],
+  extra: { materials?: THREE.Material[]; textures?: THREE.Texture[] } = {},
+) {
   const geometries = new Set<THREE.BufferGeometry>();
-  const materials = new Set<THREE.Material>();
-  const textures = new Set<THREE.Texture>();
-  root.traverse((object) => {
-    if (!(object instanceof THREE.Mesh)) return;
-    geometries.add(object.geometry);
-    for (const material of Array.isArray(object.material)
-      ? object.material
-      : [object.material]) {
-      materials.add(material);
-      const m = material as THREE.MeshStandardMaterial;
-      for (const texture of [m.map, m.normalMap, m.roughnessMap])
-        if (texture) textures.add(texture);
-    }
-  });
+  const materials = new Set(extra.materials);
+  const textures = new Set(extra.textures);
+  for (const tree of Array.isArray(root) ? root : [root]) {
+    tree.traverse((object) => {
+      if (object instanceof THREE.Light && "shadow" in object)
+        (object.shadow as THREE.LightShadow | undefined)?.dispose();
+      if (!(object instanceof THREE.Mesh)) return;
+      if (object instanceof THREE.InstancedMesh) object.dispose();
+      geometries.add(object.geometry);
+      for (const material of Array.isArray(object.material)
+        ? object.material
+        : [object.material])
+        materials.add(material);
+    });
+  }
+  for (const material of materials) {
+    for (const value of Object.values(material))
+      if (value instanceof THREE.Texture) textures.add(value);
+    material.dispose();
+  }
   for (const texture of textures) texture.dispose();
-  for (const material of materials) material.dispose();
   for (const geometry of geometries) geometry.dispose();
 }
 

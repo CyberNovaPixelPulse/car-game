@@ -60,8 +60,8 @@ function intersection(a: number[], b: number[], c: Box, margin = 0) {
   );
 }
 /** Visibility graph around expanded cover corners: both crews can drive around solid cover. */
-function nextPoint(
-  enemy: EnemyTarget,
+export function nextCoverWaypoint(
+  enemy: Pick<EnemyTarget, "x" | "z" | "width" | "depth">,
   tank: Pick<Vehicle, "x" | "z">,
   cover: readonly Box[],
 ) {
@@ -165,7 +165,7 @@ export function stepEnemies(
           (searching ? ENEMY_RULES.searchStop : ENEMY_RULES.fightingStop) ||
         blocked
       ) {
-        const point = nextPoint(e, goal, cover);
+        const point = nextCoverWaypoint(e, goal, cover);
         const dx = point[0] - e.x,
           dz = point[1] - e.z,
           length = Math.hypot(dx, dz);

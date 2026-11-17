@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { tankCrew } from "./tank-helpers";
+import { withPerfectCalibration } from "./tank-calibration";
 
 const evidence =
   process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/40";
@@ -20,41 +21,18 @@ test("實際維修才啟動兩秒圓形校準，正常空白鍵完美成功額�
     await expect
       .poll(() => hp(c.loader), { timeout: 45000 })
       .toBeLessThanOrEqual(82);
-    await c.loader.keyboard.down("r");
-    await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
-      timeout: 12000,
-    });
-    await expect(
-      c.loader.getByTestId("repair-calibration"),
-    ).toHaveAccessibleName("維修時機校準");
-    // All observations are visible user readouts. The actual keyboard still
-    // travels over WebRTC to the host's authoritative needle and HP rule.
-    await expect
-      .poll(
-        async () => {
-          const text = await c.loader
-            .getByTestId("repair-calibration-position")
-            .textContent();
-          const [needle, , , perfectStart, perfectEnd] = text!
-            .match(/[\d.]+/g)!
-            .map(Number);
-          return (
-            needle >= (perfectStart + perfectEnd) / 2 - 8 &&
-            needle <= (perfectStart + perfectEnd) / 2
-          );
-        },
-        { intervals: [10], timeout: 1800 },
-      )
-      .toBe(true);
-    const before = await hp(c.loader);
-    await c.loader.keyboard.press("Space");
-    await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
-      "完美校準・額外 +3 HP",
+    await withPerfectCalibration(
+      c.loader,
+      { appearanceTimeoutMs: 12000, inputTimeoutMs: 1800, evidenceDir: evidence },
+      async (before) => {
+        await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
+          "完美校準・額外 +3 HP",
+        );
+        const after = await hp(c.loader);
+        expect(after - before).toBeGreaterThanOrEqual(3);
+        expect(after - before).toBeLessThan(3.7);
+      },
     );
-    const after = await hp(c.loader);
-    expect(after - before).toBeGreaterThanOrEqual(3);
-    expect(after - before).toBeLessThan(3.7);
-    await c.loader.keyboard.up("r");
     await expect(c.loader.getByTestId("repair-status")).not.toContainText(
       "維修中",
     );
@@ -150,6 +128,9 @@ test("活躍校準在真實缺員暫停原位凍結，重連需重新按R且不�
       c.loader.getByTestId("repair-calibration-position"),
     ).toHaveText(position!);
     await expect(c.loader.getByTestId("tank-health")).toHaveText(health!);
+    await expect(
+      c.loader.getByTestId("repair-calibration"),
+    ).toHaveAccessibleName("維修時機校準");
     await c.loader.setViewportSize({ width: 1280, height: 720 });
     const panel = await c.loader.locator(".repair-workspace").boundingBox();
     const alerts = await c.loader.locator(".battle-alerts").boundingBox();
@@ -350,9 +331,15 @@ test("實際敵彈中斷校準，三秒受擊與兩秒失敗取較晚且兩種�
       .poll(() => hp(c.loader), { timeout: 45000 })
       .toBeLessThanOrEqual(82);
     await c.loader.keyboard.down("r");
-    await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
-      timeout: 12000,
-    });
+    // A real enemy hit can end the active attempt between the default
+    // visibility assertion's polls. Observe the visible HUD at the same
+    // cadence as the damage below, without changing any gameplay timing.
+    await expect
+      .poll(() => c.loader.getByTestId("repair-calibration").isVisible(), {
+        intervals: [20],
+        timeout: 12000,
+      })
+      .toBe(true);
     const before = await hp(c.loader);
     await expect
       .poll(() => hp(c.loader), { intervals: [20], timeout: 1800 })
@@ -723,31 +710,17 @@ test("完美獎勵在真實受損後封頂100HP，三方共享並保留實際校
     await expect(c.loader.getByTestId("tank-health")).toHaveText("90/100", {
       timeout: 30000,
     });
-    await c.loader.keyboard.down("r");
-    await expect(c.loader.getByTestId("repair-calibration")).toBeVisible({
-      timeout: 12000,
-    });
-    await expect
-      .poll(
-        async () => {
-          const [needle, , , start, end] = (await c.loader
-            .getByTestId("repair-calibration-position")
-            .textContent())!
-            .match(/[\d.]+/g)!
-            .map(Number);
-          return needle >= (start + end) / 2 - 8 && needle <= (start + end) / 2;
-        },
-        { intervals: [10], timeout: 1500 },
-      )
-      .toBe(true);
-    const before = await hp(c.loader);
-    expect(before).toBeGreaterThan(97);
-    expect(before).toBeLessThan(100);
-    await c.loader.keyboard.press("Space");
-    await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
-      "完美校準・額外 +3 HP",
+    await withPerfectCalibration(
+      c.loader,
+      { appearanceTimeoutMs: 12000, inputTimeoutMs: 1500, evidenceDir: evidence },
+      async (before) => {
+        expect(before).toBeGreaterThan(97);
+        expect(before).toBeLessThan(100);
+        await expect(c.loader.getByTestId("repair-calibration-result")).toHaveText(
+          "完美校準・額外 +3 HP",
+        );
+      },
     );
-    await c.loader.keyboard.up("r");
     for (const page of [c.loader, c.driver, c.gunner]) {
       await expect(page.getByTestId("tank-health")).toHaveText("100/100");
       await expect(page.getByTestId("repair-calibration-result")).toHaveText(

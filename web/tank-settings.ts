@@ -96,3 +96,23 @@ export const TRANSPORT = {
 
 /** Presentation lifetime on the shared gameplay clock; these cues do not affect damage. */
 export const FIRING_FEEDBACK = { cannon: 0.18, machineGun: 0.07 } as const;
+
+/** AI cooperation and local pacing only; formal combat timings stay above. */
+export const PRACTICE_RULES = {
+  stepSeconds: 0.025,
+  observerAspect: 16 / 9,
+  driverStopDistance: 10,
+  searchArrival: 2,
+  steeringDamping: 0.25,
+  steeringTolerance: 0.06,
+  driveAlignment: 0.2,
+  escapeArrival: 0.3,
+  aimDamping: 0.3,
+  aimTolerance: 0.025,
+  fireYawTolerance: 0.07,
+  firePitchTolerance: 0.06,
+  fireRateTolerance: 0.15,
+  firingWarning: 1.2,
+  jamTolerance: 0.025,
+  calibrationTolerance: 0.015,
+} as const;
