@@ -5,7 +5,7 @@ const ready = { TANK_E2E_RESOURCE_READY: "1" };
 const targeted = [
   "tests/tank-entry.spec.ts",
   "-g",
-  "入口",
+  "根目錄",
   "--global-timeout=300000",
 ];
 test("collection remains browser-free on local Mac", () =>
@@ -16,6 +16,14 @@ test("other hosts require explicit resource confirmation", () =>
   assert.match(browserPolicyError(targeted, {}, "linux")!, /資源/));
 test("targeted host run requires bounded selection", () => {
   assert.equal(browserPolicyError(targeted, ready, "linux"), undefined);
+  assert.equal(
+    browserPolicyError(
+      [...targeted.slice(0, 3), "--global-timeout", "300000"],
+      ready,
+      "linux",
+    ),
+    undefined,
+  );
   assert.match(
     browserPolicyError(["--global-timeout=300000"], ready, "linux")!,
     /指定/,
@@ -27,9 +35,17 @@ test("missing, duplicate and invalid budgets fail closed", () => {
     ["--global-timeout=NaN"],
     ["--global-timeout=-1"],
     ["--global-timeout=0"],
+    ["--global-timeout=0x1"],
+    ["--global-timeout", "1e3"],
+    ["--global-timeout=300000=1"],
     ["--global-timeout=10", "--global-timeout=20"],
   ])
-    assert.match(browserPolicyError(args, ready, "linux")!, /單一正整數/);
+    assert.match(
+      browserPolicyError([...targeted.slice(0, 3), ...args], ready, "linux") ??
+        "",
+      /正整數/,
+      args.join(" "),
+    );
 });
 test("full suite requires explicit opt-in and bounded cost", () => {
   assert.equal(

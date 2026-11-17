@@ -17,12 +17,19 @@ export function browserPolicyError(
     arg === "--global-timeout"
       ? [argv[i + 1]]
       : arg.startsWith("--global-timeout=")
-        ? [arg.split("=")[1]]
+        ? [arg.slice("--global-timeout=".length)]
         : [],
   );
-  const budget = Number(budgets[0]);
-  if (budgets.length !== 1 || !Number.isInteger(budget) || budget <= 0)
-    return "請提供單一正整數 --global-timeout（毫秒）。";
+  const [timeout] = budgets;
+  const budget = Number(timeout);
+  if (
+    budgets.length !== 1 ||
+    !timeout ||
+    /\D/.test(timeout) ||
+    !Number.isSafeInteger(budget) ||
+    budget <= 0
+  )
+    return "請提供單一十進位正整數 --global-timeout（毫秒）。";
   const full = env.TANK_FULL_REGRESSION === "1";
   if (budget > (full ? 4_500_000 : 600_000))
     return "針對性驗證上限10分鐘；明確完整回歸上限75分鐘。";
