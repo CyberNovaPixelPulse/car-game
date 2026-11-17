@@ -32,11 +32,11 @@
 
 ## 開發與建置
 
-`npm run check` 檢查型別，`npm run build` 產生可部署的 `dist/`，`npm test` 跑真實瀏覽器端到端驗證。沒有 C、SDL2、Python 或 Emscripten 建置依賴。只使用根目錄入口，舊賽車及 Wasm 已移除。建置不會部署。
+`npm run check` 檢查型別，`npm run build` 產生可部署的 `dist/`，`npm test` 執行型別與驗證政策檢查、收集端到端案例，不開瀏覽器。Playwright E2E 須經 `npm run test:e2e -- ...` 並符合 [專案執行草案](docs/agents/execution-plan.md) 的主機與時間限制。沒有 C、SDL2、Python 或 Emscripten 建置依賴。只使用根目錄入口，舊賽車及 Wasm 已移除。建置不會部署。
 
 可用 `WEB_PORT`、`PEER_PORT` 設定測試服務埠；開發前端的 relay 使用 `VITE_PEER_HOST/PORT/PATH/SECURE`（見 [.env.example](.env.example)）。正式靜態建置未設定自架 relay 時使用 PeerJS Cloud，實際連線仍受 NAT／網路環境影響。正式網站已於 2026-11-07 更新為坦克版本，並以三個獨立瀏覽器在公開網址完成入房、準備、開戰、裝填、卡彈排除、射擊、退殼與機槍視角驗證；不需本機連線服務。
 
-本機完整 Chromium 可明確選用 `TANK_NATIVE_BROWSER=1 npm test`；它啟用完整 Chromium、保留 sandbox 並移除預設 unsafe SwiftShader，沒有放寬瀏覽器安全性。預設仍使用 Playwright 標準設定。這是測試環境選項，不是 FPS 保證。詳細驗證、三獨立瀏覽器及證據指令見 [測試說明](docs/testing.md)。
+Codex 的瀏覽器驗證依 [專案指令](AGENTS.md) 使用內建瀏覽器。符合資源條件的其他驗證主機可依 [測試說明](docs/testing.md) 執行 Playwright E2E。
 
 本版保留指定基準的 Blender 坦克與諾曼第地景 GLB、烘焙材質和原創車內；素材出處與雜湊見 [素材來源](public/art/README.md)、[車內來源](public/assets/interior/sources.json)。#27 曾接受的簡化外觀是歷史驗收範圍，本次沒有重建美術或重新承諾原寫實標準。設計見 [DESIGN.md](DESIGN.md)，規則起始值見 [平衡設定](docs/tank-balance.md)。
 
