@@ -1,3 +1,4 @@
+import { addMachineGunKick, createTurretInertia } from "./tank-turret-motion";
 import { addCollision } from "./tank-collision-motion";
 import { createDrivingMotion } from "./tank-driving-motion";
 import type { TankState } from "./tank-core";
@@ -100,6 +101,8 @@ export class CrewCameraMotion {
     createDrivingMotion(),
     addCollision,
     addTankHit,
+    addMachineGunKick,
+    createTurretInertia(),
   ];
   private station?: MotionStation;
   private since = 0;
