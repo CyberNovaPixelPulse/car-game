@@ -1,3 +1,4 @@
+import { createDrivingMotion } from "./tank-driving-motion";
 import type { TankState } from "./tank-core";
 import type { CameraPreferences } from "./tank-motion-preferences";
 import { FIRING_FEEDBACK } from "./tank-settings";
@@ -92,7 +93,7 @@ function compose(mix: MotionMix, preferences: CameraPreferences): HeadOffset {
 
 /** Compose fresh offsets for this game time. Re-reading a snapshot never adds a kick. */
 export class CrewCameraMotion {
-  private readonly sources: MotionSource[] = [addCannon];
+  private readonly sources: MotionSource[] = [addCannon, createDrivingMotion()];
   private station?: MotionStation;
   private since = 0;
   private lastTime = -1;
