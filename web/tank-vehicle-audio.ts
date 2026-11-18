@@ -2,12 +2,8 @@ import type { CrewRole } from "./crew";
 import type { TankState } from "./tank-core";
 import { AIMING, DRIVING } from "./tank-settings";
 import type { ShellType } from "./tank-weapons";
-import {
-  ONE_SHOTS,
-  VARIANTS,
-  renderOneShot,
-  type OneShot,
-} from "./tank-audio-synth";
+import { BattleSounds, type PlayOptions } from "./tank-battle-audio";
+import { VARIANTS, renderOneShot, type OneShot } from "./tank-audio-synth";
 
 export interface TankAudioFrame {
   role: CrewRole;
@@ -34,6 +30,7 @@ interface Graph {
   cabin: BiquadFilterNode;
   space: ConvolverNode;
   spaceSend: GainNode;
+  wind: GainNode;
   voice: AudioNode;
   sources: AudioScheduledSourceNode[];
   engine: {
@@ -89,6 +86,8 @@ export class TankVehicleAudio {
   private nextTick = 0;
   private traversing = false;
   private duckUntil = 0;
+  private outside = false;
+  private battle = new BattleSounds();
   private voices: SpeechSynthesisVoice[] = [];
 
   constructor() {
@@ -104,7 +103,7 @@ export class TankVehicleAudio {
     if (!this.context || !this.graph) return;
     this.duckUntil = this.context.currentTime + seconds;
     this.graph.master.gain.setTargetAtTime(
-      0.62 * 0.4,
+      1.24 * 0.4,
       this.context.currentTime,
       0.015,
     );
@@ -114,6 +113,7 @@ export class TankVehicleAudio {
   reset() {
     this.stop();
     this.primed = false;
+    this.battle = new BattleSounds();
   }
 
   stop() {
@@ -156,6 +156,7 @@ export class TankVehicleAudio {
     const now = audio.currentTime;
     const w = state.weapon;
     const outside = frame.role === "loader" && w.mode === "machine-gun";
+    this.outside = outside;
 
     if (this.enabled !== frame.enabled) {
       this.enabled = frame.enabled;
@@ -164,13 +165,15 @@ export class TankVehicleAudio {
     }
     const ducked = now < this.duckUntil ? 0.4 : 1;
     graph.master.gain.setTargetAtTime(
-      frame.enabled ? 0.62 * ducked : 0,
+      frame.enabled ? 1.24 * ducked : 0,
       now,
       ducked < 1 ? 0.015 : 0.12,
     );
     // Closed hatches cut the highs; a loader up on the machine gun hears the open field.
     graph.cabin.frequency.setTargetAtTime(outside ? 15000 : 2600, now, 0.12);
     graph.spaceSend.gain.setTargetAtTime(outside ? 0.55 : 0.06, now, 0.12);
+    // Wind over the hull: barely there behind armour, a steady gust outside.
+    graph.wind.gain.setTargetAtTime(outside ? 0.09 : 0.012, now, 0.3);
 
     if (fresh) {
       // A new battle starts with a cold engine; a station switch mid-battle does not.
@@ -187,11 +190,20 @@ export class TankVehicleAudio {
     }
     const dt = state.time - this.last.time;
     this.continuous(state, frame, graph, now, dt);
-    if (frame.enabled) this.events(state, outside, now);
+    if (frame.enabled) {
+      this.events(state, outside, now);
+      this.battle.present(
+        state,
+        { role: frame.role, outside },
+        now,
+        (kind, at, options) => this.play(kind, at, options),
+      );
+    } else this.battle.remember(state);
     this.remember(state);
   }
 
   private remember(state: TankState) {
+    this.battle.remember(state);
     const w = state.weapon;
     this.last = {
       time: state.time,
@@ -388,12 +400,7 @@ export class TankVehicleAudio {
   private play(
     kind: OneShot,
     at: number,
-    options: {
-      gain?: number;
-      pan?: number;
-      detune?: number;
-      destination?: AudioNode;
-    } = {},
+    options: PlayOptions & { destination?: AudioNode } = {},
   ) {
     const graph = this.graph;
     const context = this.context;
@@ -405,17 +412,30 @@ export class TankVehicleAudio {
     source.detune.value = options.detune ?? (Math.random() - 0.5) * 60;
     const level = context.createGain();
     level.gain.value = options.gain ?? 1;
+    const nodes: AudioNode[] = [source, level];
     let tail: AudioNode = source.connect(level);
+    if (options.lowpass) {
+      const lowpass = context.createBiquadFilter();
+      lowpass.type = "lowpass";
+      lowpass.frequency.value = options.lowpass;
+      lowpass.Q.value = 0.5;
+      tail = tail.connect(lowpass);
+      nodes.push(lowpass);
+    }
     if (options.pan) {
       const pan = context.createStereoPanner();
-      pan.pan.value = options.pan;
+      pan.pan.value = Math.max(-1, Math.min(1, options.pan));
       tail = tail.connect(pan);
+      nodes.push(pan);
     }
-    tail.connect(options.destination ?? graph.cabin);
+    if (options.destination) tail.connect(options.destination);
+    else if (options.world && this.outside) {
+      tail.connect(graph.master);
+      tail.connect(graph.space);
+    } else tail.connect(graph.cabin);
     source.start(Math.max(context.currentTime, at));
     source.onended = () => {
-      source.disconnect();
-      level.disconnect();
+      for (const node of nodes) node.disconnect();
     };
   }
 
@@ -472,10 +492,12 @@ export class TankVehicleAudio {
     // make-up gain, which would lift the engine bed over the danger beeps.
     const limiter = context.createWaveShaper();
     limiter.curve = ceiling();
-    limiter.oversample = "2x";
+    // No oversampling: its resampling filter rings past full scale on clamped peaks.
+    limiter.oversample = "none";
     limiter.connect(context.destination);
     const master = gain(0);
-    master.connect(limiter);
+    // The ceiling curve spans ±2 over WebAudio's ±1 input, so halve first.
+    master.connect(gain(0.5)).connect(limiter);
     const cabin = filter("lowpass", 2600, 0.5);
     cabin.connect(master);
     const space = context.createConvolver();
@@ -560,12 +582,27 @@ export class TankVehicleAudio {
       .connect(gearLevel)
       .connect(cabin);
 
+    const gust = gain(0.5);
+    const gustSlow = start(context.createOscillator());
+    gustSlow.frequency.value = 0.09;
+    gustSlow.connect(gain(0.35)).connect(gust.gain);
+    const gustFast = start(context.createOscillator());
+    gustFast.frequency.value = 0.37;
+    gustFast.connect(gain(0.12)).connect(gust.gain);
+    const wind = gain(0);
+    white
+      .connect(filter("lowpass", 520, 0.6))
+      .connect(gust)
+      .connect(wind)
+      .connect(master);
+
     void this.loadRecorded(context);
     return {
       master,
       cabin,
       space,
       spaceSend,
+      wind,
       voice: voiceHigh,
       sources,
       engine: { firing, lope, exhaust, drive, tone, level, fan, fanLevel },

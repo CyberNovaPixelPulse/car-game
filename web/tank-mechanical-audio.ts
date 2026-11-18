@@ -3,14 +3,12 @@ import type { TankState } from "./tank-core";
 /** Loader-only synthesized work cues (jam, machine gun, mode, calibration). Snapshot edges are cues, never rule clocks. */
 export class TankMechanicalAudio {
   private jam = false;
-  private shots = 0;
   private cooling = false;
   private mode = "loading";
   private calibrationId = 0;
   private calibrationResult = "idle";
   reset() {
     this.jam = false;
-    this.shots = 0;
     this.cooling = false;
     this.mode = "loading";
     this.calibrationId = 0;
@@ -40,11 +38,9 @@ export class TankMechanicalAudio {
     // Main-gun rack, ram, breech and case sounds live in TankVehicleAudio so
     // every crew member hears them; this module keeps loader-only work cues.
     if (w.jam.active && !this.jam) play("jam");
-    if (w.mg.shots > this.shots) play("shot");
     if (cooling && !this.cooling) play("jam");
     if (w.mode !== this.mode) play("latch");
     this.jam = w.jam.active;
-    this.shots = w.mg.shots;
     this.cooling = cooling;
     this.mode = w.mode;
   }

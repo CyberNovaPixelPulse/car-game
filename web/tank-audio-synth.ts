@@ -20,7 +20,19 @@ export type OneShot =
   | "clunk"
   | "click"
   | "starter"
-  | "outdoor-space";
+  | "outdoor-space"
+  | "enemy-cannon"
+  | "armour-hit"
+  | "near-miss"
+  | "explosion"
+  | "ap-impact"
+  | "smoke-pop"
+  | "cook-off"
+  | "mg"
+  | "mg-brass"
+  | "artillery"
+  | "wrench"
+  | "hammer";
 
 export const ONE_SHOTS: readonly OneShot[] = [
   "cannon",
@@ -38,6 +50,18 @@ export const ONE_SHOTS: readonly OneShot[] = [
   "click",
   "starter",
   "outdoor-space",
+  "enemy-cannon",
+  "armour-hit",
+  "near-miss",
+  "explosion",
+  "ap-impact",
+  "smoke-pop",
+  "cook-off",
+  "mg",
+  "mg-brass",
+  "artillery",
+  "wrench",
+  "hammer",
 ];
 
 /** How many distinct takes are rendered, so repeated hits do not sound copied. */
@@ -57,6 +81,18 @@ export const VARIANTS: Record<OneShot, number> = {
   click: 1,
   starter: 1,
   "outdoor-space": 1,
+  "enemy-cannon": 2,
+  "armour-hit": 3,
+  "near-miss": 2,
+  explosion: 3,
+  "ap-impact": 2,
+  "smoke-pop": 1,
+  "cook-off": 2,
+  mg: 4,
+  "mg-brass": 4,
+  artillery: 3,
+  wrench: 2,
+  hammer: 3,
 };
 
 type Mode = [frequency: number, decay: number, amplitude: number];
@@ -199,6 +235,40 @@ function steelHit(
   );
 }
 
+/** Generic outdoor detonation: pressure thump, filtered blast, rolling tail. */
+function blast(
+  out: Float32Array,
+  rate: number,
+  random: () => number,
+  low: number,
+  body: number,
+  tail: number,
+  crack: number,
+) {
+  let phase = 0;
+  const lp = new Low(rate);
+  const roll = new Low(rate);
+  let brown = 0;
+  for (let i = 0; i < out.length; i++) {
+    const t = i / rate;
+    phase +=
+      (2 * Math.PI * (low * 0.5 + low * 1.6 * Math.exp(-t / 0.06))) / rate;
+    const white = random() * 2 - 1;
+    brown = brown * 0.997 + white * 0.04;
+    out[i] += Math.tanh(
+      1.5 *
+        (Math.min(1, t / 0.003) *
+          Math.exp(-t / (body * 1.5)) *
+          Math.sin(phase) +
+          lp.run(white, 150 + 2500 * Math.exp(-t / 0.04)) *
+            Math.exp(-t / body) *
+            3 +
+          (t < 0.04 ? crack * white * Math.exp(-t / 0.006) : 0) +
+          roll.run(brown, 110) * Math.exp(-t / tail) * 2.6),
+    );
+  }
+}
+
 export function renderOneShot(
   kind: OneShot,
   rate: number,
@@ -223,6 +293,18 @@ export function renderOneShot(
     click: 0.14,
     starter: 1.05,
     "outdoor-space": 2.4,
+    "enemy-cannon": 3,
+    "armour-hit": 1.8,
+    "near-miss": 0.6,
+    explosion: 3,
+    "ap-impact": 1,
+    "smoke-pop": 2.2,
+    "cook-off": 4,
+    mg: 0.3,
+    "mg-brass": 0.35,
+    artillery: 4,
+    wrench: 0.45,
+    hammer: 0.5,
   }[kind];
   const out = new Float32Array(Math.ceil(seconds * rate));
   switch (kind) {
@@ -435,6 +517,157 @@ export function renderOneShot(
       }
       return normalize(out, 0.5);
     }
+    case "enemy-cannon":
+      // 75 / 88 mm gun heard from tens of metres away: the crack is softer
+      // and the ground carries a longer roll. Distance filtering is live.
+      blast(out, rate, random, 34 + variant * 6, 0.22, 1.2, 0.5);
+      return normalize(out, 0.95);
+    case "armour-hit": {
+      // An enemy round striking our hull: a bell-like armour clang from
+      // inside, plus spall and loose kit rattling around the compartment.
+      addModes(out, rate, 0, [[48, 0.12, 1.4]], random);
+      steelHit(out, rate, 0, random, 88 + variant * 11, 0.55, 1.4);
+      steelHit(out, rate, 0.002, random, 410 + variant * 40, 0.25, 0.6);
+      const low = new Low(rate);
+      addNoise(
+        out,
+        rate,
+        0,
+        0.3,
+        (t) => 1.2 * Math.exp(-t / 0.05),
+        random,
+        (x) => low.run(x, 1800),
+      );
+      for (let n = 0; n < 12; n++)
+        steelHit(
+          out,
+          rate,
+          0.03 + random() * 0.7,
+          random,
+          700 + random() * 2600,
+          0.015 + random() * 0.03,
+          0.1 + random() * 0.25,
+        );
+      for (let i = 0; i < out.length; i++) out[i] = Math.tanh(out[i] * 1.3);
+      return normalize(out, 0.98);
+    }
+    case "near-miss": {
+      // Supersonic shot passing close: a sharp N-wave crack then air tearing.
+      const band = new Band(rate);
+      for (let i = 0; i < out.length; i++) {
+        const t = i / rate;
+        const n = t < 0.0012 ? 1 - t / 0.0006 : 0;
+        out[i] =
+          n * 1.2 +
+          band
+            .tune(3200 - 2600 * Math.min(1, t / 0.4), 1.4)
+            .run(random() * 2 - 1) *
+            Math.min(1, t / 0.01) *
+            Math.exp(-t / 0.16) *
+            2.2;
+      }
+      return normalize(out, 0.8);
+    }
+    case "explosion":
+      // High-explosive shell bursting downrange, with dirt falling back.
+      blast(out, rate, random, 40 + variant * 7, 0.18, 0.9, 0.9);
+      for (let n = 0; n < 25; n++) {
+        const at = 0.25 + random() * 1.4;
+        const band = new Band(rate).tune(500 + random() * 2500, 1.5);
+        addNoise(
+          out,
+          rate,
+          at,
+          0.05,
+          (t) => 0.08 * Math.exp(-t / 0.012),
+          random,
+          (x) => band.run(x) * 3,
+        );
+      }
+      return normalize(out, 0.95);
+    case "ap-impact":
+      // Solid shot striking steel or masonry: a hard clang and a dull thud.
+      steelHit(out, rate, 0, random, 190 + variant * 40, 0.3, 1);
+      blast(out, rate, random, 60, 0.05, 0.3, 0.4);
+      return normalize(out, 0.85);
+    case "smoke-pop": {
+      // Burster charge popping open, then the canister hissing out smoke.
+      blast(out, rate, random, 70, 0.04, 0.15, 0.3);
+      const band = new Band(rate).tune(5200, 0.8);
+      addNoise(
+        out,
+        rate,
+        0.05,
+        2.1,
+        (t) => 0.22 * Math.min(1, t / 0.15) * Math.exp(-t / 0.9),
+        random,
+        (x) => band.run(x) * 2,
+      );
+      return normalize(out, 0.7);
+    }
+    case "cook-off": {
+      // Knocked-out tank: the main blast, then its ammunition crackling off.
+      blast(out, rate, random, 30, 0.35, 1.6, 0.8);
+      for (let n = 0; n < 18; n++) {
+        const at = 0.4 + random() * 3.2;
+        const sub = new Float32Array(Math.ceil(0.3 * rate));
+        blast(sub, rate, random, 70 + random() * 60, 0.025, 0.08, 0.6);
+        const first = Math.floor(at * rate);
+        const gain = 0.15 + random() * 0.35;
+        for (let i = 0; i < sub.length && first + i < out.length; i++)
+          out[first + i] += sub[i] * gain;
+      }
+      return normalize(out, 0.95);
+    }
+    case "mg": {
+      // Browning .50 cal on the turret roof: muzzle crack, low punch and the
+      // heavy bolt slamming forward.
+      blast(out, rate, random, 85 + variant * 6, 0.025, 0.09, 1);
+      steelHit(out, rate, 0.012, random, 520 + variant * 35, 0.03, 0.35);
+      return normalize(out, 0.9);
+    }
+    case "mg-brass": {
+      // Spent .50 cases bouncing on the turret roof.
+      const ring: Mode[] = [
+        [2150 + variant * 140, 0.09, 0.5],
+        [4870 + variant * 260, 0.06, 0.35],
+        [7340, 0.04, 0.2],
+      ];
+      addModes(out, rate, 0, ring, random);
+      addModes(out, rate, 0.07 + variant * 0.015, ring, random, 0.4);
+      addModes(out, rate, 0.14 + variant * 0.02, ring, random, 0.18);
+      return normalize(out, 0.3);
+    }
+    case "artillery":
+      // Distant guns well beyond the field: almost all low-frequency roll.
+      blast(out, rate, random, 24 + variant * 4, 0.6, 1.6, 0);
+      {
+        const low = new Low(rate);
+        const low2 = new Low(rate);
+        for (let i = 0; i < out.length; i++)
+          out[i] = low2.run(low.run(out[i], 220), 220);
+      }
+      return normalize(out, 0.7);
+    case "wrench": {
+      // Ratchet spanner: a quick run of pawl clicks with a little drift.
+      const clicks = 6 + variant * 2;
+      for (let n = 0; n < clicks; n++)
+        steelHit(
+          out,
+          rate,
+          n * (0.045 + random() * 0.01),
+          random,
+          1400 + random() * 300,
+          0.008,
+          0.4 + random() * 0.2,
+        );
+      return normalize(out, 0.35);
+    }
+    case "hammer":
+      // Hammer tapping a track pin or hull fitting.
+      addModes(out, rate, 0, [[180 + variant * 25, 0.03, 0.8]], random);
+      steelHit(out, rate, 0, random, 640 + variant * 90, 0.12, 0.8);
+      return normalize(out, 0.5);
     case "outdoor-space": {
       // Impulse response for open countryside: sparse early echoes off
       // hedgerows and buildings, then a darkening diffuse tail.

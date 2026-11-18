@@ -110,7 +110,8 @@ window.addEventListener("keydown", unlockWarningAudio);
 function warningTone(hit: boolean) {
   const audio = warningAudio;
   if (!soundEnabled || !audio || audio.state !== "running") return;
-  vehicleAudio.duck(hit ? 0.35 : 0.5);
+  // The armour-hit sound itself must stay loud; only plain beeps duck the tank.
+  if (!hit) vehicleAudio.duck(0.5);
   for (const offset of hit ? [0] : [0, 0.18]) {
     const oscillator = audio.createOscillator();
     const gain = audio.createGain();
