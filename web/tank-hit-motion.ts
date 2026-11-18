@@ -4,7 +4,8 @@ import { ENEMY_RULES } from "./tank-settings";
 
 /** Project the incoming impulse into the occupied seat, even when its turret is turned. */
 export const addTankHit: MotionSource = (state, station, since, mix) => {
-  for (const hit of state.battle.hits) {
+  for (const hit of state.battle.shellEvents) {
+    if (hit.kind !== "hull-hit") continue;
     const age = state.time - hit.at;
     if (hit.at <= since || age < 0 || age >= 0.64) continue;
     const phase = age / 0.64;

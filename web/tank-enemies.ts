@@ -23,35 +23,57 @@ interface Vehicle {
   z: number;
   hp: number;
 }
-export interface TankHit {
-  id: number;
-  at: number;
-  heading: number;
-  damage: number;
-}
-const MAX_RECENT_HITS = 8;
-const HIT_RETENTION_SECONDS = 0.8;
+type EnemyShellEvent = { id: number; at: number } & (
+  | { kind: "hull-hit"; heading: number; damage: number }
+  | { kind: "muzzle" | "cover"; x: number; z: number }
+);
+const MAX_SHELL_EVENTS = 24;
+const SHELL_EVENT_RETENTION = 0.8;
 
-export function validTankHits(hits: TankHit[], now: number, shots: number) {
-  return (
-    Array.isArray(hits) &&
-    hits.length <= MAX_RECENT_HITS &&
-    hits.every(
-      (hit) =>
-        hit &&
-        Number.isSafeInteger(hit.id) &&
-        hit.id > 0 &&
-        hit.id <= shots &&
-        Number.isFinite(hit.at) &&
-        hit.at >= 0 &&
-        hit.at <= now &&
-        now - hit.at < HIT_RETENTION_SECONDS &&
-        Number.isFinite(hit.heading) &&
-        Number.isFinite(hit.damage) &&
-        hit.damage > 0,
-    ) &&
-    new Set(hits.map((hit) => hit.id)).size === hits.length
-  );
+export function validEnemyShellEvents(
+  events: EnemyShellEvent[],
+  now: number,
+  shots: number,
+) {
+  if (!Array.isArray(events) || events.length > MAX_SHELL_EVENTS) return false;
+  const seen = new Set<string>();
+  for (const event of events) {
+    if (
+      !event ||
+      !Number.isSafeInteger(event.id) ||
+      event.id <= 0 ||
+      event.id > shots ||
+      !Number.isFinite(event.at) ||
+      event.at < 0 ||
+      event.at > now ||
+      now - event.at >= SHELL_EVENT_RETENTION
+    )
+      return false;
+    if (event.kind === "hull-hit") {
+      if (
+        !Number.isFinite(event.heading) ||
+        !Number.isFinite(event.damage) ||
+        event.damage <= 0
+      )
+        return false;
+    } else if (
+      (event.kind !== "muzzle" && event.kind !== "cover") ||
+      !Number.isFinite(event.x) ||
+      !Number.isFinite(event.z)
+    )
+      return false;
+    // A single projectile can have one muzzle and at most one terminal event.
+    const key = event.id + (event.kind === "muzzle" ? "-shot" : "-impact");
+    if (seen.has(key)) return false;
+    seen.add(key);
+  }
+  return true;
+}
+
+function recordShellEvent(battle: EnemyBattle, event: EnemyShellEvent) {
+  if (battle.shellEvents.length === MAX_SHELL_EVENTS)
+    battle.shellEvents.shift();
+  battle.shellEvents.push(event);
 }
 
 export interface EnemyBattle {
@@ -68,7 +90,7 @@ export interface EnemyBattle {
     age: number;
   }[];
   shots: number;
-  hits: TankHit[];
+  shellEvents: EnemyShellEvent[];
   lastHitAt: number;
   lastDamage: number;
   failed: boolean;
@@ -78,7 +100,7 @@ export const createEnemyBattle = (): EnemyBattle => ({
   won: false,
   projectiles: [],
   shots: 0,
-  hits: [],
+  shellEvents: [],
   lastHitAt: -100,
   lastDamage: 0,
   failed: false,
@@ -155,8 +177,11 @@ export function stepEnemies(
   smoke: readonly SmokeCloud[],
 ) {
   if (b.failed || b.won) return;
-  while (b.hits.length && now - b.hits[0].at >= HIT_RETENTION_SECONDS)
-    b.hits.shift();
+  while (
+    b.shellEvents.length &&
+    now - b.shellEvents[0].at >= SHELL_EVENT_RETENTION
+  )
+    b.shellEvents.shift();
   for (const e of enemies) {
     if (e.hp <= 0) continue;
     const hiddenBySmoke = smokeBlocks(
@@ -244,6 +269,13 @@ export function stepEnemies(
         damage: ENEMY_RULES.damage[e.kind],
         age: 0,
       });
+      recordShellEvent(b, {
+        kind: "muzzle",
+        id: b.shots,
+        at: now,
+        x: e.x,
+        z: e.z,
+      });
       e.readyAt =
         now +
         ENEMY_RULES.cooldown[e.kind] *
@@ -278,12 +310,20 @@ export function stepEnemies(
         tank.hp = Math.max(0, tank.hp - p.damage);
         b.lastHitAt = now;
         b.lastDamage = p.damage;
-        if (b.hits.length === MAX_RECENT_HITS) b.hits.shift();
-        b.hits.push({
+        recordShellEvent(b, {
+          kind: "hull-hit",
           id: p.id,
           at: now,
           heading: Math.atan2(p.vx, -p.vz),
           damage: p.damage,
+        });
+      } else {
+        recordShellEvent(b, {
+          kind: "cover",
+          id: p.id,
+          at: now,
+          x: from[0] + (to[0] - from[0]) * nearest,
+          z: from[2] + (to[2] - from[2]) * nearest,
         });
       }
       return false;

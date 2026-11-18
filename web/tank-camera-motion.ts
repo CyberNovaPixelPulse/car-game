@@ -2,6 +2,7 @@ import { addCollision } from "./tank-collision-motion";
 import { createDrivingMotion } from "./tank-driving-motion";
 import type { TankState } from "./tank-core";
 import type { CameraPreferences } from "./tank-motion-preferences";
+import { addNearbyBlasts } from "./tank-nearby-motion";
 import { addTankHit } from "./tank-hit-motion";
 import { FIRING_FEEDBACK } from "./tank-settings";
 
@@ -100,6 +101,7 @@ export class CrewCameraMotion {
     createDrivingMotion(),
     addCollision,
     addTankHit,
+    addNearbyBlasts,
   ];
   private station?: MotionStation;
   private since = 0;
