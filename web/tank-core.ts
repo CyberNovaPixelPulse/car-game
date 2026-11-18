@@ -40,6 +40,11 @@ import {
   validWeapon,
   type WeaponState,
 } from "./tank-weapons";
+import {
+  collisionHeading,
+  validHullImpact,
+  type HullImpact,
+} from "./tank-collision";
 import { validViewAspect } from "./tank-battle-view";
 import {
   createTeamIntel,
@@ -78,6 +83,7 @@ export interface TankState {
     speed: number;
     turnRate: number;
     blocked: boolean;
+    impact: HullImpact | null;
   };
 }
 const initial = (seed = 1): TankState => ({
@@ -96,6 +102,7 @@ const initial = (seed = 1): TankState => ({
     speed: 0,
     turnRate: 0,
     blocked: false,
+    impact: null,
   },
 });
 const approach = (value: number, target: number, amount: number) =>
@@ -106,6 +113,7 @@ const approach = (value: number, target: number, amount: number) =>
 /** Host-owned tank rules. Presentation reads the same snapshots on each crew client. */
 export class TankCore implements GameCore<TankState> {
   private state = initial();
+  private contact?: { cover: number; heading: number; x: number; z: number };
   private controls = new Map<number, number>();
   private aspects = new Map<number, number>();
   private participants: number[] = [];
@@ -119,6 +127,7 @@ export class TankCore implements GameCore<TankState> {
   constructor(private roleOf: (participant: number) => CrewRole | undefined) {}
   start(options: GameStart) {
     this.state = initial(options.seed);
+    this.contact = undefined;
     this.practice = !!options.practice;
     this.round = 0;
     if (this.practice) this.state.weapon.targets = [];
@@ -395,16 +404,55 @@ export class TankCore implements GameCore<TankState> {
     const outside =
       Math.abs(x) + r > BATTLEFIELD.limit ||
       Math.abs(z) + r > BATTLEFIELD.limit;
-    const collision = BATTLEFIELD.cover.some(
+    const coverIndex = BATTLEFIELD.cover.findIndex(
       (c) =>
         x + r > c.x - c.width / 2 &&
         x - r < c.x + c.width / 2 &&
         z + r > c.z - c.depth / 2 &&
         z - r < c.z + c.depth / 2,
     );
-    t.blocked = (outside || collision) && Math.abs(t.speed) > 0.01;
-    if (t.blocked) t.speed = 0;
-    else {
+    t.blocked = (outside || coverIndex >= 0) && Math.abs(t.speed) > 0.01;
+    if (t.blocked) {
+      const cover = outside ? -1 : coverIndex;
+      const heading = collisionHeading(
+        t,
+        x,
+        z,
+        r,
+        BATTLEFIELD.limit,
+        BATTLEFIELD.cover[cover],
+      );
+      if (
+        !this.contact ||
+        this.contact.cover !== cover ||
+        this.contact.heading !== heading
+      ) {
+        t.impact = {
+          id: (t.impact?.id ?? 0) + 1,
+          at: this.state.time,
+          heading,
+          normalSpeed: Math.abs(t.speed * Math.cos(t.yaw - heading)),
+        };
+      }
+      this.contact = { cover, heading, x: t.x, z: t.z };
+      t.speed = 0;
+    } else {
+      // Release only after moving away from the contact. A key release or a
+      // tiny successful substep toward the same wall is not a new collision.
+      const contact = this.contact;
+      if (contact) {
+        const away =
+          (contact.x - x) * Math.sin(contact.heading) -
+          (contact.z - z) * Math.cos(contact.heading);
+        const obstacle = BATTLEFIELD.cover[contact.cover];
+        const sideFace = Math.abs(contact.heading) === Math.PI / 2;
+        const clearedEnd =
+          obstacle &&
+          (sideFace
+            ? Math.abs(z - obstacle.z) > obstacle.depth / 2 + r + 0.035
+            : Math.abs(x - obstacle.x) > obstacle.width / 2 + r + 0.035);
+        if (away > 0.035 || clearedEnd) this.contact = undefined;
+      }
       t.x = x;
       t.z = z;
     }
@@ -457,6 +505,7 @@ export class TankCore implements GameCore<TankState> {
         ),
       ) ||
       !next.tank ||
+      !validHullImpact(next.tank.impact, next.time) ||
       !next.turret ||
       !validWeapon(next.weapon) ||
       ![
