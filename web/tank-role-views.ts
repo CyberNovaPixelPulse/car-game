@@ -154,7 +154,7 @@ export class TankRoleViews {
       views.interior!.scene.render(
         state,
         offset,
-        preferences.enabled && preferences.overall > 0,
+        preferences.enabled ? preferences.overall * preferences.impact : 0,
       );
     }
   }
