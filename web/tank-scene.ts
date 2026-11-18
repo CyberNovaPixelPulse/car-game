@@ -1,3 +1,4 @@
+import { SHELL_IMPACT_SECONDS } from "./tank-weapons";
 import * as THREE from "three";
 import { STILL_HEAD } from "./tank-camera-motion";
 import { applyHeadOffset, headStamp } from "./tank-head-camera";
@@ -405,7 +406,10 @@ export class TankScene {
         this.impactMeshes.set(hit.id, mesh);
       }
       mesh.position.set(hit.x, hit.y, hit.z);
-      const remaining = Math.max(0, (hit.until - state.time) / 0.6);
+      const remaining = Math.max(
+        0,
+        (hit.until - state.time) / SHELL_IMPACT_SECONDS,
+      );
       mesh.scale.setScalar(
         (hit.shell === "he" ? 2 : 0.5) * (1 + (1 - remaining) * 2),
       );
