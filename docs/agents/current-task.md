@@ -1,9 +1,7 @@
 # 目前任務
 
-[Spec #56](https://github.com/CyberNovaPixelPulse/car-game/issues/56) 與 #57–#64 已整合至 `codex/crew-camera-motion`。[PR #65](https://github.com/CyberNovaPixelPulse/car-game/pull/65) 保持草稿，等待三裝置與剩餘情境驗收。
-
-- 本輪於台北時間 2026-11-18 21:54 開始。首個 30 分鐘里程碑交付主炮試玩入口、七個功能票的整合及單人戰鬥樣本。第二個里程碑至 22:54，交付雙軸審查修正、終局錄影與驗證報告。
-- 本機試玩入口為 http://127.0.0.1:4286/ 。選「單人練習」→「砲手」→「開始練習」，等主炮就緒，點戰場後按空白鍵。其餘機器可依 README 啟動同一分支。
-- 最終應用程式來源 `2010f9c`。本機 `npm test` 通過規則自檢、型別檢查與 45 個檔案的 151 個瀏覽器案例收集，`npm run build` 通過。快速檢查見 `output/qa/1795012320637-3cfe1c43/report.json`。PR 的遠端輕量檢查見 [GitHub Checks](https://github.com/CyberNovaPixelPulse/car-game/pull/65/checks)。
-- 規範與規格審查發現三人案例用帶正負號的數字判斷倒車，並在機槍模式讀了隱藏的主炮計數。改為使用可見的方向、速度及砲手發數。規格複核另發現戰局結束時權威時鐘凍結會妨礙最後一擊回穩，已改為限時的本機呈現。兩軸均已複核修正。
-- 使用者確認本輪沒有另外兩台裝置與操作人員。三人實機及其他尚無證據的項目，詳見[逐批試玩紀錄](../tank-camera-validation.md)。GitHub Issues 由 PR 合併時關閉。
+- 基準為 `codex/crew-camera-motion` 的 `e3455e130b86c8ae58790706351ddbaaf86758b5`。本輪在獨立本機分支 `codex/crew-closeup-models` 工作。
+- 範圍為裝填手砲尾與彈架、駕駛觀察窗。沿用 Three.js、既有材質和遊戲狀態，並以 `DRIVER_VIEW` 定義的開口驗收。
+- 台北時間 2026-11-18 23:43 開始，30 分鐘檢查點為 2026-11-19 00:13。先保存兩個職位的原版畫面，交付裝填手試玩入口，再完成駕駛觀察窗及同視角對照。
+- 交付本機分支、單人練習網址、改前與改後畫面、裝填與退殼證據、逐項驗收紀錄。使用內建瀏覽器逐一進場，另執行 `npm test` 與 `npm run build`。
+- 狀態：進行中。

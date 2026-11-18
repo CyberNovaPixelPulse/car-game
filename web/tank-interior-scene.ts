@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { INTERIOR_VIEW } from "./tank-battle-view";
 import { STILL_HEAD } from "./tank-camera-motion";
 import { applyHeadOffset, headStamp } from "./tank-head-camera";
@@ -15,8 +16,7 @@ export class TankInteriorScene {
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(58, 1, 0.05, 16);
   private observer?: ResizeObserver;
-  private recoil = new THREE.Group();
-  private block = new THREE.Group();
+  private breech?: { recoil: THREE.Object3D; slide: THREE.Object3D };
   private round = new THREE.Group();
   private case = new THREE.Group();
   private textures: THREE.Texture[] = [];
@@ -165,34 +165,31 @@ export class TankInteriorScene {
     }
     for (let i = 0; i < 14; i++)
       box(4.3, 0.009, 0.024, steel, 0, 0.015, -2 + i * 0.32);
-    // Recoil cradle and polished guides surround the 75mm gun's rear mechanism.
-    this.scene.add(this.recoil);
-    for (const x of [-0.55, 0.55]) {
-      const guide = cylinder(0.07, 2.1, steel, x, 1.36, -1.15, this.recoil);
-      guide.rotation.x = Math.PI / 2;
-      box(0.25, 0.47, 0.36, darkPaint, x, 1.29, -0.58, this.recoil);
-      box(0.2, 0.15, 1.8, darkPaint, x, 1.1, -1.2);
-    }
-    const gun = cylinder(0.33, 1.3, steel, 0, 1.48, -1.55, this.recoil);
-    gun.rotation.x = Math.PI / 2;
-    // An open mouth with substantial machined frame rather than a solid box.
-    for (const x of [-0.34, 0.34])
-      box(0.18, 0.8, 0.57, steel, x, 1.45, -0.62, this.recoil);
-    for (const y of [1.08, 1.82])
-      box(0.84, 0.14, 0.57, steel, 0, y, -0.62, this.recoil);
-    cylinder(0.21, 0.02, dark, 0, 1.47, -0.92, this.recoil).rotation.x =
-      Math.PI / 2;
-    this.recoil.add(this.block);
-    this.block.position.set(0, 0, -0.55);
-    box(0.49, 0.52, 0.24, steel, 0, 1.42, 0, this.block);
-    box(0.24, 0.12, 0.08, darkPaint, 0, 1.42, 0.16, this.block);
-    const lever = cylinder(0.026, 0.58, steel, 0.51, 1.55, -0.46, this.recoil);
-    lever.rotation.z = -0.5;
-    cylinder(0.055, 0.15, rubber, 0.65, 1.79, -0.46, this.recoil);
-    for (const x of [-0.34, 0.34])
-      for (const y of [1.13, 1.77])
-        cylinder(0.036, 0.035, dark, x, y, -0.31, this.recoil).rotation.x =
-          Math.PI / 2;
+    new GLTFLoader(this.assets.manager).load(
+      "/assets/closeups/loader-fittings.glb",
+      ({ scene }) => {
+        const recoil = scene.getObjectByName("BreechRecoil");
+        const slide = scene.getObjectByName("BreechSlide");
+        if (this.disposed || !recoil || !slide) {
+          disposeArt(scene);
+          return;
+        }
+        scene.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          object.castShadow = object.receiveShadow = true;
+          const material = object.material;
+          if (!(material instanceof THREE.MeshStandardMaterial)) return;
+          if (material.name === "Cast" || material.name === "Paint") {
+            material.normalMap = normal;
+            material.normalScale.set(0.18, 0.18);
+            material.roughnessMap = roughness;
+          }
+        });
+        this.breech = { recoil, slide };
+        this.scene.add(scene);
+        this.invalidate();
+      },
+    );
     // Elevation handwheel, its hub and spokes; fixed to the cradle.
     const wheel = mesh(
       new THREE.TorusGeometry(0.25, 0.026, 8, 32),
@@ -241,24 +238,14 @@ export class TankInteriorScene {
     this.scene.add(this.round, this.case);
     makeShell(this.round);
     makeShell(this.case, true);
-    // Ready rack and strapped, nose-up ammunition against the right wall.
-    box(0.82, 0.17, 1.65, darkPaint, 1.72, 0.5, -0.35);
-    for (let row = 0; row < 2; row++)
-      for (let i = 0; i < 4; i++) {
-        const round = new THREE.Group();
-        this.scene.add(round);
-        makeShell(round, false, row ? 0x4a5050 : 0x606746);
-        round.position.set(1.48 + row * 0.32, 0.88, -0.95 + i * 0.4);
-        round.rotation.x = Math.PI / 2;
-        mesh(
-          new THREE.TorusGeometry(0.12, 0.018, 8, 20),
-          darkPaint,
-          round.position.x,
-          0.62,
-          round.position.z,
-        ).rotation.x = Math.PI / 2;
-      }
-    for (const z of [-1.15, 0.55]) box(0.85, 0.035, 0.06, steel, 1.72, 1.13, z);
+    // These display rounds sit in the Blender rack's cups and retention straps.
+    for (const z of [-0.66, -0.39, -0.12]) {
+      const spare = new THREE.Group();
+      this.scene.add(spare);
+      makeShell(spare, false, 0x606746);
+      spare.position.set(-1.4, 0.857, z);
+      spare.rotation.x = Math.PI / 2;
+    }
     // Conduits and junction boxes follow the wall, avoiding the ejection path.
     const pipe = new THREE.CatmullRomCurve3([
       new THREE.Vector3(-2.1, 0.3, 0.1),
@@ -338,6 +325,7 @@ export class TankInteriorScene {
   async prepare(state: TankState) {
     await this.assets.wait();
     if (this.disposed) throw new Error("視野準備已取消。");
+    if (!this.breech) throw new Error("無法載入車內模型，請重試準備。");
     this.render(state);
     await this.renderer.compileAsync(this.scene, this.camera);
     if (this.disposed) throw new Error("視野準備已取消。");
@@ -371,8 +359,11 @@ export class TankInteriorScene {
         ? THREE.MathUtils.clamp(1 - (w.ejectAt - state.time) / 0.8, 0, 1)
         : 1;
     const recovery = state.time - w.ejectAt;
-    this.recoil.position.z = w.chamber === "ejecting" ? 0.22 * (1 - eject) : 0;
-    this.block.position.y = w.chamber === "loaded" ? 0 : -0.5;
+    if (this.breech) {
+      this.breech.recoil.position.z =
+        w.chamber === "ejecting" ? 0.22 * (1 - eject) : 0;
+      this.breech.slide.position.y = w.chamber === "loaded" ? 0 : -0.53;
+    }
     this.round.visible = w.chamber === "loading";
     this.round.position.set(0, 1.47, 1.15 - w.loadProgress * 1.65);
     this.case.visible =

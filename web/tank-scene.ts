@@ -43,6 +43,7 @@ export class TankScene {
   private sight?: HTMLElement;
   private assets = new ArtPreparation();
   private environment = new AbortController();
+  private driverArmour?: Promise<boolean>;
   private player!: VehicleModel;
   private width = 0;
   private height = 0;
@@ -120,7 +121,13 @@ export class TankScene {
     preloadVehicles(this.assets.manager);
     this.scene.add(this.tank);
     this.scene.add(this.mount);
-    if (this.view === "driver") buildDriverArmour(this.mount);
+    if (this.view === "driver") {
+      this.driverArmour = buildDriverArmour(
+        this.mount,
+        this.assets.manager,
+        () => this.disposed,
+      ).catch(() => false);
+    }
     if (this.view === "machine-gun") {
       const steel = new THREE.MeshStandardMaterial({
         color: 0x434a43,
@@ -178,7 +185,10 @@ export class TankScene {
   }
   async prepare(state: TankState) {
     await this.assets.wait();
+    const driverArmourReady = await this.driverArmour;
     if (this.disposed) throw new Error("視野準備已取消。");
+    if (driverArmourReady === false)
+      throw new Error("無法載入駕駛觀察窗，請重試準備。");
     this.render(state); // Instantiate authority-provided vehicle art, without advancing any rules.
     await this.assets.wait();
     if (this.disposed) throw new Error("視野準備已取消。");
