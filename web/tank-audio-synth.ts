@@ -29,6 +29,7 @@ export type OneShot =
   | "smoke-pop"
   | "cook-off"
   | "mg"
+  | "m2"
   | "mg-brass"
   | "artillery"
   | "wrench"
@@ -60,6 +61,7 @@ export const ONE_SHOTS: readonly OneShot[] = [
   "smoke-pop",
   "cook-off",
   "mg",
+  "m2",
   "mg-brass",
   "artillery",
   "wrench",
@@ -93,6 +95,7 @@ export const VARIANTS: Record<OneShot, number> = {
   "smoke-pop": 1,
   "cook-off": 2,
   mg: 4,
+  m2: 4,
   "mg-brass": 4,
   artillery: 3,
   wrench: 2,
@@ -307,6 +310,7 @@ export function renderOneShot(
     "smoke-pop": 2.2,
     "cook-off": 4,
     mg: 0.3,
+    m2: 0.9,
     "mg-brass": 0.35,
     artillery: 4,
     wrench: 0.45,
@@ -649,6 +653,40 @@ export function renderOneShot(
       blast(out, rate, random, 85 + variant * 6, 0.025, 0.09, 1);
       steelHit(out, rate, 0.012, random, 520 + variant * 35, 0.03, 0.35);
       return normalize(out, 0.9);
+    }
+    case "m2": {
+      // M2HB "Ma Deuce", matched to a range recording: each round is a deep
+      // chest thump (energy around 120-160 Hz) with a flat, broadband crack
+      // on top, the heavy bolt slamming the receiver, and an outdoor slap
+      // that is still ringing when the next round goes at ~410 rounds/min.
+      blast(out, rate, random, 128 + variant * 7, 0.04, 0.18, 1.5);
+      {
+        let phase = 0;
+        for (let i = 0; i < out.length; i++) {
+          const t = i / rate;
+          phase += (2 * Math.PI * (140 + 60 * Math.exp(-t / 0.01))) / rate;
+          out[i] +=
+            0.9 *
+            Math.min(1, t / 0.002) *
+            Math.exp(-t / 0.035) *
+            Math.sin(phase);
+        }
+      }
+      steelHit(out, rate, 0.004, random, 360 + variant * 25, 0.05, 0.45);
+      steelHit(out, rate, 0.075, random, 610 + variant * 30, 0.03, 0.22);
+      {
+        const band = new Band(rate).tune(900, 0.7);
+        addNoise(
+          out,
+          rate,
+          0.11 + variant * 0.01,
+          0.4,
+          (t) => 0.25 * Math.min(1, t / 0.01) * Math.exp(-t / 0.09),
+          random,
+          (x) => band.run(x),
+        );
+      }
+      return normalize(out, 0.95);
     }
     case "mg-brass": {
       // Spent .50 cases bouncing on the turret roof.

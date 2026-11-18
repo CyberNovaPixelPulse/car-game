@@ -1,3 +1,4 @@
+import { MG_RULES } from "./tank-settings";
 import type { CrewRole } from "./crew";
 import type { TankState } from "./tank-core";
 import type { OneShot } from "./tank-audio-synth";
@@ -157,15 +158,16 @@ export class BattleSounds {
 
     const shots = w.mg.shots - this.mgShots;
     for (let i = 0; i < Math.min(shots, 3); i++) {
-      const at = now + i * 0.1;
-      play("mg", at, {
+      const at = now + i * MG_RULES.interval;
+      play("m2", at, {
         world: listener.outside,
-        gain: listener.outside ? 0.85 : 0.6,
-        pan: listener.outside ? 0.15 : 0,
+        gain: listener.outside ? 1 : 0.65,
+        pan: listener.outside ? 0.1 : 0,
       });
-      if (Math.random() < 0.5)
-        play("mg-brass", at + 0.06 + Math.random() * 0.1, {
-          gain: listener.outside ? 0.7 : 0.35,
+      // Brass and links rain onto the turret roof with nearly every round.
+      if (Math.random() < 0.85)
+        play("mg-brass", at + 0.05 + Math.random() * 0.12, {
+          gain: listener.outside ? 0.65 : 0.3,
           pan: (Math.random() - 0.5) * 0.6,
         });
     }

@@ -35,6 +35,11 @@ export class TankScene {
   private effects!: BattleEffects;
   private mgFlash!: MuzzleFlash;
   private mgMuzzle = new THREE.Group();
+  /** The loader's M2 on its cradle; it bucks back with every round. */
+  private mgMount?: THREE.Object3D;
+  private mgRest = new THREE.Vector3();
+  private mgKick = { shots: -1, at: -100 };
+  private mgEject = new THREE.Group();
   private enemyFlashes = new Map<number, MuzzleFlash>();
   private camera = new THREE.PerspectiveCamera(65, 1, 0.1, 180);
   private assets = new ArtPreparation();
@@ -141,6 +146,10 @@ export class TankScene {
       );
       this.mgMuzzle.position.z = -1.68;
       mount.add(this.mgMuzzle);
+      this.mgMount = mount;
+      this.mgEject.position.set(0, -0.11, -0.2);
+      mount.add(this.mgEject);
+      this.mgRest.copy(mount.position);
       mount.traverse((object) => {
         if (object instanceof THREE.Mesh) object.castShadow = false;
       });
@@ -213,7 +222,8 @@ export class TankScene {
       state.time < state.weapon.mg.flashUntil ||
       state.weapon.targets.some((e) => state.time < e.flashUntil) ||
       state.weapon.targets.some((e) => e.hp <= 0) ||
-      this.effects.busy;
+      this.effects.busy ||
+      state.time - this.mgKick.at < 0.15;
     const aimState =
       this.view === "machine-gun" ? state.weapon.mg : state.turret;
     const visual = [
@@ -325,6 +335,21 @@ export class TankScene {
       state.time,
       FIRING_FEEDBACK.cannon,
     );
+    if (this.mgMount) {
+      const mg = state.weapon.mg;
+      if (this.mgKick.shots >= 0 && mg.shots > this.mgKick.shots)
+        this.mgKick.at = state.time;
+      this.mgKick.shots = mg.shots;
+      // A sharp rearward buck that settles before the next round.
+      const since = state.time - this.mgKick.at;
+      const kick = since >= 0 && since < 0.14 ? Math.exp(-since / 0.035) : 0;
+      this.mgMount.position.set(
+        this.mgRest.x + Math.sin(this.mgKick.at * 97) * 0.004 * kick,
+        this.mgRest.y + 0.008 * kick,
+        this.mgRest.z + 0.035 * kick,
+      );
+      this.mgMount.rotation.x = 0.02 * kick;
+    }
     if (this.view === "machine-gun")
       this.mgFlash.present(
         this.mgMuzzle,
@@ -337,6 +362,9 @@ export class TankScene {
     this.effects.update(state, {
       playerMuzzle: this.player.muzzle,
       enemyMuzzle: (id) => this.enemyModels.get(id)?.muzzle,
+      mg: this.mgMount
+        ? { muzzle: this.mgMuzzle, eject: this.mgEject }
+        : undefined,
       view: this.view,
     });
     this.effects.shakeCamera(this.camera);

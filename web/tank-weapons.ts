@@ -309,23 +309,11 @@ function random(w: WeaponState) {
   w.randomState = (Math.imul(w.randomState, 1664525) + 1013904223) >>> 0;
   return w.randomState / 4294967296;
 }
-export function stopJam(w: WeaponState, now: number) {
-  const j = w.jam;
-  if (
-    w.mode !== "loading" ||
-    !loaderCanWork(w, now) ||
-    !j.active ||
-    j.result !== "trying"
-  )
-    return;
-  if (j.needle >= j.zone && j.needle <= j.zone + JAM_RULES.width) {
-    j.active = false;
-    j.result = "cleared";
-  } else {
-    j.result = "failed";
-    j.retryAt = now + JAM_RULES.retry;
-  }
-}
+/**
+ * Kept for the ordered action path: a jam now clears itself while the
+ * loader works it (no needle mini-game), so a stop request does nothing.
+ */
+export function stopJam(_w: WeaponState, _now: number) {}
 export function loaderCanWork(w: WeaponState, now: number) {
   return !w.crouching && now >= w.stunnedUntil;
 }
@@ -365,18 +353,12 @@ export function stepWeapon(
     if (!w.crouching) w.stunnedUntil = w.ejectAt + LOADER_STUN_SECONDS;
   }
   const j = w.jam;
+  // A jammed round is worked free by hand: the needle is the clearing progress.
   if (j.active && w.mode === "loading" && loaderCanWork(w, now)) {
-    if (j.result === "failed" && now >= j.retryAt) j.result = "trying";
-    if (j.result === "trying") {
-      j.needle += j.direction * dt * JAM_RULES.speed;
-      if (j.needle > 1) {
-        j.needle = 2 - j.needle;
-        j.direction = -1;
-      }
-      if (j.needle < 0) {
-        j.needle = -j.needle;
-        j.direction = 1;
-      }
+    j.needle = Math.min(1, j.needle + dt / JAM_RULES.clear);
+    if (j.needle >= 1) {
+      j.active = false;
+      j.result = "cleared";
     }
   }
   if (

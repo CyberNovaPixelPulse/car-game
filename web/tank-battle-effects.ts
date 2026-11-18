@@ -264,6 +264,8 @@ export interface EffectAnchors {
   playerMuzzle: THREE.Object3D;
   enemyMuzzle(id: number): THREE.Object3D | undefined;
   view: "gunner" | "machine-gun" | "driver";
+  /** The loader's own M2, present only in the machine-gun view. */
+  mg?: { muzzle: THREE.Object3D; eject: THREE.Object3D };
 }
 
 export class BattleEffects {
@@ -282,6 +284,7 @@ export class BattleEffects {
   private primed = false;
   private shots = 0;
   private bowShots = 0;
+  private mgShots = 0;
   private firedAt = -100;
   private hitAt = -100;
   private shake = { until: -100, strength: 0, length: 1 };
@@ -443,6 +446,7 @@ export class BattleEffects {
       this.primed = true;
       this.shots = w.shotsFired;
       this.bowShots = w.bow?.shots ?? 0;
+      this.mgShots = w.mg.shots;
       this.hitAt = state.battle.lastHitAt;
       for (const t of w.targets) {
         this.enemyFlash.set(t.id, t.flashUntil);
@@ -460,6 +464,47 @@ export class BattleEffects {
       );
     }
     this.shots = w.shotsFired;
+
+    // The M2's own round: muzzle smoke and spent brass falling past the eye.
+    if (anchors.mg && w.mg.shots > this.mgShots) {
+      const muzzle = anchors.mg.muzzle.getWorldPosition(new THREE.Vector3());
+      const eject = anchors.mg.eject.getWorldPosition(new THREE.Vector3());
+      const forward = muzzle.clone().sub(eject).normalize();
+      for (let i = 0; i < this.n(3); i++)
+        this.smoke.spawn({
+          position: muzzle.clone().addScaledVector(forward, 0.2),
+          velocity: forward
+            .clone()
+            .multiplyScalar(random(1.5, 3.5))
+            .add(
+              new THREE.Vector3(
+                random(-0.3, 0.3),
+                random(0.2, 0.6),
+                random(-0.3, 0.3),
+              ),
+            ),
+          life: random(0.6, 1.1),
+          size: [0.25, random(1.2, 1.8)],
+          from: [0.72, 0.7, 0.66, 0.35],
+          to: [0.8, 0.79, 0.76, 0],
+          drag: 2.2,
+          gravity: -0.3,
+        });
+      this.glow.spawn({
+        position: eject.clone(),
+        velocity: new THREE.Vector3(
+          random(-0.4, 0.4),
+          random(-1.5, -0.5),
+          random(0.2, 0.8),
+        ),
+        life: 0.45,
+        size: [0.05, 0.05],
+        from: [0.95, 0.75, 0.35, 0.9],
+        to: [0.7, 0.5, 0.2, 0],
+        gravity: 9.8,
+      });
+    }
+    this.mgShots = w.mg.shots;
 
     // Bow gun: a small flash at the ball mount, sparks where rounds glance
     // off armour, dust where they strike earth or walls.

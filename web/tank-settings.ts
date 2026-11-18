@@ -37,6 +37,8 @@ export const MG_AIMING = {
 } as const;
 export const JAM_RULES = {
   chance: 0.25,
+  /** Seconds of the loader's hands to clear a jammed round. */
+  clear: 1.6,
   progress: 0.4,
   width: 0.24,
   speed: 0.65,
@@ -74,12 +76,13 @@ export const BOW_MG = {
   /** Hull-local mount: right of centre, at the front glacis. */
   mount: { right: 0.62, forward: 2.35, height: 1.55 },
 } as const;
+/** Loader's M2HB .50 cal: ~410 rounds/min, as in the reference range footage. */
 export const MG_RULES = {
   burst: 5,
   cooldown: 3,
   cooling: 0.3,
-  interval: 0.1,
-  damage: 1,
+  interval: 0.147,
+  damage: 1.45,
   range: 100,
 } as const;
 export const SMOKE_SECONDS = 8;

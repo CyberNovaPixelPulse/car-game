@@ -16,7 +16,7 @@ import {
   presentSpeedometerNeedle,
   speedometerMarkup,
 } from "./tank-speedometer";
-import { JAM_RULES, SHELL_LABELS } from "./tank-weapons";
+import { SHELL_LABELS } from "./tank-weapons";
 
 const repairWorkspace = `<section class="repair-workspace" aria-label="車內維修" hidden>
         <h3>車體維修</h3>
@@ -110,7 +110,6 @@ function stationMarkup(
         </div>
         <div class="loading-workspace">
           <div class="interior-viewport">${repairWorkspace}</div>
-          <section class="jam-game hud-panel" aria-label="卡彈排除" hidden><h3>卡彈：停在目標區</h3><div class="jam-track"><span class="jam-zone" data-testid="jam-zone">目標</span><span class="jam-needle" data-testid="jam-needle"></span></div><p data-testid="jam-result">按空白鍵停針</p></section>
         </div>
       </div>
       <div class="battle-work hud-panel">${weaponStatus}<p class="note loading-help">按 1 高爆彈、2 穿甲彈、3 煙霧彈。按住 R 裝填，放開保留進度；同發彈種鎖定。等待開火、退殼後再裝下一發。</p><p class="note">按住 C 蹲下避殼，放開起身；蹲下時無法工作。</p></div>
@@ -326,7 +325,7 @@ function bindWeaponStatus(root: HTMLElement) {
       ? `${SHELL_LABELS[weapon.chamberShell]}（已鎖定）`
       : "無";
     chamber.textContent = weapon.jam.active
-      ? "卡彈"
+      ? `卡彈・排除中 ${Math.round(weapon.jam.needle * 100)}%`
       : chamberText[weapon.chamber];
     load.textContent = String(Math.round(weapon.loadProgress * 100));
     progress.value = weapon.loadProgress * 100;
@@ -421,7 +420,6 @@ function bindLoaderHud(root: HTMLElement) {
   const repair = root.querySelector<HTMLElement>(".repair-workspace")!;
   const presentRepair = bindRepairWorkspace(repair);
   const presentMachineGun = bindMachineGunHud(root);
-  const presentJam = bindJamGame(root);
   const modeText = {
     loading: "裝填模式",
     "machine-gun": "機槍模式",
@@ -456,7 +454,6 @@ function bindLoaderHud(root: HTMLElement) {
       weapon.chamber === "ejecting" ? "彈殼即將退出！按住 C 蹲下避開" : "";
     presentRepair(state, needle);
     presentMachineGun(state, stunned);
-    presentJam(state);
   };
 }
 
@@ -498,29 +495,6 @@ function bindMachineGunHud(root: HTMLElement) {
       state.intel.contacts
         .map((enemy) => contactReadout(enemy, state.time, false))
         .join("；") || "目前沒有觀測到敵車";
-  };
-}
-
-function bindJamGame(root: HTMLElement) {
-  const game = root.querySelector<HTMLElement>(".jam-game")!;
-  const title = game.querySelector("h3")!;
-  const zone = readout(game, "jam-zone");
-  const needle = readout(game, "jam-needle");
-  const result = readout(game, "jam-result");
-  zone.style.width = `${JAM_RULES.width * 100}%`;
-
-  return ({ weapon, time }: TankState) => {
-    const jam = weapon.jam;
-    const cleared = jam.result === "cleared";
-    title.textContent = cleared ? "故障已排除" : "卡彈：停在目標區";
-    game.hidden = weapon.mode !== "loading" || (!jam.active && !cleared);
-    zone.style.left = `${jam.zone * 100}%`;
-    needle.style.left = `${jam.needle * 100}%`;
-    result.textContent = cleared
-      ? "解除成功，繼續裝填"
-      : jam.result === "failed"
-        ? `未命中，重試倒數 ${Math.max(0, jam.retryAt - time).toFixed(1)} 秒`
-        : "按空白鍵停針";
   };
 }
 

@@ -928,26 +928,6 @@ export function buildBrowning(
   part(gun, box(0.13, 0.065, 0.18), dark, -0.14, 0.02, -0.15);
   part(gun, armour(0.22, 0.28, 0.26, 0.018), paint, -0.29, -0.1, -0.15);
   part(gun, box(0.235, 0.018, 0.28), worn, -0.29, 0.046, -0.15);
-  for (let i = 0; i < 5; i++) {
-    const round = part(
-      gun,
-      new THREE.CylinderGeometry(0.012, 0.012, 0.105, 8),
-      brass,
-      -0.12 - i * 0.027,
-      0.074,
-      -0.15,
-    );
-    round.rotation.x = Math.PI / 2;
-    const bullet = part(
-      gun,
-      new THREE.ConeGeometry(0.012, 0.028, 8),
-      worn,
-      -0.12 - i * 0.027,
-      0.074,
-      -0.216,
-    );
-    bullet.rotation.x = -Math.PI / 2;
-  }
   for (const side of [-1, 1]) {
     part(gun, box(0.006, 0.006, 0.43), worn, side * 0.083, 0.092, -0.21);
     part(
@@ -968,46 +948,106 @@ export function buildBrowning(
     );
     pin.rotation.z = Math.PI / 2;
   }
-  // Open support jacket: narrow rings joined by ribs, actual air gaps rather than painted holes.
-  for (let i = 0; i < 6; i++)
-    part(
-      gun,
-      new THREE.TorusGeometry(0.047, 0.007, 6, 12),
-      steel,
-      0,
-      0,
-      -0.5 - i * 0.075,
-    );
-  for (let i = 0; i < 6; i++) {
-    const angle = (i * Math.PI) / 3;
-    part(
-      gun,
-      box(0.011, 0.011, 0.42),
-      steel,
-      Math.cos(angle) * 0.047,
-      Math.sin(angle) * 0.047,
-      -0.69,
-    );
-  }
+  // M2HB barrel support: a short steel sleeve pierced with big round
+  // cooling holes, as on the reference gun, then the long heavy barrel.
+  const support = new THREE.MeshStandardMaterial({
+    color: 0x3e4540,
+    metalness: 0.75,
+    roughness: 0.5,
+    map: perforation(),
+    alphaTest: 0.5,
+    side: THREE.DoubleSide,
+  });
+  const sleeve = part(
+    gun,
+    new THREE.CylinderGeometry(0.062, 0.062, 0.27, 20, 1, true),
+    support,
+    0,
+    0,
+    -0.6,
+  );
+  sleeve.rotation.x = Math.PI / 2;
+  for (const z of [-0.465, -0.735])
+    part(gun, new THREE.TorusGeometry(0.062, 0.008, 6, 20), worn, 0, 0, z);
+  part(gun, armour(0.13, 0.13, 0.04, 0.008), receiverSteel, 0, 0, -0.455);
   const barrel = part(
     gun,
-    new THREE.CylinderGeometry(0.023, 0.028, 0.76, 12, 1, true),
+    new THREE.CylinderGeometry(0.026, 0.031, 1.0, 14),
     steel,
     0,
     0,
-    -1.3,
+    -1.15,
   );
   barrel.rotation.x = Math.PI / 2;
-  part(gun, new THREE.TorusGeometry(0.023, 0.006, 6, 12), worn, 0, 0, -1.68);
-  const bore = part(
+  // Quick-change carrying handle clamped on the barrel.
+  const handleClamp = part(
     gun,
-    new THREE.CircleGeometry(0.018, 12),
-    dark,
+    new THREE.CylinderGeometry(0.036, 0.036, 0.05, 12),
+    worn,
     0,
     0,
-    -1.674,
+    -0.86,
   );
+  handleClamp.rotation.x = Math.PI / 2;
+  part(gun, box(0.018, 0.09, 0.018), worn, 0.03, 0.06, -0.86);
+  const grip = part(
+    gun,
+    new THREE.CylinderGeometry(0.016, 0.016, 0.16, 8),
+    dark,
+    0.03,
+    0.11,
+    -0.86,
+  );
+  grip.rotation.x = Math.PI / 2;
+  // Flared flash hider and the bore.
+  const hider = part(
+    gun,
+    new THREE.CylinderGeometry(0.036, 0.027, 0.07, 14, 1, true),
+    worn,
+    0,
+    0,
+    -1.675,
+  );
+  hider.rotation.x = Math.PI / 2;
+  const bore = part(gun, new THREE.CircleGeometry(0.02, 12), dark, 0, 0, -1.66);
   bore.rotation.y = Math.PI;
+  // Right-side retracting slide handle with its knob.
+  part(gun, box(0.02, 0.025, 0.24), worn, 0.098, -0.02, -0.18);
+  const knob = part(
+    gun,
+    new THREE.CylinderGeometry(0.022, 0.022, 0.06, 10),
+    dark,
+    0.13,
+    -0.02,
+    -0.06,
+  );
+  knob.rotation.z = Math.PI / 2;
+  // Linked belt sagging from the ammunition can into the feedway.
+  for (let i = 0; i < 8; i++) {
+    const t = i / 7;
+    const x = -0.105 - t * 0.2;
+    const y = 0.07 - Math.sin(t * Math.PI) * 0.05 - t * 0.02;
+    const round = part(
+      gun,
+      new THREE.CylinderGeometry(0.012, 0.012, 0.105, 8),
+      brass,
+      x,
+      y,
+      -0.15,
+    );
+    round.rotation.x = Math.PI / 2;
+    const bullet = part(
+      gun,
+      new THREE.ConeGeometry(0.012, 0.03, 8),
+      worn,
+      x,
+      y,
+      -0.217,
+    );
+    bullet.rotation.x = -Math.PI / 2;
+    part(gun, box(0.022, 0.026, 0.02), dark, x, y, -0.13);
+    part(gun, box(0.022, 0.026, 0.02), dark, x, y, -0.175);
+  }
   // Rear folding leaf sight and front blade sit below the screen's aiming center.
   part(gun, box(0.026, 0.14, 0.022), steel, 0, 0.15, -0.25);
   part(gun, box(0.085, 0.018, 0.025), worn, 0, 0.21, -0.25);
@@ -1048,4 +1088,27 @@ export function buildBrowning(
   clamp.rotation.x = Math.PI / 2;
   batchFixedParts(gun);
   return gun;
+}
+
+/** Cut-out pattern of the barrel support's cooling holes. */
+let holes: THREE.CanvasTexture | undefined;
+function perforation() {
+  if (holes) return holes;
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 128;
+  const c = canvas.getContext("2d")!;
+  c.fillStyle = "#fff";
+  c.fillRect(0, 0, 256, 128);
+  c.fillStyle = "rgba(0,0,0,0)";
+  c.globalCompositeOperation = "destination-out";
+  for (let row = 0; row < 3; row++)
+    for (let i = 0; i < 6; i++) {
+      c.beginPath();
+      c.arc(21 + i * 42.7 + (row % 2) * 21, 24 + row * 40, 14, 0, Math.PI * 2);
+      c.fill();
+    }
+  holes = new THREE.CanvasTexture(canvas);
+  holes.colorSpace = THREE.SRGBColorSpace;
+  return holes;
 }

@@ -1,7 +1,6 @@
 import { CREW_ROLES, type CrewRole } from "./crew";
 import { TankCore, BATTLEFIELD, AIM, DRIVE } from "./tank-core";
 import {
-  JAM_RULES,
   BALLISTICS,
   DRIVING,
   REPAIR_RULES,
@@ -344,12 +343,6 @@ export class PracticeCrew {
     }
     if (w.jam.active) {
       this.loaderStatus = "排除卡彈";
-      if (
-        w.jam.result === "trying" &&
-        Math.abs(w.jam.needle - w.jam.zone - JAM_RULES.width / 2) <
-          PRACTICE_RULES.jamTolerance
-      )
-        this.core.action(slot, STOP_JAM);
       return;
     }
     if (w.chamber === "loaded") {

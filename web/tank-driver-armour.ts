@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { DRIVER_VIEW } from "./tank-driver-view";
+import { weather } from "./tank-weathering";
 
 /**
  * The driver's direct-vision block, styled after period footage: a dark
@@ -90,10 +91,96 @@ export function buildDriverArmour(camera: THREE.PerspectiveCamera) {
     armour.add(ghost);
   }
 
+  armour.add(buildFenders());
+
   const workLight = new THREE.PointLight(0x9fb2c8, 0.25, 2, 2);
   workLight.position.set(-0.18, 0.3, -0.1);
   armour.add(workLight);
   camera.add(armour);
+}
+
+/**
+ * Front track guards with their headlight brush guards, seen low in the
+ * slit's corners. They sit exactly at the hull's sides so the driver can
+ * judge the tank's width against gaps and wrecks.
+ */
+function buildFenders() {
+  const { left, right, nose } = DRIVER_VIEW.hull;
+  const eye = DRIVER_VIEW.eye.height;
+  const group = new THREE.Group();
+  const paint = weather(
+    new THREE.MeshStandardMaterial({
+      color: 0x4b5437,
+      roughness: 0.82,
+      metalness: 0.25,
+    }),
+    0.37,
+  );
+  const edge = new THREE.MeshStandardMaterial({
+    color: 0x8c8f80,
+    roughness: 0.45,
+    metalness: 0.8,
+  });
+  const lens = new THREE.MeshStandardMaterial({
+    color: 0xd8d2b8,
+    roughness: 0.2,
+    metalness: 0.1,
+    emissive: 0x2a2618,
+  });
+  // Side profile (distance ahead, height above ground), extruded across the guard.
+  const profile = new THREE.Shape();
+  const top = 1.45 - eye;
+  profile.moveTo(nose - 0.2, -eye + 0.6);
+  profile.lineTo(nose - 0.2, top);
+  profile.lineTo(nose + 1.0, top - 0.13);
+  profile.lineTo(nose + 1.18, top - 0.3);
+  profile.lineTo(nose + 1.1, -eye + 0.6);
+  profile.closePath();
+  for (const [from, to] of [
+    [left, left + 0.4],
+    [right - 0.44, right],
+  ]) {
+    const width = to - from;
+    const geometry = new THREE.ExtrudeGeometry(profile, {
+      depth: width,
+      bevelEnabled: true,
+      bevelSize: 0.015,
+      bevelThickness: 0.015,
+      bevelSegments: 2,
+    });
+    geometry.rotateY(Math.PI / 2);
+    const guard = new THREE.Mesh(geometry, paint);
+    guard.position.x = from;
+    guard.castShadow = guard.receiveShadow = true;
+    group.add(guard);
+    // Worn steel lip along the top edge, where boots and branches rub.
+    const lip = new THREE.Mesh(
+      new THREE.BoxGeometry(width + 0.02, 0.025, 1.22),
+      edge,
+    );
+    lip.position.set(from + width / 2, top - 0.055, -(nose + 0.4));
+    lip.rotation.x = Math.atan2(0.13, 1.2);
+    group.add(lip);
+    // Headlight in its brush guard near the tip.
+    const x = from + width / 2;
+    const lamp = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.1, 0.12, 16),
+      paint,
+    );
+    lamp.rotation.x = Math.PI / 2;
+    lamp.position.set(x, top + 0.02, -(nose + 0.75));
+    group.add(lamp);
+    const glass = new THREE.Mesh(new THREE.CircleGeometry(0.075, 16), lens);
+    glass.position.set(x, top + 0.02, -(nose + 0.815));
+    group.add(glass);
+    const hoop = new THREE.Mesh(
+      new THREE.TorusGeometry(0.15, 0.014, 6, 14, Math.PI),
+      edge,
+    );
+    hoop.position.set(x, top - 0.06, -(nose + 0.84));
+    group.add(hoop);
+  }
+  return group;
 }
 
 function glassTexture(aspect: number) {
@@ -106,7 +193,7 @@ function glassTexture(aspect: number) {
   let seed = 7;
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   // Cold grey haze over the whole pane.
-  c.fillStyle = "rgba(196, 206, 214, 0.16)";
+  c.fillStyle = "rgba(196, 206, 214, 0.06)";
   c.fillRect(0, 0, w, h);
   // Edges darken into the frame.
   const fade = (x0: number, y0: number, x1: number, y1: number) => {
