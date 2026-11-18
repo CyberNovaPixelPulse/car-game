@@ -4,6 +4,7 @@ import { AIMING, DRIVING } from "./tank-settings";
 import type { ShellType } from "./tank-weapons";
 import { BattleSounds, type PlayOptions } from "./tank-battle-audio";
 import { VARIANTS, renderOneShot, type OneShot } from "./tank-audio-synth";
+import { CrewChatter } from "./tank-crew-chatter";
 
 export interface TankAudioFrame {
   role: CrewRole;
@@ -23,18 +24,6 @@ export interface TankAudioFrame {
 const ENGINE = { idle: 1050, governed: 2400, order: 4.5 } as const;
 /** Audible track-link spacing on the sprocket, metres. */
 const LINK_PITCH = 0.34;
-/**
- * US tank crews: the loader slaps the gunner's shoulder and yells "UP!" once
- * the breech closes. Speech engines read "HE" as a word, so it is spelled out.
- */
-const CALLOUTS: Record<ShellType, string[]> = {
-  he: ["H! E! UP!", "UP! H E loaded!", "H E in, UP!"],
-  ap: ["A! P! UP!", "UP! A P loaded!", "A P in, UP!"],
-  smoke: ["Smoke, UP!", "UP! Smoke loaded!"],
-};
-/** Prefer a male US voice; Edge/Windows "Natural" voices sound least robotic. */
-const VOICE_PREFERENCE =
-  /(guy|christopher|eric|roger|steffan|andrew|brian|davis|tony|jason|ryan|david|mark|alex|aaron|fred)/i;
 /** Sounds made inside the turret are not muffled by the armour. */
 const INTERIOR = new Set<OneShot>([
   "recoil",
@@ -118,15 +107,8 @@ export class TankVehicleAudio {
   private duckUntil = 0;
   private outside = false;
   private battle = new BattleSounds();
-  private voices: SpeechSynthesisVoice[] = [];
-
-  constructor() {
-    if (typeof speechSynthesis !== "undefined") {
-      const pick = () => (this.voices = speechSynthesis.getVoices());
-      pick();
-      speechSynthesis.addEventListener?.("voiceschanged", pick);
-    }
-  }
+  /** The crew's intercom: fire commands, sensings and shouting. */
+  private chatter = new CrewChatter();
 
   /** Danger beeps must stay audible over the engine: dip the tank briefly. */
   duck(seconds = 0.45) {
@@ -144,12 +126,13 @@ export class TankVehicleAudio {
     this.stop();
     this.primed = false;
     this.battle = new BattleSounds();
+    this.chatter.reset();
   }
 
   stop() {
     for (const timer of this.timers) clearTimeout(timer);
     this.timers = [];
-    if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
+    this.chatter.stop();
     const graph = this.graph;
     this.graph = undefined;
     if (!graph || !this.context) return;
@@ -190,8 +173,7 @@ export class TankVehicleAudio {
 
     if (this.enabled !== frame.enabled) {
       this.enabled = frame.enabled;
-      if (!frame.enabled && typeof speechSynthesis !== "undefined")
-        speechSynthesis.cancel();
+      this.chatter.setEnabled(frame.enabled);
     }
     const ducked = now < this.duckUntil ? 0.4 : 1;
     graph.master.gain.setTargetAtTime(
@@ -240,6 +222,7 @@ export class TankVehicleAudio {
         (kind, at, options) => this.play(kind, at, options),
       );
     } else this.battle.remember(state);
+    if (frame.active) this.chatter.present(state);
     this.remember(state);
   }
 
@@ -477,32 +460,10 @@ export class TankVehicleAudio {
       source.start(at + 0.06);
       return;
     }
-    if (typeof speechSynthesis === "undefined") return;
     const delay = Math.max(0, (at + 0.06 - context.currentTime) * 1000);
     this.timers.push(
       window.setTimeout(() => {
-        if (!this.enabled || !this.graph) return;
-        const lines = CALLOUTS[shell];
-        const line = new SpeechSynthesisUtterance(
-          lines[Math.floor(Math.random() * lines.length)],
-        );
-        const us = this.voices.filter((v) => /^en[-_]US$/i.test(v.lang));
-        const voice =
-          us.find(
-            (v) =>
-              /natural|online/i.test(v.name) && VOICE_PREFERENCE.test(v.name),
-          ) ??
-          us.find((v) => VOICE_PREFERENCE.test(v.name)) ??
-          us[0] ??
-          this.voices.find((v) => v.lang.toLowerCase().startsWith("en"));
-        if (voice) line.voice = voice;
-        line.lang = voice?.lang ?? "en-US";
-        // Yelled over the engine in the heat of battle: fast and pitched up.
-        line.rate = 1.35;
-        line.pitch = 1.3;
-        line.volume = 1;
-        speechSynthesis.cancel();
-        speechSynthesis.speak(line);
+        if (this.enabled && this.graph) this.chatter.loaded(shell);
       }, delay),
     );
   }

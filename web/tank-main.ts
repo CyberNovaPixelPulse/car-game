@@ -1,5 +1,5 @@
 import { RECONNECT_GRACE_MS } from "./tank-settings";
-import { MG_FIRE } from "./tank-machine-gun";
+import { MG_FIRE, BOW_FIRE } from "./tank-machine-gun";
 import { Session, type Room } from "./network";
 import { CREW_ROLES, ROLE_LABELS, ROLE_TASKS, type CrewRole } from "./crew";
 import { GameRuntime } from "./game-runtime";
@@ -540,6 +540,13 @@ window.addEventListener("keydown", (event) => {
     runtime.setInput(held);
     return;
   }
+  if (activeStation?.role === "driver" && event.code === "Space") {
+    event.preventDefault();
+    if (event.repeat) return;
+    held |= BOW_FIRE;
+    runtime.setInput(held);
+    return;
+  }
   if (activeStation?.role !== "driver" && activeStation?.role !== "loader")
     return;
   const key =
@@ -561,7 +568,9 @@ window.addEventListener("keyup", (event) => {
     activeStation?.role === "gunner"
       ? aimKeys[event.code]
       : event.code === "Space"
-        ? MG_FIRE
+        ? activeStation?.role === "driver"
+          ? BOW_FIRE
+          : MG_FIRE
         : event.key.toLowerCase() === "r"
           ? LOAD
           : event.key.toLowerCase() === "c"

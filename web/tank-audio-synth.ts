@@ -33,7 +33,8 @@ export type OneShot =
   | "artillery"
   | "wrench"
   | "hammer"
-  | "backfire";
+  | "backfire"
+  | "ricochet";
 
 export const ONE_SHOTS: readonly OneShot[] = [
   "cannon",
@@ -64,6 +65,7 @@ export const ONE_SHOTS: readonly OneShot[] = [
   "wrench",
   "hammer",
   "backfire",
+  "ricochet",
 ];
 
 /** How many distinct takes are rendered, so repeated hits do not sound copied. */
@@ -96,6 +98,7 @@ export const VARIANTS: Record<OneShot, number> = {
   wrench: 2,
   hammer: 3,
   backfire: 4,
+  ricochet: 4,
 };
 
 type Mode = [frequency: number, decay: number, amplitude: number];
@@ -309,6 +312,7 @@ export function renderOneShot(
     wrench: 0.45,
     hammer: 0.5,
     backfire: 0.45,
+    ricochet: 0.7,
   }[kind];
   const out = new Float32Array(Math.ceil(seconds * rate));
   switch (kind) {
@@ -682,6 +686,22 @@ export function renderOneShot(
           0.4 + random() * 0.2,
         );
       return normalize(out, 0.35);
+    }
+    case "ricochet": {
+      // A bullet glancing off armour: sharp tick, then a falling whine.
+      steelHit(out, rate, 0, random, 1800 + variant * 300, 0.01, 0.8);
+      let phase = 0;
+      const start = 3600 + variant * 500;
+      for (let i = 0; i < out.length; i++) {
+        const t = i / rate;
+        phase += (2 * Math.PI * start * Math.exp(-t / 0.35)) / rate;
+        out[i] +=
+          0.35 *
+          Math.min(1, t / 0.01) *
+          Math.exp(-t / 0.22) *
+          Math.sin(phase + 0.6 * Math.sin(phase * 0.031));
+      }
+      return normalize(out, 0.6);
     }
     case "backfire":
       // Unburnt fuel lighting off in the exhaust stacks: a sharp pop with

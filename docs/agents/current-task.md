@@ -4,6 +4,7 @@
 - 本輪預算：60 分鐘，拆兩個里程碑；2026-11-18 15:15 開始，16:15 截止（Asia/Taipei）。
   - 里程碑一（30 分鐘）：純函式合成器與即時音效圖，接上所有職位。
   - 里程碑二（30 分鐘）：音效開關擴及三個職位、文件、`npm test`、build、離線試聽檔。
+- 第五輪（2026-11-18）：駕駛員觀察窗改為髒污玻璃直視鏡風格、彈道改用真實初速、駕駛員車體機槍（對坦克幾乎無傷害）、坦克風化外觀與排氣／履帶揚塵、乘員對話（`web/tank-crew-chatter.ts`）。`npm test` 與 build 通過；E2E（Playwright）依 `AGENTS.md` 未在此執行，彈道變快可能影響既有命中相關測試，列為未驗證。
 - 工作分支：`dev`；實際來源以 `git rev-parse HEAD` 為準。
 - 本輪交付：`web/tank-audio-synth.ts`（不依賴瀏覽器的音色合成）、`web/tank-vehicle-audio.ts`（WebAudio 即時圖與快照邊緣觸發）、`tools/render-audio-preview.ts`（輸出 WAV 試聽）、`docs/tank-audio.md`。
 - 音效只讀快照，不改任何遊戲規則或權威狀態。

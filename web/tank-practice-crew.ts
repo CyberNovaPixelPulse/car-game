@@ -234,7 +234,8 @@ export class PracticeCrew {
       Math.sin(Math.atan2(dx, -dz) - state.tank.yaw - state.turret.yaw),
       Math.cos(Math.atan2(dx, -dz) - state.tank.yaw - state.turret.yaw),
     );
-    const flight = Math.max(0, range - 4.8) / BALLISTICS.speed;
+    const shell = state.weapon.chamberShell ?? state.weapon.selectedShell;
+    const flight = Math.max(0, range - 4.8) / BALLISTICS.speed[shell];
     const pitch = Math.atan2(
       1.8 - 2.48 + (BALLISTICS.gravity * flight * flight) / 2,
       range,

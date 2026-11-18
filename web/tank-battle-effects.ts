@@ -281,6 +281,7 @@ export class BattleEffects {
   private time = 0;
   private primed = false;
   private shots = 0;
+  private bowShots = 0;
   private firedAt = -100;
   private hitAt = -100;
   private shake = { until: -100, strength: 0, length: 1 };
@@ -312,6 +313,11 @@ export class BattleEffects {
     THREE.MeshBasicMaterial
   >[] = [];
   private deathAt = new Map<number, number>();
+  /** Last seen pose per vehicle (player is id 0) for exhaust and track dust. */
+  private wakes = new Map<
+    number,
+    { x: number; z: number; speed: number; dust: number; smoke: number }
+  >();
   private turretOffset = new Map<number, THREE.Vector3>();
   private listener = new THREE.Vector3();
   private scratch = new THREE.Vector3();
@@ -436,6 +442,7 @@ export class BattleEffects {
     if (!this.primed) {
       this.primed = true;
       this.shots = w.shotsFired;
+      this.bowShots = w.bow?.shots ?? 0;
       this.hitAt = state.battle.lastHitAt;
       for (const t of w.targets) {
         this.enemyFlash.set(t.id, t.flashUntil);
@@ -453,6 +460,54 @@ export class BattleEffects {
       );
     }
     this.shots = w.shotsFired;
+
+    // Bow gun: a small flash at the ball mount, sparks where rounds glance
+    // off armour, dust where they strike earth or walls.
+    const bow = w.bow;
+    if (bow && bow.shots > this.bowShots) {
+      for (const t of bow.tracers.filter((t) => t.id > this.bowShots)) {
+        const from = new THREE.Vector3(t.x, t.y, t.z);
+        const end = new THREE.Vector3(t.endX, t.endY, t.endZ);
+        this.glow.spawn({
+          position: from.clone(),
+          velocity: new THREE.Vector3(),
+          life: 0.06,
+          size: [0.7, 1.1],
+          from: [1, 0.85, 0.45, 1],
+          to: [1, 0.4, 0.1, 0],
+        });
+        if (t.hit) {
+          for (let i = 0; i < this.n(6); i++)
+            this.glow.spawn({
+              position: end.clone(),
+              velocity: new THREE.Vector3(
+                random(-1, 1),
+                random(0, 1.2),
+                random(-1, 1),
+              ).multiplyScalar(random(4, 10)),
+              life: random(0.15, 0.35),
+              size: [0.1, 0.04],
+              from: [1, 0.95, 0.7, 1],
+              to: [1, 0.5, 0.1, 0],
+              gravity: 9.8,
+            });
+        } else if (end.distanceTo(from) < 89)
+          this.smoke.spawn({
+            position: end.clone(),
+            velocity: new THREE.Vector3(
+              random(-0.3, 0.3),
+              random(0.4, 1),
+              random(-0.3, 0.3),
+            ),
+            life: random(0.6, 1),
+            size: [0.3, 1.2],
+            from: [0.55, 0.47, 0.36, 0.5],
+            to: [0.65, 0.6, 0.5, 0],
+            drag: 1.5,
+          });
+      }
+    }
+    this.bowShots = bow?.shots ?? 0;
 
     for (const t of w.targets) {
       const flash = this.enemyFlash.get(t.id);
@@ -538,6 +593,15 @@ export class BattleEffects {
       trail(-p.id, p.x, p.y, p.z, false);
     for (const id of this.trails.keys())
       if (!live.has(id)) this.trails.delete(id);
+
+    // Running vehicles breathe exhaust and throw dust off their tracks.
+    if (dt > 0) {
+      const t = state.tank;
+      this.wake(0, t.x, t.z, t.yaw, 1, dt);
+      for (const e of w.targets)
+        if (e.hp > 0)
+          this.wake(e.id, e.x, e.z, e.yaw, e.kind === "tiger" ? 1.3 : 1.1, dt);
+    }
 
     // Knocked-out tanks keep burning, as in the games the crew knows.
     if (dt > 0) {
@@ -1119,6 +1183,83 @@ export class BattleEffects {
     }
   }
 
+  private wake(
+    id: number,
+    x: number,
+    z: number,
+    yaw: number,
+    size: number,
+    dt: number,
+  ) {
+    let wake = this.wakes.get(id);
+    if (!wake) {
+      this.wakes.set(id, { x, z, speed: 0, dust: 0, smoke: 0 });
+      return;
+    }
+    const moved = Math.hypot(x - wake.x, z - wake.z);
+    const speed = moved / dt;
+    wake.x = x;
+    wake.z = z;
+    if (moved > 5) return; // a reset or a teleport, not driving
+    const surge = Math.max(0, speed - wake.speed) / dt;
+    wake.speed += (speed - wake.speed) * Math.min(1, dt * 4);
+    if (wake.speed < 0.4 && surge < 1) return;
+    const sin = Math.sin(yaw),
+      cos = Math.cos(yaw);
+    const back = 2.9 * size;
+    // Exhaust: thin blue-grey haze, a dark gulp when the driver opens up.
+    wake.smoke += dt * (3 + Math.min(10, surge * 2)) * this.density;
+    while (wake.smoke > 1) {
+      wake.smoke -= 1;
+      const dark = surge > 2 ? random(0.12, 0.22) : random(0.35, 0.5);
+      this.smoke.spawn({
+        position: new THREE.Vector3(
+          x - sin * back + cos * random(-0.5, 0.5),
+          0.9,
+          z + cos * back + sin * random(-0.5, 0.5),
+        ),
+        velocity: new THREE.Vector3(
+          -sin * random(0.6, 1.4),
+          random(0.3, 0.9),
+          cos * random(0.6, 1.4),
+        ),
+        life: random(1.4, 2.4),
+        size: [0.5 * size, random(2.2, 3.2) * size],
+        from: [dark, dark, dark + 0.03, surge > 2 ? 0.45 : 0.22],
+        to: [0.6, 0.6, 0.62, 0],
+        drag: 0.8,
+        gravity: -0.25,
+      });
+    }
+    // Track dust: rolls off the rear sprockets, grows with speed.
+    if (wake.speed < 1.2) return;
+    wake.dust += dt * Math.min(14, wake.speed * 1.6) * this.density;
+    while (wake.dust > 1) {
+      wake.dust -= 1;
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const across = side * 1.2 * size;
+      this.smoke.spawn({
+        position: new THREE.Vector3(
+          x - sin * (back - 0.3) + cos * across,
+          0.25,
+          z + cos * (back - 0.3) + sin * across,
+        ),
+        velocity: new THREE.Vector3(
+          -sin * random(0.5, 1.5) + cos * side * random(0.2, 0.8),
+          random(0.4, 1.2),
+          cos * random(0.5, 1.5) + sin * side * random(0.2, 0.8),
+        ),
+        life: random(1.6, 2.8),
+        size: [0.8 * size, random(3, 4.5) * size],
+        from: [0.5, 0.43, 0.32, 0.38],
+        to: [0.62, 0.57, 0.47, 0],
+        drag: 1.1,
+        gravity: -0.05,
+        spin: random(-0.5, 0.5),
+      });
+    }
+  }
+
   private reset() {
     this.glow.clear();
     this.smoke.clear();
@@ -1127,6 +1268,7 @@ export class BattleEffects {
     for (const d of this.decals) d.mesh.visible = false;
     this.decals = [];
     this.deathAt.clear();
+    this.wakes.clear();
     this.turretOffset.clear();
     this.primed = false;
     this.firedAt = -100;

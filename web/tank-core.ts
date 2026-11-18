@@ -18,7 +18,12 @@ import {
   stepEnemies,
   type EnemyBattle,
 } from "./tank-enemies";
-import { MG_FIRE, stepMachineGun } from "./tank-machine-gun";
+import {
+  MG_FIRE,
+  BOW_FIRE,
+  stepMachineGun,
+  stepBowGun,
+} from "./tank-machine-gun";
 import type { CrewRole } from "./crew";
 import type { GameCore, GameStart } from "./game-runtime";
 import {
@@ -172,12 +177,13 @@ export class TankCore implements GameCore<TankState> {
     }
     this.controls.set(
       participant,
-      this.roleOf(participant) === "driver" ||
-        this.roleOf(participant) === "gunner"
-        ? keys & 15
-        : this.roleOf(participant) === "loader"
-          ? keys & (15 | LOAD | CROUCH | MG_FIRE)
-          : 0,
+      this.roleOf(participant) === "driver"
+        ? keys & (15 | BOW_FIRE)
+        : this.roleOf(participant) === "gunner"
+          ? keys & 15
+          : this.roleOf(participant) === "loader"
+            ? keys & (15 | LOAD | CROUCH | MG_FIRE)
+            : 0,
     );
     // Ordered input precedes the discrete work action. A release/crouch must
     // settle an active calibration before a following Space can award HP.
@@ -301,6 +307,17 @@ export class TankCore implements GameCore<TankState> {
         pitch: w.mg.pitch,
       },
       Boolean(loaderKeys & MG_FIRE),
+      dt,
+      this.state.time,
+      BATTLEFIELD.cover,
+    );
+    let driverKeys = 0;
+    for (const [participant, held] of this.controls)
+      if (this.roleOf(participant) === "driver") driverKeys = held;
+    stepBowGun(
+      w,
+      this.state.tank,
+      Boolean(driverKeys & BOW_FIRE),
       dt,
       this.state.time,
       BATTLEFIELD.cover,

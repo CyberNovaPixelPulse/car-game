@@ -224,6 +224,7 @@ export class TankScene {
       state.weapon.projectiles.map((p) => [p.id, p.x, p.y, p.z].join()).join(),
       state.battle.projectiles.map((p) => [p.id, p.x, p.y, p.z].join()).join(),
       state.weapon.mg.tracers.map((p) => p.id).join(),
+      (state.weapon.bow?.tracers ?? []).map((p) => p.id).join(),
       state.weapon.shotsFired,
       state.battle.lastHitAt,
       animated ? state.time : 0,
@@ -347,14 +348,25 @@ export class TankScene {
   }
   private renderEffects(state: TankState) {
     for (const [id, line] of this.mgTracers) {
-      if (!state.weapon.mg.tracers.some((t) => t.id === id)) {
+      if (
+        !state.weapon.mg.tracers.some((t) => t.id === id) &&
+        !(state.weapon.bow?.tracers ?? []).some((t) => t.id + 1e6 === id)
+      ) {
         this.scene.remove(line);
         line.geometry.dispose();
         (line.material as THREE.Material).dispose();
         this.mgTracers.delete(id);
       }
     }
-    for (const t of state.weapon.mg.tracers) {
+    // Bow-gun tracers share the drawing path; their ids live above 1e6.
+    const tracers = [
+      ...state.weapon.mg.tracers,
+      ...(state.weapon.bow?.tracers ?? []).map((t) => ({
+        ...t,
+        id: t.id + 1e6,
+      })),
+    ];
+    for (const t of tracers) {
       if (this.mgTracers.has(t.id)) continue;
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([

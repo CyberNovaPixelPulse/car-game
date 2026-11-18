@@ -94,7 +94,7 @@ function stationMarkup(
         : role === "driver"
           ? `
       <div class="battle-viewport driver-viewport"></div>
-      <div class="battle-work hud-panel"><p class="note">觀察窗固定朝車頭，側後方請隊友協助觀察。</p><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。</p></div>
+      <div class="battle-work hud-panel"><p class="note">觀察窗固定朝車頭，側後方請隊友協助觀察。</p><p class="note">按住 W／S 前進與倒車，A／D 左右轉向。</p><p>車體機槍熱度 <strong data-testid="bow-heat">0</strong>% · <span data-testid="bow-status">可以射擊</span> · 已射擊 <strong data-testid="bow-shot-count">0</strong> 發</p><p class="note">按住空白鍵射擊車體機槍（固定朝車頭，打坦克幾乎沒有傷害）。</p></div>
     `
           : `
       <div class="loader-workspace">
@@ -241,6 +241,10 @@ function bindBattleHud(
   const outcome = root.querySelector<HTMLElement>(".battle-outcome")!;
   const presentCalibration = bindSharedCalibration(root);
   const presentWeapon = role === "driver" ? undefined : bindWeaponStatus(root);
+  const bowHeat = role === "driver" ? readout(root, "bow-heat") : undefined;
+  const bowStatus = role === "driver" ? readout(root, "bow-status") : undefined;
+  const bowShots =
+    role === "driver" ? readout(root, "bow-shot-count") : undefined;
   const presentRole =
     role === "loader"
       ? bindLoaderHud(root)
@@ -290,6 +294,13 @@ function bindBattleHud(
       360;
     presentCalibration(state, calibrationNeedle);
     presentWeapon?.(state.weapon);
+    const bow = state.weapon.bow;
+    if (bow && bowHeat && bowStatus && bowShots) {
+      bowHeat.textContent = String(Math.round(bow.heat * 100));
+      bowStatus.textContent =
+        state.time < bow.coolUntil ? "過熱冷卻中" : "可以射擊";
+      bowShots.textContent = String(bow.shots);
+    }
     presentRole?.(state, calibrationNeedle);
   };
 }

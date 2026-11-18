@@ -35,6 +35,7 @@ export class BattleSounds {
   private passed = new Set<number>();
   private hitAt = -100;
   private mgShots = 0;
+  private bowShots = 0;
   private nextArtillery = 0;
   private nextRepair = 0;
 
@@ -47,6 +48,7 @@ export class BattleSounds {
     for (const p of state.battle.projectiles) this.passed.add(p.id);
     this.hitAt = state.battle.lastHitAt;
     this.mgShots = state.weapon.mg.shots;
+    this.bowShots = state.weapon.bow?.shots ?? 0;
   }
 
   present(state: TankState, listener: Listener, now: number, play: Play) {
@@ -168,6 +170,32 @@ export class BattleSounds {
         });
     }
     this.mgShots = w.mg.shots;
+
+    // Bow .30 cal: lighter and faster than the .50; deafening for the driver
+    // sitting beside it. Rounds glancing off armour whine away.
+    const bow = w.bow;
+    if (bow) {
+      for (const t of bow.tracers.filter((t) => t.id > this.bowShots)) {
+        play("mg", now, {
+          gain: listener.role === "driver" ? 0.6 : 0.4,
+          detune: 350 + (Math.random() - 0.5) * 120,
+          pan: listener.role === "driver" ? 0.35 : 0,
+        });
+        if (Math.random() < 0.35)
+          play("mg-brass", now + 0.05, { gain: 0.3, detune: 300 });
+        if (t.hit) {
+          const p = place(t.endX, t.endZ);
+          play("ricochet", p.at, {
+            world: true,
+            gain: Math.min(0.7, p.gain),
+            pan: p.pan,
+            lowpass: p.lowpass,
+            detune: (Math.random() - 0.5) * 500,
+          });
+        }
+      }
+      this.bowShots = bow.shots;
+    }
 
     if (state.repair.status === "repairing") {
       if (now >= this.nextRepair) {

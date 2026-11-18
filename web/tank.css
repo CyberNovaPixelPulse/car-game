@@ -803,6 +803,25 @@ legend {
   width: 100%;
   height: 100%;
 }
+.battle-station .driver-viewport {
+  background: #050608;
+}
+/* Period footage through a vision block: cold, washed-out grey. */
+.battle-station .driver-viewport canvas {
+  filter: grayscale(0.72) contrast(1.12) brightness(0.92) sepia(0.08)
+    hue-rotate(170deg) saturate(0.6);
+}
+.battle-station .driver-viewport::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 70% 55% at 50% 50%,
+    transparent 40%,
+    rgba(0, 0, 0, 0.75) 100%
+  );
+}
 .loader-workspace,
 .mg-workspace,
 .loading-workspace {
