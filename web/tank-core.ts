@@ -16,6 +16,7 @@ import {
   createEnemyBattle,
   createWaveTargets,
   stepEnemies,
+  validTankHits,
   type EnemyBattle,
 } from "./tank-enemies";
 import { MG_FIRE, stepMachineGun } from "./tank-machine-gun";
@@ -489,6 +490,7 @@ export class TankCore implements GameCore<TankState> {
       !Number.isInteger(next.battle.wave) ||
       next.battle.wave < 1 ||
       next.battle.wave > TANK_RULES.waves ||
+      !validTankHits(next.battle.hits, next.time, next.battle.shots) ||
       !Array.isArray(next.battle.projectiles) ||
       ![next.battle.shots, next.battle.lastHitAt, next.battle.lastDamage].every(
         Number.isFinite,

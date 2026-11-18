@@ -1,5 +1,13 @@
 import { DRIVER_VIEW, driverView } from "./tank-driver-view";
 
+/** Horizontal eye and sight line in the turret-fixed loader compartment. */
+export const INTERIOR_VIEW = {
+  eyeX: 1.35,
+  eyeZ: 1.55,
+  targetX: -0.05,
+  targetZ: -0.7,
+} as const;
+
 export type BattleView = "driver" | "gunner" | "machine-gun";
 export const EXTERIOR_VERTICAL_FOV = (65 * Math.PI) / 180;
 /** Same projection for actual pixels and host scouting. Aspect is CSS size,
