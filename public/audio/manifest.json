@@ -4,5 +4,8 @@
     "loader-ready-he": "",
     "loader-ready-ap": "",
     "loader-ready-smoke": ""
+  },
+  "samples": {
+    "cannon": "cannon-sfxengine.mp3"
   }
 }

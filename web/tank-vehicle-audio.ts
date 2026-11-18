@@ -378,7 +378,26 @@ export class TankVehicleAudio {
 
   private cannon(outside: boolean, now: number) {
     const graph = this.graph!;
-    if (outside) {
+    if (this.recorded.get("cannon")) {
+      // A recorded shot leads; the synthesized blast is blended underneath,
+      // low-passed, so it only adds the chest-thumping pressure wave.
+      this.play("cannon", now, {
+        sample: "cannon",
+        gain: outside ? 1.15 : 1,
+        destination: graph.master,
+      });
+      if (outside)
+        this.play("cannon", now, {
+          sample: "cannon",
+          gain: 0.7,
+          destination: graph.space,
+        });
+      this.play("cannon", now, {
+        gain: 0.9,
+        lowpass: 240,
+        destination: graph.master,
+      });
+    } else if (outside) {
       // Head out of the hatch: full crack plus the countryside answering back.
       this.play("cannon", now, { gain: 1.6, destination: graph.master });
       this.play("cannon", now, { gain: 0.9, destination: graph.space });
@@ -440,8 +459,14 @@ export class TankVehicleAudio {
     const graph = this.graph;
     const context = this.context;
     if (!graph || !context) return;
-    const take = Math.floor(Math.random() * VARIANTS[kind]);
-    const buffer = this.buffer(kind, take);
+    // A requested recording that is not available plays nothing; callers
+    // layer it over synthesis rather than relying on it.
+    const recorded = options.sample
+      ? this.recorded.get(options.sample)
+      : undefined;
+    if (options.sample && !recorded) return;
+    const buffer =
+      recorded ?? this.buffer(kind, Math.floor(Math.random() * VARIANTS[kind]));
     const source = context.createBufferSource();
     source.buffer = buffer;
     source.detune.value = options.detune ?? (Math.random() - 0.5) * 60;
@@ -657,7 +682,10 @@ export class TankVehicleAudio {
       let files: Record<string, string> = {};
       try {
         const response = await fetch(`${base}manifest.json`);
-        if (response.ok) files = (await response.json()).callouts ?? {};
+        if (response.ok) {
+          const manifest = await response.json();
+          files = { ...manifest.callouts, ...manifest.samples };
+        }
       } catch {
         return;
       }

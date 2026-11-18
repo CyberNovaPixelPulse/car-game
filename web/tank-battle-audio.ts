@@ -13,6 +13,8 @@ export interface PlayOptions {
   lowpass?: number;
   /** A battlefield sound: muffled by the hull, open-air when the loader is up top. */
   world?: boolean;
+  /** Name of a recorded sample (public/audio/manifest.json) to use instead, if loaded. */
+  sample?: string;
 }
 export type Play = (kind: OneShot, at: number, options?: PlayOptions) => void;
 
@@ -81,9 +83,18 @@ export class BattleSounds {
         t.flashUntil > state.time
       ) {
         const p = place(t.x, t.z);
+        // The recorded gun, heard across the field, layered over the synthesis.
+        play("enemy-cannon", p.at, {
+          sample: "cannon",
+          world: true,
+          gain: p.gain * 0.8,
+          pan: p.pan,
+          lowpass: p.lowpass * 0.6,
+          detune: t.kind === "tiger" ? -250 : -100,
+        });
         play("enemy-cannon", p.at, {
           world: true,
-          gain: p.gain * 1.3,
+          gain: p.gain * 1.1,
           pan: p.pan,
           lowpass: p.lowpass,
           // The Tiger's 88 is deeper than the Panzer IV's 75.
