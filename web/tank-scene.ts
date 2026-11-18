@@ -51,7 +51,6 @@ export class TankScene {
   private enemyProjectiles = new Map<number, THREE.Mesh>();
   private projectileMeshes = new Map<number, THREE.Mesh>();
   private mgTracers = new Map<number, THREE.Line>();
-  private impactMeshes = new Map<number, THREE.Mesh>();
   private lensSize = new THREE.Vector2();
   constructor(
     private canvas: HTMLCanvasElement,
@@ -384,33 +383,7 @@ export class TankScene {
       }
       mesh.position.set(p.x, p.y, p.z);
     }
-    for (const [id, mesh] of this.impactMeshes) {
-      if (!state.weapon.impacts.some((p) => p.id === id)) {
-        this.removeEffect(mesh);
-        this.impactMeshes.delete(id);
-      }
-    }
-    for (const hit of state.weapon.impacts) {
-      let mesh = this.impactMeshes.get(hit.id);
-      if (!mesh) {
-        mesh = new THREE.Mesh(
-          new THREE.SphereGeometry(0.5, 10, 8),
-          new THREE.MeshBasicMaterial({
-            color: 0xd8aa66,
-            transparent: true,
-            opacity: 0.7,
-          }),
-        );
-        this.scene.add(mesh);
-        this.impactMeshes.set(hit.id, mesh);
-      }
-      mesh.position.set(hit.x, hit.y, hit.z);
-      const remaining = Math.max(0, (hit.until - state.time) / 0.6);
-      mesh.scale.setScalar(
-        (hit.shell === "he" ? 2 : 0.5) * (1 + (1 - remaining) * 2),
-      );
-      (mesh.material as THREE.MeshBasicMaterial).opacity = remaining * 0.7;
-    }
+    // Impacts are drawn by BattleEffects (fireball, dirt, sparks, smoke).
   }
   private removeEffect(mesh: THREE.Mesh) {
     this.scene.remove(mesh);

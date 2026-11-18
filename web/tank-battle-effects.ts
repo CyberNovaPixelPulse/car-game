@@ -107,18 +107,25 @@ class Particles {
       depthWrite: false,
       blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
       toneMapped: !additive,
-      uniforms: { map: { value: map }, scale: { value: 500 } },
+      // Additive glow close to the lens is damped so the gunner's own shot
+      // reads as a flash, not a white screen.
+      uniforms: {
+        map: { value: map },
+        scale: { value: 500 },
+        nearGlow: { value: additive ? 0.35 : 1 },
+      },
       vertexShader: `attribute float size;
         attribute vec4 tint;
         attribute float angle;
         uniform float scale;
+        uniform float nearGlow;
         varying vec4 vTint;
         varying float vAngle;
         void main() {
           vec4 view = modelViewMatrix * vec4(position, 1.0);
           float depth = max(0.05, -view.z);
           // Fade puffs that sit on the lens instead of filling the screen.
-          vTint = vec4(tint.rgb, tint.a * smoothstep(0.6, 2.4, depth));
+          vTint = vec4(tint.rgb, tint.a * smoothstep(0.6, 2.4, depth) * mix(nearGlow, 1.0, smoothstep(2.0, 8.0, depth)));
           vAngle = angle;
           gl_Position = projectionMatrix * view;
           gl_PointSize = size * scale / depth;
@@ -568,7 +575,7 @@ export class BattleEffects {
       position: at.clone(),
       velocity: dir.clone().multiplyScalar(4),
       life: 0.09,
-      size: [3.2 * scale, 5 * scale],
+      size: [2.4 * scale, 3.8 * scale],
       from: [1, 0.98, 0.85, 1],
       to: [1, 0.75, 0.35, 0],
     });
@@ -576,7 +583,7 @@ export class BattleEffects {
       position: at.clone().addScaledVector(dir, 0.8),
       velocity: dir.clone().multiplyScalar(6),
       life: 0.16,
-      size: [4 * scale, 6.5 * scale],
+      size: [3 * scale, 5 * scale],
       from: [1, 0.62, 0.2, 0.9],
       to: [0.9, 0.25, 0.05, 0],
     });
@@ -651,7 +658,7 @@ export class BattleEffects {
         gravity: -0.2,
       });
     }
-    this.flash(at, 45 * scale, 0.14, 0xffb35c);
+    this.flash(at, 28 * scale, 0.14, 0xffb35c);
   }
 
   private explosion(at: THREE.Vector3, scale: number) {
