@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { STILL_HEAD } from "./tank-camera-motion";
+import { applyHeadOffset, headStamp } from "./tank-head-camera";
 import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
 import { type TankState } from "./tank-core";
 import {
@@ -35,6 +37,9 @@ export class TankScene {
   private mgMuzzle = new THREE.Group();
   private enemyFlashes = new Map<number, MuzzleFlash>();
   private camera = new THREE.PerspectiveCamera(65, 1, 0.1, 180);
+  private mount = new THREE.Group();
+  private sightDirection = new THREE.Vector3();
+  private sight?: HTMLElement;
   private assets = new ArtPreparation();
   private environment = new AbortController();
   private player!: VehicleModel;
@@ -113,10 +118,8 @@ export class TankScene {
     buildNormandy(this.scene, this.environment.signal, this.assets.manager);
     preloadVehicles(this.assets.manager);
     this.scene.add(this.tank);
-    if (this.view === "driver") {
-      buildDriverArmour(this.camera);
-      this.scene.add(this.camera);
-    }
+    this.scene.add(this.mount);
+    if (this.view === "driver") buildDriverArmour(this.mount);
     if (this.view === "machine-gun") {
       const steel = new THREE.MeshStandardMaterial({
         color: 0x434a43,
@@ -128,7 +131,7 @@ export class TankScene {
         roughness: 0.9,
       });
       const mount = buildBrowning(
-        this.camera,
+        this.mount,
         steel,
         paint,
         0.25,
@@ -141,7 +144,6 @@ export class TankScene {
       mount.traverse((object) => {
         if (object instanceof THREE.Mesh) object.castShadow = false;
       });
-      this.scene.add(this.camera);
     }
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(this.canvas);
@@ -185,7 +187,7 @@ export class TankScene {
     this.render(state);
     await finishPreparation(this.renderer, () => this.disposed);
   }
-  render(state: TankState) {
+  render(state: TankState, offset = STILL_HEAD) {
     const t = state.tank;
     // Render state is a local GPU concern. Simulation/network clocks keep running at full cadence.
     const pose = [
@@ -213,6 +215,7 @@ export class TankScene {
       this.view === "machine-gun" ? state.weapon.mg : state.turret;
     const visual = [
       pose,
+      headStamp(offset),
       aimState.yaw,
       aimState.pitch,
       state.weapon.targets.map((e) => e.phase).join(),
@@ -247,6 +250,23 @@ export class TankScene {
       view.y + Math.sin(view.pitch) * 40,
       view.z - Math.cos(view.yaw) * Math.cos(view.pitch) * 40,
     );
+    this.mount.position.copy(this.camera.position);
+    this.mount.quaternion.copy(this.camera.quaternion);
+    this.camera.getWorldDirection(this.sightDirection);
+    applyHeadOffset(this.camera, offset, this.view === "driver");
+    if (this.view !== "driver") {
+      this.sight ??=
+        this.canvas.parentElement?.querySelector<HTMLElement>(".sight") ??
+        undefined;
+      if (this.sight) {
+        // Project a direction, independent of range or obscured geometry.
+        this.sightDirection.add(this.camera.position);
+        this.camera.updateMatrixWorld();
+        this.sightDirection.project(this.camera);
+        this.sight.style.left = `${50 + this.sightDirection.x * 50}%`;
+        this.sight.style.top = `${50 - this.sightDirection.y * 50}%`;
+      }
+    }
     // Wave IDs belong to authority. Remove retired groups instead of leaving phantom enemies.
     for (const [id, mesh] of this.targetMeshes) {
       if (!state.weapon.targets.some((target) => target.id === id)) {

@@ -5,6 +5,10 @@ import { CREW_ROLES, ROLE_LABELS, ROLE_TASKS, type CrewRole } from "./crew";
 import { GameRuntime } from "./game-runtime";
 import { DRIVE, AIM, type TankState } from "./tank-core";
 import { TankRoleViews } from "./tank-role-views";
+import {
+  readMotionPreferences,
+  saveMotionPreferences,
+} from "./tank-motion-preferences";
 import type { SceneQuality } from "./tank-scene-quality";
 import { TankMechanicalAudio } from "./tank-mechanical-audio";
 import {
@@ -45,6 +49,7 @@ function clearStation() {
   activeStation?.dispose();
   activeStation = undefined;
 }
+let motionPreferences = readMotionPreferences();
 let sceneQuality: SceneQuality = "medium";
 let practiceMatch: symbol | undefined;
 let choosingRole: CrewRole | undefined;
@@ -387,6 +392,11 @@ function station(role: CrewRole) {
   const practice = runtime.practice && practiceControls(runtime.practice);
   activeStation = mountStation(content, role, recovery, {
     quality: sceneQuality,
+    motion: motionPreferences,
+    onMotion: (value) => {
+      motionPreferences = value;
+      saveMotionPreferences(value);
+    },
     soundEnabled,
     onQuality: setSceneQuality,
     onSound: (enabled) => {
@@ -460,7 +470,11 @@ core.present = (state) => {
   )
     runtime.finish();
   presentBattleAudio(state, station.role);
-  views.render(state);
+  views.render(
+    state,
+    runtime.paused || runtime.awaitingFirstSnapshot,
+    motionPreferences,
+  );
 };
 const driveKeys: Record<string, number> = {
   w: DRIVE.forward,

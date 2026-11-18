@@ -39,6 +39,7 @@ export class GameRuntime {
   private viewAspect?: number;
   private previous: number;
   private lastNetwork = 0;
+  awaitingFirstSnapshot = false;
   // Session.room is replaced before callbacks. Keep the OLD authority pause state.
   private tankPaused = false;
   get paused() {
@@ -77,6 +78,7 @@ export class GameRuntime {
     session.onState = (snapshot) => {
       try {
         core.restore(snapshot);
+        this.awaitingFirstSnapshot = false;
       } catch (error) {
         this.onRestoreError(error as Error);
       }
@@ -99,6 +101,7 @@ export class GameRuntime {
     };
     session.onStart = (participants, seed) => {
       this.mode = "online";
+      this.awaitingFirstSnapshot = !this.session.isHost;
       this.practiceCrew = undefined;
       this.held = 0;
       this.viewAspect = undefined;
@@ -217,6 +220,7 @@ export class GameRuntime {
 
   startPractice(seed: number, role: CrewRole) {
     this.mode = "practice";
+    this.awaitingFirstSnapshot = false;
     this.localPaused = false;
     this.held = 0;
     this.viewAspect = undefined;
