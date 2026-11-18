@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { STILL_HEAD } from "./tank-camera-motion";
+import { applyHeadOffset, headStamp } from "./tank-head-camera";
 import { disposeArt } from "./tank-art-materials";
 import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import type { TankState } from "./tank-core";
@@ -22,6 +24,7 @@ export class TankInteriorScene {
   private visualStamp = "";
   private width = 0;
   private height = 0;
+  private modelStamp = "";
   private reducedMotion = matchMedia("(prefers-reduced-motion: reduce)")
     .matches;
   constructor(
@@ -341,7 +344,7 @@ export class TankInteriorScene {
     this.render(state);
     await finishPreparation(this.renderer, () => this.disposed);
   }
-  render(state: TankState) {
+  render(state: TankState, offset = STILL_HEAD, motionEnabled = true) {
     const w = state.weapon;
     // An enclosed, motionless workplace does not need to redraw the world at
     // every host/UI tick. All authority clocks still advance outside this view.
@@ -351,13 +354,14 @@ export class TankInteriorScene {
       state.time < w.ejectAt + 0.25;
     const motion = w.chamber === "ejecting" || tail;
     const stunned = state.time < w.stunnedUntil;
-    const stamp = [
+    const modelStamp = [
       w.chamber,
       Math.floor(w.loadProgress * 90),
       w.crouching,
       stunned,
       motion ? Math.floor(state.time * 30) : "still",
     ].join(":");
+    const stamp = [modelStamp, motionEnabled, headStamp(offset)].join(":");
     if (!this.dirty && stamp === this.visualStamp) return;
     this.dirty = false;
     this.visualStamp = stamp;
@@ -381,11 +385,13 @@ export class TankInteriorScene {
       -0.45 + flight * 2.0,
     );
     this.case.rotation.z = flight * 0.7;
-    const tilt = stunned && !this.reducedMotion ? 0.025 : 0;
+    const tilt = stunned && motionEnabled && !this.reducedMotion ? 0.025 : 0;
     this.camera.position.set(1.35, w.crouching ? 0.74 : 1.9, 1.55);
     this.camera.lookAt(-0.05, w.crouching ? 1.12 : 1.35, -0.7);
     this.camera.rotation.z = tilt;
-    this.renderer.shadowMap.needsUpdate = true;
+    applyHeadOffset(this.camera, offset);
+    this.renderer.shadowMap.needsUpdate = this.modelStamp !== modelStamp;
+    this.modelStamp = modelStamp;
     this.renderer.render(this.scene, this.camera);
   }
   dispose() {
@@ -393,7 +399,10 @@ export class TankInteriorScene {
     this.disposed = true;
     this.assets.cancel();
     this.observer?.disconnect();
-    disposeArt(this.scene, { materials: this.materials, textures: this.textures });
+    disposeArt(this.scene, {
+      materials: this.materials,
+      textures: this.textures,
+    });
     this.renderer?.dispose();
     this.renderer?.forceContextLoss();
   }

@@ -1,3 +1,5 @@
+import { CrewCameraMotion } from "./tank-camera-motion";
+import type { CameraPreferences } from "./tank-motion-preferences";
 import type { CrewRole } from "./crew";
 import { validViewAspect } from "./tank-battle-view";
 import type { TankState } from "./tank-core";
@@ -17,6 +19,7 @@ interface ViewCanvas<Scene> {
 
 interface RoleViews {
   context: RoleViewContext;
+  motion: CrewCameraMotion;
   phase: "preparing" | "ready" | "mounted";
   exterior?: ViewCanvas<TankScene>;
   interior?: ViewCanvas<TankInteriorScene>;
@@ -118,12 +121,15 @@ export class TankRoleViews {
     }
   }
 
-  render(state: TankState) {
+  render(state: TankState, paused: boolean, preferences: CameraPreferences) {
     const views = this.current;
     if (views?.phase !== "mounted") return;
+    const station =
+      views.context.role === "loader" ? state.weapon.mode : views.context.role;
+    const offset = views.motion.sample(state, station, paused, preferences);
     const loader = views.loader;
     if (!loader) {
-      views.exterior!.scene.render(state);
+      views.exterior!.scene.render(state, offset);
       return;
     }
 
@@ -142,10 +148,14 @@ export class TankRoleViews {
         loader.mgViewport.prepend(views.exterior.canvas);
         views.interior!.scene.invalidate();
       }
-      views.exterior?.scene.render(state);
+      views.exterior?.scene.render(state, offset);
     } else {
       views.exterior?.canvas.remove();
-      views.interior!.scene.render(state);
+      views.interior!.scene.render(
+        state,
+        offset,
+        preferences.enabled && preferences.overall > 0,
+      );
     }
   }
 
@@ -166,7 +176,11 @@ export class TankRoleViews {
 
   private begin(context: RoleViewContext) {
     this.clear();
-    const views: RoleViews = { context, phase: "preparing" };
+    const views: RoleViews = {
+      context,
+      phase: "preparing",
+      motion: new CrewCameraMotion(),
+    };
     this.current = views;
     return views;
   }

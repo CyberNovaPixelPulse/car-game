@@ -4,7 +4,7 @@ import { DRIVER_VIEW } from "./tank-driver-view";
 /** Solid, bevelled plates close the view around a narrow forward aperture.
  * The far inner edges are the angular restriction, measured from the eye.
  */
-export function buildDriverArmour(camera: THREE.PerspectiveCamera) {
+export function buildDriverArmour(mount: THREE.Object3D) {
   const far = DRIVER_VIEW.openingDistance;
   const near = far - DRIVER_VIEW.armourDepth;
   const x = far * Math.tan(DRIVER_VIEW.horizontalFov / 2);
@@ -56,5 +56,5 @@ export function buildDriverArmour(camera: THREE.PerspectiveCamera) {
   const workLight = new THREE.PointLight(0xc6cfab, 0.45, 2, 2);
   workLight.position.set(-0.18, 0.3, -0.1);
   armour.add(workLight);
-  camera.add(armour);
+  mount.add(armour);
 }
