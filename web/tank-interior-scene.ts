@@ -344,7 +344,7 @@ export class TankInteriorScene {
     this.render(state);
     await finishPreparation(this.renderer, () => this.disposed);
   }
-  render(state: TankState, offset = STILL_HEAD, motionEnabled = true) {
+  render(state: TankState, offset = STILL_HEAD, stunGain = 1) {
     const w = state.weapon;
     // An enclosed, motionless workplace does not need to redraw the world at
     // every host/UI tick. All authority clocks still advance outside this view.
@@ -361,7 +361,7 @@ export class TankInteriorScene {
       stunned,
       motion ? Math.floor(state.time * 30) : "still",
     ].join(":");
-    const stamp = [modelStamp, motionEnabled, headStamp(offset)].join(":");
+    const stamp = [modelStamp, stunGain, headStamp(offset)].join(":");
     if (!this.dirty && stamp === this.visualStamp) return;
     this.dirty = false;
     this.visualStamp = stamp;
@@ -385,7 +385,7 @@ export class TankInteriorScene {
       -0.45 + flight * 2.0,
     );
     this.case.rotation.z = flight * 0.7;
-    const tilt = stunned && motionEnabled && !this.reducedMotion ? 0.025 : 0;
+    const tilt = stunned && !this.reducedMotion ? 0.025 * stunGain : 0;
     this.camera.position.set(1.35, w.crouching ? 0.74 : 1.9, 1.55);
     this.camera.lookAt(-0.05, w.crouching ? 1.12 : 1.35, -0.7);
     this.camera.rotation.z = tilt;

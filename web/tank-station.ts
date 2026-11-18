@@ -9,6 +9,10 @@ import {
   type PracticeControls,
   type PracticeFrame,
 } from "./tank-practice-ui";
+import {
+  motionControlsMarkup,
+  mountMotionControls,
+} from "./tank-motion-controls";
 import type { CameraPreferences } from "./tank-motion-preferences";
 import type { SceneQuality } from "./tank-scene-quality";
 import { REPAIR_RULES, TANK_RULES } from "./tank-settings";
@@ -67,7 +71,7 @@ function stationMarkup(
     </div>
     <div class="battle-utility"><div class="battle-actions">
       <label class="scene-quality">畫質 <select id="station-quality"><option value="low">低</option><option value="medium" selected>中</option><option value="high">高</option></select></label>
-      <button type="button" class="secondary" id="station-motion" aria-label="鏡頭震動">鏡頭震動</button>
+      ${motionControlsMarkup()}
       <button type="button" class="secondary" id="station-fullscreen" aria-pressed="false" aria-describedby="station-display-status">進入全螢幕</button>
       ${role === "loader" ? `<button type="button" class="secondary" id="station-sound" aria-pressed="${soundEnabled}">音效：${soundEnabled ? "開" : "關"}</button>` : ""}
       <button class="secondary" id="station-leave">${practice ? "離開練習" : "離開房間"}</button>
@@ -173,18 +177,7 @@ export function mountStation(
   // Keep the same live status and retry button visible in fullscreen.
   element.append(recovery);
   const disposeFullscreen = attachFullscreenControl(element);
-  const motion = element.querySelector<HTMLButtonElement>("#station-motion")!;
-  let preferences = controls.motion;
-  function showMotion() {
-    motion.textContent = preferences.enabled ? "鏡頭震動：開" : "鏡頭震動：關";
-    motion.setAttribute("aria-pressed", String(preferences.enabled));
-  }
-  showMotion();
-  motion.onclick = () => {
-    preferences = { ...preferences, enabled: !preferences.enabled };
-    controls.onMotion(preferences);
-    showMotion();
-  };
+  mountMotionControls(element, controls.motion, controls.onMotion);
   quality.value = controls.quality;
   quality.onchange = () => {
     const value = quality.value;
