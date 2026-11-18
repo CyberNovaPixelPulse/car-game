@@ -17,11 +17,33 @@ export interface TankAudioFrame {
 const ENGINE = { idle: 650, governed: 2600, cylinders: 8 } as const;
 /** Audible track-link spacing on the sprocket, metres. */
 const LINK_PITCH = 0.34;
-const CALLOUTS: Record<ShellType, string> = {
-  he: "高爆彈，裝填完畢！",
-  ap: "穿甲彈，裝填完畢！",
-  smoke: "煙霧彈，裝填完畢！",
+/**
+ * US tank crews: the loader slaps the gunner's shoulder and yells "UP!" once
+ * the breech closes. Speech engines read "HE" as a word, so it is spelled out.
+ */
+const CALLOUTS: Record<ShellType, string[]> = {
+  he: ["H! E! UP!", "UP! H E loaded!", "H E in, UP!"],
+  ap: ["A! P! UP!", "UP! A P loaded!", "A P in, UP!"],
+  smoke: ["Smoke, UP!", "UP! Smoke loaded!"],
 };
+/** Prefer a male US voice; Edge/Windows "Natural" voices sound least robotic. */
+const VOICE_PREFERENCE =
+  /(guy|christopher|eric|roger|steffan|andrew|brian|davis|tony|jason|ryan|david|mark|alex|aaron|fred)/i;
+/** Sounds made inside the turret are not muffled by the armour. */
+const INTERIOR = new Set<OneShot>([
+  "recoil",
+  "runout",
+  "rattle",
+  "breech",
+  "ram",
+  "rack",
+  "handle",
+  "case",
+  "tick",
+  "clunk",
+  "click",
+  "armour-hit",
+]);
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
@@ -336,8 +358,12 @@ export class TankVehicleAudio {
     const w = state.weapon;
     if (w.shotsFired > this.last.shots) this.cannon(outside, now);
     // The semi-automatic breech throws the case when the ejection completes.
-    if (this.last.chamber === "ejecting" && w.chamber !== "ejecting")
-      this.play("case", now, { gain: 0.55, pan: -0.25 });
+    if (this.last.chamber === "ejecting" && w.chamber !== "ejecting") {
+      // Breech block drops open, the extractor flicks the case out, and it
+      // clangs onto the turret floor, bounces and rolls.
+      this.play("breech", now, { gain: 0.35, detune: 500 });
+      this.play("case", now + 0.09, { gain: 1, pan: -0.3 });
+    }
     if (w.chamber === "loading" && this.last.chamber === "empty")
       this.play("rack", now, { gain: 0.5 });
     const step = Math.floor(w.loadProgress * 4);
@@ -381,15 +407,24 @@ export class TankVehicleAudio {
     this.timers.push(
       window.setTimeout(() => {
         if (!this.enabled || !this.graph) return;
-        const line = new SpeechSynthesisUtterance(CALLOUTS[shell]);
+        const lines = CALLOUTS[shell];
+        const line = new SpeechSynthesisUtterance(
+          lines[Math.floor(Math.random() * lines.length)],
+        );
+        const us = this.voices.filter((v) => /^en[-_]US$/i.test(v.lang));
         const voice =
-          this.voices.find((v) => v.lang === "zh-TW") ??
-          this.voices.find((v) => v.lang.startsWith("zh"));
+          us.find(
+            (v) =>
+              /natural|online/i.test(v.name) && VOICE_PREFERENCE.test(v.name),
+          ) ??
+          us.find((v) => VOICE_PREFERENCE.test(v.name)) ??
+          us[0] ??
+          this.voices.find((v) => v.lang.toLowerCase().startsWith("en"));
         if (voice) line.voice = voice;
-        line.lang = voice?.lang ?? "zh-TW";
-        // Shouted over the engine: quick, low and firm.
-        line.rate = 1.2;
-        line.pitch = 0.7;
+        line.lang = voice?.lang ?? "en-US";
+        // Yelled over the engine in the heat of battle: fast and pitched up.
+        line.rate = 1.35;
+        line.pitch = 1.3;
         line.volume = 1;
         speechSynthesis.cancel();
         speechSynthesis.speak(line);
@@ -429,6 +464,7 @@ export class TankVehicleAudio {
       nodes.push(pan);
     }
     if (options.destination) tail.connect(options.destination);
+    else if (INTERIOR.has(kind)) tail.connect(graph.master);
     else if (options.world && this.outside) {
       tail.connect(graph.master);
       tail.connect(graph.space);

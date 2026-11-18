@@ -286,7 +286,7 @@ export function renderOneShot(
     ram: 0.4,
     rack: 0.55,
     handle: 0.3,
-    case: 1.9,
+    case: 2.6,
     clack: 0.09,
     tick: 0.045,
     clunk: 0.35,
@@ -447,7 +447,23 @@ export function renderOneShot(
           gain,
         );
       }
-      return normalize(out, 0.55);
+      // Then it rolls across the floor plates: an irregular, fading rattle.
+      for (
+        let t = 0.66 + variant * 0.04;
+        t < 1.9;
+        t += 0.035 + random() * 0.07
+      ) {
+        const fade = Math.exp(-(t - 0.66) / 0.45);
+        addModes(
+          out,
+          rate,
+          t,
+          brass.map(([f, d, a]) => [f * (1 + random() * 0.02), d * 0.15, a]),
+          random,
+          0.09 * fade * (0.5 + random()),
+        );
+      }
+      return normalize(out, 0.75);
     }
     case "clack": {
       // One track link meeting the sprocket / road wheel.

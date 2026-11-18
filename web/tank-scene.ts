@@ -12,6 +12,7 @@ import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import { disposeArt } from "./tank-art-materials";
 import { SmokeScene } from "./tank-smoke-scene";
 import { MuzzleFlash } from "./tank-muzzle-flash";
+import { BattleEffects } from "./tank-battle-effects";
 import { FIRING_FEEDBACK } from "./tank-settings";
 import { battleProjection, battleView } from "./tank-battle-view";
 import { buildDriverArmour } from "./tank-driver-armour";
@@ -31,6 +32,7 @@ export class TankScene {
   private scene = new THREE.Scene();
   private smoke = new SmokeScene(this.scene);
   private cannonFlash!: MuzzleFlash;
+  private effects!: BattleEffects;
   private mgFlash!: MuzzleFlash;
   private mgMuzzle = new THREE.Group();
   private enemyFlashes = new Map<number, MuzzleFlash>();
@@ -50,6 +52,7 @@ export class TankScene {
   private projectileMeshes = new Map<number, THREE.Mesh>();
   private mgTracers = new Map<number, THREE.Line>();
   private impactMeshes = new Map<number, THREE.Mesh>();
+  private lensSize = new THREE.Vector2();
   constructor(
     private canvas: HTMLCanvasElement,
     private view: "gunner" | "machine-gun" | "driver" = "gunner",
@@ -65,6 +68,7 @@ export class TankScene {
   }
   private build() {
     this.cannonFlash = new MuzzleFlash(this.scene, 0.6);
+    this.effects = new BattleEffects(this.scene, this.quality);
     this.mgFlash = new MuzzleFlash(this.scene, 0.22);
     const software = noteRenderer(this.renderer);
     this.player = new VehicleModel("sherman", this.assets.manager);
@@ -208,7 +212,9 @@ export class TankScene {
       state.weapon.impacts.length > 0 ||
       state.time < state.weapon.flashUntil ||
       state.time < state.weapon.mg.flashUntil ||
-      state.weapon.targets.some((e) => state.time < e.flashUntil);
+      state.weapon.targets.some((e) => state.time < e.flashUntil) ||
+      state.weapon.targets.some((e) => e.hp <= 0) ||
+      this.effects.busy;
     const aimState =
       this.view === "machine-gun" ? state.weapon.mg : state.turret;
     const visual = [
@@ -219,6 +225,8 @@ export class TankScene {
       state.weapon.projectiles.map((p) => [p.id, p.x, p.y, p.z].join()).join(),
       state.battle.projectiles.map((p) => [p.id, p.x, p.y, p.z].join()).join(),
       state.weapon.mg.tracers.map((p) => p.id).join(),
+      state.weapon.shotsFired,
+      state.battle.lastHitAt,
       animated ? state.time : 0,
     ].join("|");
     const now = performance.now();
@@ -236,6 +244,8 @@ export class TankScene {
     this.tank.rotation.y = -t.yaw;
     this.turret.rotation.y = -state.turret.yaw;
     this.elevation.rotation.x = state.turret.pitch;
+    this.effects.recoilBarrel(this.elevation);
+    this.effects.rockHull(this.tank, state.turret.yaw);
     const view = battleView(
       t,
       this.view === "machine-gun" ? state.weapon.mg : state.turret,
@@ -323,6 +333,16 @@ export class TankScene {
       );
     this.smoke.render(state.weapon.smoke, state.time);
     this.renderEffects(state);
+    this.effects.update(state, {
+      playerMuzzle: this.player.muzzle,
+      enemyMuzzle: (id) => this.enemyModels.get(id)?.muzzle,
+      view: this.view,
+    });
+    this.effects.shakeCamera(this.camera);
+    this.effects.setLens(
+      this.camera,
+      this.renderer.getDrawingBufferSize(this.lensSize).y,
+    );
     this.renderer.render(this.scene, this.camera);
   }
   private renderEffects(state: TankState) {
@@ -404,6 +424,7 @@ export class TankScene {
     this.environment.abort();
     this.sky?.dispose();
     this.cannonFlash?.dispose();
+    this.effects?.dispose();
     this.mgFlash?.dispose();
     for (const flash of this.enemyFlashes.values()) flash.dispose();
     this.enemyFlashes.clear();
