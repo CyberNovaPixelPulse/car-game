@@ -7,8 +7,9 @@ export const DRIVER_VIEW = {
   verticalFov: (24 * Math.PI) / 180,
   openingDistance: 0.62,
   armourDepth: 0.28,
-  /** Hull sides relative to the eye (metres right of it), and the glacis nose ahead of it. */
-  hull: { left: -0.74, right: 1.94, nose: 1.5 },
+  /** The real Sherman hull: half its width over the tracks (matches the baked
+   * model's 2.65 m hull and track outer edges) and the nose ahead of the eye. */
+  hull: { halfWidth: 1.34, nose: 1.45 },
   // The camera also sees the opaque surround; this is not the clear opening's FOV.
   cameraHorizontalFov: (100 * Math.PI) / 180,
 } as const;

@@ -101,12 +101,18 @@ export function buildDriverArmour(camera: THREE.PerspectiveCamera) {
 
 /**
  * Front track guards with their headlight brush guards, seen low in the
- * slit's corners. They sit exactly at the hull's sides so the driver can
- * judge the tank's width against gaps and wrecks.
+ * slit. Their outer edges are exactly the tank's outer edges (the eye sits
+ * left of the centreline, like the real driver's seat), and they reach far
+ * enough ahead that both edges show in full: the gap between them is the
+ * width the tank needs.
  */
 function buildFenders() {
-  const { left, right, nose } = DRIVER_VIEW.hull;
+  const { halfWidth, nose } = DRIVER_VIEW.hull;
   const eye = DRIVER_VIEW.eye.height;
+  // Hull edges measured from the eye, not the centreline.
+  const left = -halfWidth - DRIVER_VIEW.eye.right;
+  const right = halfWidth - DRIVER_VIEW.eye.right;
+  const reach = 1.45; // how far the guards stand out past the glacis
   const group = new THREE.Group();
   const paint = weather(
     new THREE.MeshStandardMaterial({
@@ -117,9 +123,9 @@ function buildFenders() {
     0.37,
   );
   const edge = new THREE.MeshStandardMaterial({
-    color: 0x8c8f80,
-    roughness: 0.45,
-    metalness: 0.8,
+    color: 0x9a9d8c,
+    roughness: 0.4,
+    metalness: 0.85,
   });
   const lens = new THREE.MeshStandardMaterial({
     color: 0xd8d2b8,
@@ -127,57 +133,69 @@ function buildFenders() {
     metalness: 0.1,
     emissive: 0x2a2618,
   });
-  // Side profile (distance ahead, height above ground), extruded across the guard.
-  const profile = new THREE.Shape();
+  const bevel = 0.015;
   const top = 1.45 - eye;
+  const drop = 0.2;
+  const tip = nose + reach;
+  // Side profile (distance ahead, height relative to the eye), extruded across the guard.
+  const profile = new THREE.Shape();
   profile.moveTo(nose - 0.2, -eye + 0.6);
   profile.lineTo(nose - 0.2, top);
-  profile.lineTo(nose + 1.0, top - 0.13);
-  profile.lineTo(nose + 1.18, top - 0.3);
-  profile.lineTo(nose + 1.1, -eye + 0.6);
+  profile.lineTo(tip - 0.15, top - drop);
+  profile.lineTo(tip, top - drop - 0.17);
+  profile.lineTo(tip - 0.08, -eye + 0.6);
   profile.closePath();
-  for (const [from, to] of [
-    [left, left + 0.4],
-    [right - 0.44, right],
+  const slope = Math.atan2(drop, reach + 0.05);
+  for (const [from, to, outer] of [
+    [left, left + 0.42, left],
+    [right - 0.42, right, right],
   ]) {
     const width = to - from;
+    // The bevel grows the solid outward; keep its outer face on the hull edge.
     const geometry = new THREE.ExtrudeGeometry(profile, {
-      depth: width,
+      depth: width - bevel * 2,
       bevelEnabled: true,
-      bevelSize: 0.015,
-      bevelThickness: 0.015,
+      bevelSize: bevel,
+      bevelThickness: bevel,
       bevelSegments: 2,
     });
     geometry.rotateY(Math.PI / 2);
     const guard = new THREE.Mesh(geometry, paint);
-    guard.position.x = from;
+    guard.position.x = from + bevel;
     guard.castShadow = guard.receiveShadow = true;
     group.add(guard);
-    // Worn steel lip along the top edge, where boots and branches rub.
+    // Bright worn lip on the outer top edge: the line that marks the tank's width.
+    const lipLength = reach + 0.05;
     const lip = new THREE.Mesh(
-      new THREE.BoxGeometry(width + 0.02, 0.025, 1.22),
+      new THREE.BoxGeometry(0.04, 0.03, lipLength),
       edge,
     );
-    lip.position.set(from + width / 2, top - 0.055, -(nose + 0.4));
-    lip.rotation.x = Math.atan2(0.13, 1.2);
+    lip.position.set(
+      outer - Math.sign(outer - (from + width / 2)) * 0.02,
+      top - drop / 2 + 0.012,
+      -(nose - 0.2 + lipLength / 2 + 0.1),
+    );
+    lip.rotation.x = slope;
     group.add(lip);
     // Headlight in its brush guard near the tip.
     const x = from + width / 2;
+    const lampAt = tip - 0.55;
+    const lampTop = top - drop * ((lampAt - nose + 0.2) / (reach + 0.05));
     const lamp = new THREE.Mesh(
       new THREE.CylinderGeometry(0.09, 0.1, 0.12, 16),
       paint,
     );
     lamp.rotation.x = Math.PI / 2;
-    lamp.position.set(x, top + 0.02, -(nose + 0.75));
+    lamp.position.set(x, lampTop + 0.08, -lampAt);
     group.add(lamp);
     const glass = new THREE.Mesh(new THREE.CircleGeometry(0.075, 16), lens);
-    glass.position.set(x, top + 0.02, -(nose + 0.815));
+    glass.position.set(x, lampTop + 0.08, -(lampAt + 0.065));
     group.add(glass);
     const hoop = new THREE.Mesh(
       new THREE.TorusGeometry(0.15, 0.014, 6, 14, Math.PI),
       edge,
     );
-    hoop.position.set(x, top - 0.06, -(nose + 0.84));
+    hoop.position.set(x, lampTop, -(lampAt + 0.09));
     group.add(hoop);
   }
   return group;
