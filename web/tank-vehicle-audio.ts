@@ -14,7 +14,13 @@ export interface TankAudioFrame {
 }
 
 /** M4A3 Sherman, Ford GAA V8: idle and governed speeds. */
-const ENGINE = { idle: 650, governed: 2600, cylinders: 8 } as const;
+/**
+ * Continental R975 9-cylinder radial (M4 / M4A1 Sherman). Matched to a
+ * startup recording: idle crank ~18.5 Hz with the firing peak at 4.5x crank
+ * (~83 Hz), high idle ~23 Hz, a raspy spectrum centred near 1 kHz and a
+ * heavy cycle-to-cycle lope.
+ */
+const ENGINE = { idle: 1050, governed: 2400, order: 4.5 } as const;
 /** Audible track-link spacing on the sprocket, metres. */
 const LINK_PITCH = 0.34;
 /**
@@ -103,6 +109,8 @@ export class TankVehicleAudio {
   private load = 0;
   private strain = 0;
   private rpm: number = ENGINE.idle;
+  private rpmPeak: number = ENGINE.idle;
+  private nextPop = 0;
   private ignitionAt = Number.POSITIVE_INFINITY;
   private nextClack = 0;
   private nextTick = 0;
@@ -201,7 +209,18 @@ export class TankVehicleAudio {
       // A new battle starts with a cold engine; a station switch mid-battle does not.
       if (state.time < 1.5) {
         this.play("starter", now + 0.05, { gain: 0.8 });
-        this.ignitionAt = now + 0.95;
+        this.ignitionAt = now + 1.45;
+        // The radial catches with a ragged volley of exhaust pops.
+        for (let i = 0; i < 4; i++)
+          this.play(
+            "backfire",
+            now + 1.45 + i * (0.12 + Math.random() * 0.22),
+            {
+              world: true,
+              gain: 0.55 + Math.random() * 0.3,
+              pan: 0.25,
+            },
+          );
       } else this.ignitionAt = now;
     }
     if (!this.primed) {
@@ -262,22 +281,59 @@ export class TankVehicleAudio {
     );
     let rpm = ENGINE.idle + (ENGINE.governed - ENGINE.idle) * effort;
     const sinceIgnition = now - this.ignitionAt;
-    // Catching on the starter: flare to ~1400 rpm, then settle to idle.
-    if (sinceIgnition >= 0 && sinceIgnition < 1.6)
-      rpm = Math.max(rpm, ENGINE.idle + 750 * Math.exp(-sinceIgnition / 0.45));
-    // Slight idle lope: a big V8 never sits perfectly still.
-    rpm *= 1 + (Math.random() - 0.5) * (0.035 - 0.025 * effort);
+    // Catching on the starter: stumble, flare to ~2000 rpm, settle to idle.
+    if (sinceIgnition >= 0 && sinceIgnition < 2.4)
+      rpm = Math.max(
+        rpm,
+        ENGINE.idle +
+          950 *
+            Math.exp(-sinceIgnition / 0.7) *
+            Math.min(1, sinceIgnition / 0.35),
+      );
+    // A cold radial at idle hunts and chugs; it smooths out under load.
+    rpm *= 1 + (Math.random() - 0.5) * (0.07 - 0.05 * effort);
+    // Lifting off after revving makes the exhaust pop and crackle.
+    if (frame.enabled && running && now >= this.nextPop) {
+      const lift = this.rpmPeak - rpm > 380;
+      const idlePop = effort < 0.15 && Math.random() < 0.006;
+      if (lift || idlePop) {
+        const pops = lift ? 1 + Math.floor(Math.random() * 3) : 1;
+        for (let i = 0; i < pops; i++)
+          this.play("backfire", now + i * (0.08 + Math.random() * 0.15), {
+            world: true,
+            gain: (lift ? 0.6 : 0.35) * (0.7 + Math.random() * 0.5),
+            pan: 0.25,
+            detune: (Math.random() - 0.5) * 400,
+          });
+        this.nextPop = now + 0.6 + Math.random() * 0.8;
+        this.rpmPeak = rpm;
+      }
+    }
+    this.rpmPeak = Math.max(rpm, this.rpmPeak - (dt > 0 ? dt * 900 : 0));
     this.rpm = rpm;
-    const firing = (rpm / 60) * (ENGINE.cylinders / 2);
+    // The oscillator runs at cam speed (half crank) so its harmonic series
+    // holds the half-orders that give a radial its lumpy, uneven beat.
+    const cam = rpm / 120;
+    const firing = (rpm / 60) * ENGINE.order;
     const rev = clamp01((rpm - ENGINE.idle) / (ENGINE.governed - ENGINE.idle));
     const e = graph.engine;
     const ramp = 0.07;
-    e.firing.frequency.setTargetAtTime(firing, now, ramp);
-    e.lope.frequency.setTargetAtTime(firing / 2, now, ramp);
-    e.exhaust.frequency.setTargetAtTime(firing * 3.2, now, ramp);
-    e.drive.gain.setTargetAtTime(0.9 + 1.4 * this.load + this.strain, now, 0.1);
+    e.firing.frequency.setTargetAtTime(cam, now, ramp);
+    e.lope.frequency.setTargetAtTime(rpm / 60, now, ramp);
+    e.exhaust.frequency.setTargetAtTime(firing * 10, now, ramp);
+    // Stumbling first seconds, then a steady but rough chug.
+    const stumble =
+      sinceIgnition >= 0 && sinceIgnition < 0.9 && Math.random() < 0.35
+        ? 0.3
+        : 1;
+    const chug = 1 + (Math.random() - 0.5) * 0.3 * (1 - effort);
+    e.drive.gain.setTargetAtTime(
+      (0.9 + 1.4 * this.load + this.strain) * chug * stumble,
+      now,
+      0.03,
+    );
     e.tone.frequency.setTargetAtTime(
-      260 + rev * 1500 + this.load * 900,
+      1100 + rev * 2600 + this.load * 1200,
       now,
       0.1,
     );
@@ -285,8 +341,8 @@ export class TankVehicleAudio {
     e.fanLevel.gain.setTargetAtTime(running ? 0.018 + 0.03 * rev : 0, now, 0.2);
     if (!alive && !this.last.failed) {
       // Knocked out: the engine winds down and dies.
-      e.firing.frequency.setTargetAtTime(14, now, 0.5);
-      e.lope.frequency.setTargetAtTime(7, now, 0.5);
+      e.firing.frequency.setTargetAtTime(2, now, 0.5);
+      e.lope.frequency.setTargetAtTime(4, now, 0.5);
     }
     e.level.gain.setTargetAtTime(
       running ? 0.2 + 0.16 * rev + 0.08 * this.load : 0,
@@ -585,20 +641,18 @@ export class TankVehicleAudio {
 
     // Engine: firing pulses + half-order lope through a saturating exhaust.
     const firing = start(context.createOscillator());
-    firing.setPeriodicWave(
-      wave(context, [1, 0.75, 0.5, 0.55, 0.32, 0.28, 0.2, 0.22, 0.12, 0.1]),
-    );
+    firing.setPeriodicWave(radialWave(context));
     const lope = start(context.createOscillator());
-    lope.setPeriodicWave(wave(context, [1, 0.25, 0.45, 0.1, 0.2]));
+    lope.setPeriodicWave(wave(context, [1, 0.5, 0.3, 0.6, 0.25]));
     const drive = gain(1);
     const shaper = context.createWaveShaper();
     shaper.curve = curve(2.4);
     shaper.oversample = "2x";
     const tone = filter("lowpass", 400, 0.9);
     const level = gain(0);
-    firing.connect(gain(0.38)).connect(drive);
-    lope.connect(gain(0.3)).connect(drive);
-    const exhaust = filter("bandpass", 200, 0.8);
+    firing.connect(gain(0.45)).connect(drive);
+    lope.connect(gain(0.12)).connect(drive);
+    const exhaust = filter("bandpass", 800, 0.8);
     const pulsed = gain(0.55);
     firing.connect(gain(0.5)).connect(pulsed.gain);
     white.connect(exhaust).connect(pulsed).connect(drive);
@@ -705,6 +759,28 @@ export class TankVehicleAudio {
     })();
     return this.recordedLoad;
   }
+}
+
+/**
+ * Cam-rate harmonic series for a 9-cylinder radial: a raspy 1/n^0.7 body
+ * with strong peaks at the firing order (every 9th cam harmonic) and a few
+ * lumpy low orders, each slightly randomised so no two cycles sound alike.
+ */
+function radialWave(context: AudioContext) {
+  const count = 220;
+  const real = new Float32Array(count + 1);
+  const imag = new Float32Array(count + 1);
+  for (let n = 1; n <= count; n++) {
+    let a = 0.55 * Math.pow(n, -0.7);
+    if (n % 9 === 0) a *= n === 9 ? 3.2 : n === 18 ? 2.2 : 1.6;
+    else if (n === 8 || n === 10) a *= 1.8;
+    else if (n <= 4) a *= 1.4;
+    a *= 0.75 + Math.random() * 0.5;
+    const phase = Math.random() * Math.PI * 2;
+    real[n] = a * Math.cos(phase);
+    imag[n] = a * Math.sin(phase);
+  }
+  return context.createPeriodicWave(real, imag);
 }
 
 function wave(context: AudioContext, harmonics: number[]) {

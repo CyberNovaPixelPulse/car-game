@@ -291,6 +291,7 @@ export class TankScene {
       model.setCondition(target.hp > 0, target.phase === "warning");
       // A disabled vehicle stays a recognisable wreck rather than flattening into a toy.
       model.elevation.rotation.x = target.hp > 0 ? 0 : -0.12;
+      this.effects.popTurret(target.id, model.turret);
       this.enemyFlashes
         .get(target.id)!
         .present(

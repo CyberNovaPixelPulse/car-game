@@ -32,7 +32,8 @@ export type OneShot =
   | "mg-brass"
   | "artillery"
   | "wrench"
-  | "hammer";
+  | "hammer"
+  | "backfire";
 
 export const ONE_SHOTS: readonly OneShot[] = [
   "cannon",
@@ -62,6 +63,7 @@ export const ONE_SHOTS: readonly OneShot[] = [
   "artillery",
   "wrench",
   "hammer",
+  "backfire",
 ];
 
 /** How many distinct takes are rendered, so repeated hits do not sound copied. */
@@ -93,6 +95,7 @@ export const VARIANTS: Record<OneShot, number> = {
   artillery: 3,
   wrench: 2,
   hammer: 3,
+  backfire: 4,
 };
 
 type Mode = [frequency: number, decay: number, amplitude: number];
@@ -291,7 +294,7 @@ export function renderOneShot(
     tick: 0.045,
     clunk: 0.35,
     click: 0.14,
-    starter: 1.05,
+    starter: 1.5,
     "outdoor-space": 2.4,
     "enemy-cannon": 3,
     "armour-hit": 1.8,
@@ -305,6 +308,7 @@ export function renderOneShot(
     artillery: 4,
     wrench: 0.45,
     hammer: 0.5,
+    backfire: 0.45,
   }[kind];
   const out = new Float32Array(Math.ceil(seconds * rate));
   switch (kind) {
@@ -521,7 +525,7 @@ export function renderOneShot(
         phase += (2 * Math.PI * motor) / rate;
         const fade =
           Math.min(1, t / 0.03) * Math.min(1, (out.length / rate - t) / 0.05);
-        const cycle = (t * 9.5) % 1;
+        const cycle = (t * 11) % 1;
         const compression = Math.exp(-cycle / 0.12);
         out[i] =
           fade *
@@ -679,6 +683,21 @@ export function renderOneShot(
         );
       return normalize(out, 0.35);
     }
+    case "backfire":
+      // Unburnt fuel lighting off in the exhaust stacks: a sharp pop with
+      // a short, hollow boom from the pipe.
+      blast(out, rate, random, 70 + variant * 15, 0.035, 0.12, 1.2);
+      addModes(
+        out,
+        rate,
+        0,
+        [
+          [95 + variant * 12, 0.06, 0.8],
+          [210, 0.03, 0.3],
+        ],
+        random,
+      );
+      return normalize(out, 0.9);
     case "hammer":
       // Hammer tapping a track pin or hull fitting.
       addModes(out, rate, 0, [[180 + variant * 25, 0.03, 0.8]], random);

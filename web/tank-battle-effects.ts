@@ -12,9 +12,9 @@ import type { SceneQuality } from "./tank-scene-quality";
 
 /** Particle budget and spawn multiplier per local quality setting. */
 const BUDGET: Record<SceneQuality, { capacity: number; density: number }> = {
-  low: { capacity: 700, density: 0.5 },
-  medium: { capacity: 1800, density: 1 },
-  high: { capacity: 3000, density: 1.4 },
+  low: { capacity: 1400, density: 0.55 },
+  medium: { capacity: 3200, density: 1 },
+  high: { capacity: 5000, density: 1.4 },
 };
 
 const RECOIL = {
@@ -291,6 +291,29 @@ export class BattleEffects {
   private delayed: { at: number; run: () => void }[] = [];
   private wreckClock = 0;
   private recoilOffset = new THREE.Vector3();
+  private rings!: Particles;
+  /** Burning fragments that streak fire behind them, like fireworks. */
+  private embers: {
+    p: THREE.Vector3;
+    v: THREE.Vector3;
+    age: number;
+    life: number;
+    hot: boolean;
+  }[] = [];
+  private decals: {
+    mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+    born: number;
+    life: number;
+    radius: number;
+    kind: "shock" | "scorch";
+  }[] = [];
+  private decalPool: THREE.Mesh<
+    THREE.BufferGeometry,
+    THREE.MeshBasicMaterial
+  >[] = [];
+  private deathAt = new Map<number, number>();
+  private turretOffset = new Map<number, THREE.Vector3>();
+  private listener = new THREE.Vector3();
   private scratch = new THREE.Vector3();
   private forward = new THREE.Vector3();
 
@@ -325,7 +348,52 @@ export class BattleEffects {
         c.fillRect(0, 0, n, n);
       }
     });
-    this.maps = [glowMap, puffMap];
+    // A bright ring for the expanding shockwave.
+    const ringMap = texture((c, n) => {
+      const g = c.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+      g.addColorStop(0, "rgba(255,255,255,0)");
+      g.addColorStop(0.62, "rgba(255,255,255,0)");
+      g.addColorStop(0.82, "rgba(255,255,255,1)");
+      g.addColorStop(0.9, "rgba(255,255,255,0.5)");
+      g.addColorStop(1, "rgba(255,255,255,0)");
+      c.fillStyle = g;
+      c.fillRect(0, 0, n, n);
+    });
+    const scorchMap = texture((c, n) => {
+      const g = c.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+      g.addColorStop(0, "rgba(10,8,6,0.95)");
+      g.addColorStop(0.55, "rgba(25,18,12,0.75)");
+      g.addColorStop(1, "rgba(40,30,20,0)");
+      c.fillStyle = g;
+      c.fillRect(0, 0, n, n);
+    });
+    this.maps = [glowMap, puffMap, ringMap, scorchMap];
+    this.rings = new Particles(96, ringMap, true);
+    scene.add(this.rings.points);
+    // Ground decals: expanding shock rings and lingering scorch marks.
+    for (let i = 0; i < 14; i++) {
+      const shock = i < 5;
+      const mesh = new THREE.Mesh(
+        shock
+          ? new THREE.RingGeometry(0.82, 1, 56)
+          : new THREE.CircleGeometry(1, 32),
+        new THREE.MeshBasicMaterial({
+          map: shock ? null : scorchMap,
+          color: shock ? 0xffb35a : 0xffffff,
+          transparent: true,
+          depthWrite: false,
+          blending: shock ? THREE.AdditiveBlending : THREE.NormalBlending,
+          polygonOffset: true,
+          polygonOffsetFactor: -4,
+          toneMapped: !shock,
+        }),
+      );
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.visible = false;
+      mesh.userData.shock = shock;
+      scene.add(mesh);
+      this.decalPool.push(mesh);
+    }
     this.glow = new Particles(
       Math.floor(budget.capacity * 0.45),
       glowMap,
@@ -349,7 +417,9 @@ export class BattleEffects {
   /** True while anything is still moving, so the scene keeps drawing frames. */
   get busy() {
     return (
-      this.glow.alive + this.smoke.alive > 0 ||
+      this.glow.alive + this.smoke.alive + this.rings.alive > 0 ||
+      this.embers.length > 0 ||
+      this.decals.length > 0 ||
       this.time - this.firedAt < 1.4 ||
       this.time < this.shake.until ||
       this.delayed.length > 0
@@ -362,6 +432,7 @@ export class BattleEffects {
     const dt = Math.min(0.1, Math.max(0, now - this.time));
     this.time = now;
     const w = state.weapon;
+    this.listener.set(state.tank.x, 1.5, state.tank.z);
     if (!this.primed) {
       this.primed = true;
       this.shots = w.shotsFired;
@@ -390,7 +461,10 @@ export class BattleEffects {
         if (muzzle) this.muzzleBlast(muzzle, t.kind === "tiger" ? 1.35 : 1.15);
       }
       const hp = this.enemyHp.get(t.id);
-      if (hp !== undefined && hp > 0 && t.hp <= 0) this.destroyed(t.x, t.z);
+      if (hp !== undefined && hp > 0 && t.hp <= 0) {
+        this.deathAt.set(t.id, now);
+        this.destroyed(t.x, t.z);
+      }
       this.enemyFlash.set(t.id, t.flashUntil);
       this.enemyHp.set(t.id, t.hp);
     }
@@ -399,9 +473,21 @@ export class BattleEffects {
       if (this.impacts.has(hit.id)) continue;
       this.impacts.add(hit.id);
       const at = new THREE.Vector3(hit.x, Math.max(0.1, hit.y), hit.z);
-      if (hit.shell === "he") this.explosion(at, 1);
-      else if (hit.shell === "ap") this.sparks(at);
-      else this.smokePop(at);
+      if (hit.shell === "he") {
+        this.explosion(at, 1.5);
+        this.kickFrom(at, 1.2);
+      } else if (hit.shell === "ap") {
+        this.sparks(at, 1.4);
+        this.rings.spawn({
+          position: at.clone(),
+          velocity: new THREE.Vector3(),
+          life: 0.3,
+          size: [1, 9],
+          from: [1, 0.95, 0.8, 0.9],
+          to: [1, 0.6, 0.2, 0],
+        });
+        this.kickFrom(at, 0.5);
+      } else this.smokePop(at);
     }
     if (this.impacts.size > 64)
       this.impacts = new Set(w.impacts.map((i) => i.id));
@@ -462,6 +548,38 @@ export class BattleEffects {
       }
     }
 
+    if (dt > 0) {
+      this.embers = this.embers.filter((e) => {
+        e.age += dt;
+        e.v.y -= 14 * dt;
+        e.v.multiplyScalar(Math.exp(-0.6 * dt));
+        const from = e.p.clone();
+        e.p.addScaledVector(e.v, dt);
+        const fade = 1 - e.age / e.life;
+        for (let k = 1; k <= 2; k++)
+          this.glow.spawn({
+            position: from.clone().lerp(e.p, k / 2),
+            velocity: new THREE.Vector3(),
+            life: 0.32,
+            size: [0.75 * fade + 0.2, 0.08],
+            from: e.hot ? [1, 0.9, 0.55, 1] : [1, 0.6, 0.2, 1],
+            to: [1, 0.2, 0.03, 0],
+          });
+        return e.age < e.life && e.p.y > 0.05;
+      });
+    }
+    this.decals = this.decals.filter((d) => {
+      const t = (now - d.born) / d.life;
+      if (t >= 1) {
+        d.mesh.visible = false;
+        return false;
+      }
+      if (d.kind === "shock") {
+        d.mesh.scale.setScalar(d.radius * Math.sqrt(t) + 0.1);
+        d.mesh.material.opacity = (1 - t) * 0.9;
+      } else d.mesh.material.opacity = Math.min(1, (1 - t) * 4) * 0.85;
+      return true;
+    });
     this.delayed = this.delayed.filter((d) => {
       if (now < d.at) return true;
       d.run();
@@ -474,6 +592,7 @@ export class BattleEffects {
     this.flashes = this.flashes.filter((f) => now < f.until);
     this.glow.step(dt);
     this.smoke.step(dt);
+    this.rings.step(dt);
   }
 
   /** Point sprite scale depends on the drawing buffer height and lens. */
@@ -482,6 +601,7 @@ export class BattleEffects {
       bufferHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
     this.glow.lens(scale);
     this.smoke.lens(scale);
+    this.rings.lens(scale);
   }
 
   /** Barrel slides back into the mantlet, then runs out. Call after aim is posed. */
@@ -524,6 +644,66 @@ export class BattleEffects {
     // The sight jumps up with the shot and settles back.
     camera.rotateX(0.02 * k + random(-1, 1) * 0.004 * k);
     camera.rotateY(random(-1, 1) * 0.004 * k);
+  }
+
+  /**
+   * Arcade-style "turret pop": a destroyed tank throws its turret into the
+   * air, spinning, and it crashes back down askew. Call after posing aim.
+   */
+  popTurret(id: number, turret: THREE.Object3D) {
+    const applied = this.turretOffset.get(id);
+    if (applied) turret.position.sub(applied);
+    const died = this.deathAt.get(id);
+    if (died === undefined) {
+      this.turretOffset.delete(id);
+      return;
+    }
+    const t = Math.max(0, this.time - died);
+    const flight = 0.95;
+    const offset = new THREE.Vector3();
+    if (t < flight) {
+      offset.y = 10 * t - 0.5 * 21 * t * t;
+      offset.x = 0.7 * (t / flight);
+      turret.rotation.x = -0.9 * (t / flight);
+      turret.rotation.z = 5.5 * t;
+    } else {
+      offset.set(0.7, -0.08, 0.25);
+      turret.rotation.x = -0.22;
+      turret.rotation.z = 0.38;
+    }
+    offset.y = Math.max(-0.08, offset.y);
+    turret.position.add(offset);
+    this.turretOffset.set(id, offset);
+  }
+
+  /** Shake strength falls off with the blast's distance from our tank. */
+  private kickFrom(at: THREE.Vector3, strength: number) {
+    const near = 1 - Math.min(1, at.distanceTo(this.listener) / 50);
+    if (near > 0.08) this.kick(strength * (0.25 + 0.75 * near), 0.55);
+  }
+
+  private decal(
+    at: THREE.Vector3,
+    kind: "shock" | "scorch",
+    radius: number,
+    life: number,
+  ) {
+    const pool = this.decalPool.filter(
+      (m) => m.userData.shock === (kind === "shock"),
+    );
+    const mesh =
+      pool.find((m) => !m.visible) ??
+      this.decals
+        .filter((d) => d.kind === kind)
+        .sort((a, b) => a.born - b.born)[0]?.mesh;
+    if (!mesh) return;
+    this.decals = this.decals.filter((d) => d.mesh !== mesh);
+    mesh.position.set(at.x, 0.06, at.z);
+    mesh.rotation.z = Math.random() * Math.PI * 2;
+    mesh.scale.setScalar(kind === "scorch" ? radius : 0.1);
+    mesh.material.opacity = kind === "scorch" ? 0.85 : 0.9;
+    mesh.visible = true;
+    this.decals.push({ mesh, born: this.time, life, radius, kind });
   }
 
   private kick(strength: number, length: number) {
@@ -661,41 +841,105 @@ export class BattleEffects {
     this.flash(at, 28 * scale, 0.14, 0xffb35c);
   }
 
+  /** Deliberately over the top: readable, punchy and satisfying first. */
   private explosion(at: THREE.Vector3, scale: number) {
-    const up = () =>
-      new THREE.Vector3(random(-1, 1), random(0.4, 1.2), random(-1, 1));
+    const s = scale;
+    const v3 = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+    const up = () => v3(random(-1, 1), random(0.3, 1.2), random(-1, 1));
+    const still = () => new THREE.Vector3();
+    // Blinding core and two shockwave rings racing outward.
     this.glow.spawn({
       position: at.clone(),
-      velocity: new THREE.Vector3(),
-      life: 0.1,
-      size: [6 * scale, 9 * scale],
-      from: [1, 0.98, 0.9, 1],
-      to: [1, 0.7, 0.3, 0],
+      velocity: still(),
+      life: 0.14,
+      size: [8 * s, 15 * s],
+      from: [1, 1, 0.95, 1],
+      to: [1, 0.8, 0.4, 0],
     });
-    // Rolling fireball: yellow cores cooling to deep red.
-    for (let i = 0; i < this.n(16); i++)
+    this.rings.spawn({
+      position: at.clone().setY(at.y + 0.6),
+      velocity: still(),
+      life: 0.38,
+      size: [2 * s, 30 * s],
+      from: [1, 0.96, 0.85, 1],
+      to: [1, 0.55, 0.2, 0],
+    });
+    this.rings.spawn({
+      position: at.clone().setY(at.y + 1),
+      velocity: still(),
+      life: 0.75,
+      size: [1.5 * s, 20 * s],
+      from: [1, 0.62, 0.25, 0.75],
+      to: [0.8, 0.25, 0.08, 0],
+    });
+    this.decal(at, "shock", 13 * s, 0.55);
+    this.decal(at, "scorch", 2.4 * s, 14);
+    // Rolling fireball.
+    for (let i = 0; i < this.n(30); i++)
       this.glow.spawn({
-        position: at.clone().add(up().multiplyScalar(0.4)),
-        velocity: up().multiplyScalar(random(2, 7) * scale),
-        life: random(0.3, 0.6),
-        size: [random(1.6, 2.6) * scale, random(3.5, 5.5) * scale],
-        from: [1, random(0.6, 0.85), 0.25, 1],
-        to: [0.7, 0.12, 0.02, 0],
+        position: at.clone().add(up().multiplyScalar(0.6 * s)),
+        velocity: up().multiplyScalar(random(3, 9) * s),
+        life: random(0.45, 0.9),
+        size: [random(2, 3.2) * s, random(5, 8) * s],
+        from: [1, random(0.65, 0.9), 0.3, 1],
+        to: [0.75, 0.1, 0.02, 0],
         drag: 3,
-        gravity: -2,
+        gravity: -3,
+        spin: random(-2, 2),
       });
-    // Dirt fountain thrown high and falling back.
-    for (let i = 0; i < this.n(30); i++) {
-      const brown = random(0.22, 0.38);
+    // Mushroom column: fire punches straight up and blooms into a cap.
+    for (let i = 0; i < this.n(12); i++) {
+      const vel = v3(
+        random(-1.2, 1.2),
+        random(10, 16),
+        random(-1.2, 1.2),
+      ).multiplyScalar(Math.sqrt(s));
+      this.glow.spawn({
+        position: at.clone(),
+        velocity: vel.clone(),
+        life: random(0.7, 1.1),
+        size: [random(1.6, 2.4) * s, random(4.5, 6.5) * s],
+        from: [1, 0.78, 0.32, 1],
+        to: [0.55, 0.08, 0.02, 0],
+        drag: 2.2,
+        gravity: -1,
+      });
+      const dark = random(0.1, 0.2);
       this.smoke.spawn({
         position: at.clone(),
-        velocity: new THREE.Vector3(
-          random(-3.5, 3.5),
-          random(7, 15),
-          random(-3.5, 3.5),
-        ).multiplyScalar(scale),
-        life: random(0.9, 1.6),
-        size: [random(0.5, 0.9) * scale, random(1.8, 3) * scale],
+        velocity: vel,
+        life: random(2.6, 4.2),
+        size: [random(2, 3) * s, random(9, 13) * s],
+        from: [dark, dark * 0.95, dark * 0.9, 0.75],
+        to: [0.42, 0.4, 0.38, 0],
+        drag: 2,
+        gravity: -0.6,
+        spin: random(-0.5, 0.5),
+      });
+    }
+    // Burning fragments arcing out with fire trails.
+    for (let i = 0; i < this.n(14); i++)
+      this.embers.push({
+        p: at.clone().setY(at.y + 0.3),
+        v: up()
+          .normalize()
+          .multiplyScalar(random(11, 24) * Math.sqrt(s)),
+        age: 0,
+        life: random(0.8, 1.6),
+        hot: Math.random() < 0.5,
+      });
+    // Dirt fountain and clods.
+    for (let i = 0; i < this.n(36); i++) {
+      const brown = random(0.2, 0.36);
+      this.smoke.spawn({
+        position: at.clone(),
+        velocity: v3(
+          random(-4, 4),
+          random(8, 17),
+          random(-4, 4),
+        ).multiplyScalar(s),
+        life: random(1, 1.8),
+        size: [random(0.6, 1) * s, random(2, 3.4) * s],
         from: [brown, brown * 0.82, brown * 0.62, 0.95],
         to: [brown + 0.15, brown + 0.1, brown + 0.05, 0],
         drag: 0.6,
@@ -703,64 +947,49 @@ export class BattleEffects {
         spin: random(-2, 2),
       });
     }
-    // Clods and stones.
-    for (let i = 0; i < this.n(26); i++)
+    for (let i = 0; i < this.n(30); i++)
       this.smoke.spawn({
         position: at.clone(),
-        velocity: new THREE.Vector3(
-          random(-6, 6),
-          random(6, 16),
-          random(-6, 6),
-        ).multiplyScalar(scale),
-        life: random(1, 1.8),
-        size: [random(0.12, 0.3), random(0.12, 0.3)],
-        from: [0.16, 0.13, 0.1, 1],
-        to: [0.16, 0.13, 0.1, 1],
+        velocity: v3(
+          random(-7, 7),
+          random(7, 18),
+          random(-7, 7),
+        ).multiplyScalar(s),
+        life: random(1, 1.9),
+        size: [random(0.14, 0.35), random(0.14, 0.35)],
+        from: [0.15, 0.12, 0.09, 1],
+        to: [0.15, 0.12, 0.09, 1],
         gravity: 12,
         spin: random(-6, 6),
       });
-    // Black smoke climbing out of the crater.
-    for (let i = 0; i < this.n(14); i++) {
-      const dark = random(0.12, 0.24);
-      this.smoke.spawn({
-        position: at.clone().add(up().multiplyScalar(0.8)),
-        velocity: up().multiplyScalar(random(1, 3)),
-        life: random(2.4, 4.2),
-        size: [random(1.5, 2.5) * scale, random(6, 9) * scale],
-        from: [dark, dark, dark, 0.6],
-        to: [0.45, 0.43, 0.4, 0],
-        drag: 1.2,
-        gravity: -0.9,
-        spin: random(-0.5, 0.5),
-      });
-    }
     // Ground dust ring.
-    for (let i = 0; i < this.n(16); i++) {
-      const a = (i / this.n(16)) * Math.PI * 2;
-      const out = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+    for (let i = 0; i < this.n(22); i++) {
+      const a = (i / this.n(22)) * Math.PI * 2;
+      const out = v3(Math.cos(a), 0, Math.sin(a));
       this.smoke.spawn({
-        position: new THREE.Vector3(at.x, 0.3, at.z).addScaledVector(out, 0.8),
-        velocity: out.multiplyScalar(random(6, 11) * scale),
-        life: random(1.2, 2),
-        size: [1.2, 4.2 * scale],
-        from: [0.55, 0.47, 0.36, 0.5],
-        to: [0.66, 0.6, 0.5, 0],
-        drag: 2.5,
+        position: v3(at.x, 0.3, at.z).addScaledVector(out, s),
+        velocity: out.multiplyScalar(random(8, 14) * s),
+        life: random(1.3, 2.2),
+        size: [1.4 * s, 5 * s],
+        from: [0.58, 0.5, 0.38, 0.55],
+        to: [0.68, 0.62, 0.52, 0],
+        drag: 2.4,
         gravity: -0.3,
       });
     }
-    for (let i = 0; i < this.n(18); i++)
+    // Spark spray.
+    for (let i = 0; i < this.n(40); i++)
       this.glow.spawn({
         position: at.clone(),
-        velocity: up().normalize().multiplyScalar(random(10, 22)),
-        life: random(0.4, 0.9),
-        size: [0.2, 0.08],
-        from: [1, 0.85, 0.5, 1],
+        velocity: up().normalize().multiplyScalar(random(12, 30)),
+        life: random(0.4, 1),
+        size: [0.24, 0.08],
+        from: [1, 0.9, 0.55, 1],
         to: [1, 0.3, 0.05, 0],
         drag: 0.8,
         gravity: 9.8,
       });
-    this.flash(at.clone().setY(at.y + 1.5), 70 * scale, 0.3, 0xff9a40);
+    this.flash(at.clone().setY(at.y + 2), 160 * s, 0.45, 0xff9a40);
   }
 
   /** Armour-piercing strike: a fan of white-hot sparks and a sharp flash. */
@@ -833,7 +1062,8 @@ export class BattleEffects {
   /** Main blast, then the ammunition cooking off for a while after. */
   private destroyed(x: number, z: number) {
     const at = new THREE.Vector3(x, 1.6, z);
-    this.explosion(at, 1.6);
+    this.explosion(at, 2.2);
+    this.kickFrom(at, 1.6);
     for (let k = 0; k < 4; k++)
       this.delayed.push({
         at: this.time + 0.35 + k * random(0.25, 0.5),
@@ -844,7 +1074,7 @@ export class BattleEffects {
               .add(
                 new THREE.Vector3(random(-1, 1), random(0, 1), random(-1, 1)),
               ),
-            random(0.5, 0.8),
+            random(0.6, 1),
           ),
       });
   }
@@ -892,6 +1122,12 @@ export class BattleEffects {
   private reset() {
     this.glow.clear();
     this.smoke.clear();
+    this.rings.clear();
+    this.embers = [];
+    for (const d of this.decals) d.mesh.visible = false;
+    this.decals = [];
+    this.deathAt.clear();
+    this.turretOffset.clear();
     this.primed = false;
     this.firedAt = -100;
     this.shake.until = -100;
@@ -905,9 +1141,20 @@ export class BattleEffects {
   }
 
   dispose() {
-    this.scene.remove(this.glow.points, this.smoke.points, ...this.lights);
+    this.scene.remove(
+      this.glow.points,
+      this.smoke.points,
+      this.rings.points,
+      ...this.lights,
+      ...this.decalPool,
+    );
     this.glow.dispose();
     this.smoke.dispose();
+    this.rings.dispose();
+    for (const mesh of this.decalPool) {
+      mesh.geometry.dispose();
+      mesh.material.dispose();
+    }
     for (const map of this.maps) map.dispose();
   }
 }
