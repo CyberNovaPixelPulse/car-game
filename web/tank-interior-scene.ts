@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { INTERIOR_VIEW } from "./tank-battle-view";
 import { STILL_HEAD } from "./tank-camera-motion";
 import { applyHeadOffset, headStamp } from "./tank-head-camera";
 import { disposeArt } from "./tank-art-materials";
@@ -386,8 +387,16 @@ export class TankInteriorScene {
     );
     this.case.rotation.z = flight * 0.7;
     const tilt = stunned && motionEnabled && !this.reducedMotion ? 0.025 : 0;
-    this.camera.position.set(1.35, w.crouching ? 0.74 : 1.9, 1.55);
-    this.camera.lookAt(-0.05, w.crouching ? 1.12 : 1.35, -0.7);
+    this.camera.position.set(
+      INTERIOR_VIEW.eyeX,
+      w.crouching ? 0.74 : 1.9,
+      INTERIOR_VIEW.eyeZ,
+    );
+    this.camera.lookAt(
+      INTERIOR_VIEW.targetX,
+      w.crouching ? 1.12 : 1.35,
+      INTERIOR_VIEW.targetZ,
+    );
     this.camera.rotation.z = tilt;
     applyHeadOffset(this.camera, offset);
     this.renderer.shadowMap.needsUpdate = this.modelStamp !== modelStamp;
