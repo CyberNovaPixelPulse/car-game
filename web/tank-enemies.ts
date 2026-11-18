@@ -23,6 +23,37 @@ interface Vehicle {
   z: number;
   hp: number;
 }
+export interface TankHit {
+  id: number;
+  at: number;
+  heading: number;
+  damage: number;
+}
+const MAX_RECENT_HITS = 8;
+const HIT_RETENTION_SECONDS = 0.8;
+
+export function validTankHits(hits: TankHit[], now: number, shots: number) {
+  return (
+    Array.isArray(hits) &&
+    hits.length <= MAX_RECENT_HITS &&
+    hits.every(
+      (hit) =>
+        hit &&
+        Number.isSafeInteger(hit.id) &&
+        hit.id > 0 &&
+        hit.id <= shots &&
+        Number.isFinite(hit.at) &&
+        hit.at >= 0 &&
+        hit.at <= now &&
+        now - hit.at < HIT_RETENTION_SECONDS &&
+        Number.isFinite(hit.heading) &&
+        Number.isFinite(hit.damage) &&
+        hit.damage > 0,
+    ) &&
+    new Set(hits.map((hit) => hit.id)).size === hits.length
+  );
+}
+
 export interface EnemyBattle {
   wave: number;
   won: boolean;
@@ -37,6 +68,7 @@ export interface EnemyBattle {
     age: number;
   }[];
   shots: number;
+  hits: TankHit[];
   lastHitAt: number;
   lastDamage: number;
   failed: boolean;
@@ -46,6 +78,7 @@ export const createEnemyBattle = (): EnemyBattle => ({
   won: false,
   projectiles: [],
   shots: 0,
+  hits: [],
   lastHitAt: -100,
   lastDamage: 0,
   failed: false,
@@ -122,6 +155,8 @@ export function stepEnemies(
   smoke: readonly SmokeCloud[],
 ) {
   if (b.failed || b.won) return;
+  while (b.hits.length && now - b.hits[0].at >= HIT_RETENTION_SECONDS)
+    b.hits.shift();
   for (const e of enemies) {
     if (e.hp <= 0) continue;
     const hiddenBySmoke = smokeBlocks(
@@ -243,6 +278,13 @@ export function stepEnemies(
         tank.hp = Math.max(0, tank.hp - p.damage);
         b.lastHitAt = now;
         b.lastDamage = p.damage;
+        if (b.hits.length === MAX_RECENT_HITS) b.hits.shift();
+        b.hits.push({
+          id: p.id,
+          at: now,
+          heading: Math.atan2(p.vx, -p.vz),
+          damage: p.damage,
+        });
       }
       return false;
     }

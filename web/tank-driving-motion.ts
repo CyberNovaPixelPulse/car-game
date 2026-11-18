@@ -1,5 +1,5 @@
 import type { MotionSource, MotionStation } from "./tank-camera-motion";
-import type { TankState } from "./tank-core";
+import { stationHeading } from "./tank-station-heading";
 import { DRIVING } from "./tank-settings";
 
 const stationGain: Record<
@@ -12,15 +12,6 @@ const stationGain: Record<
   repair: { inertia: 0.72, vibration: 0.7 },
   "machine-gun": { inertia: 0.82, vibration: 1.15 },
 };
-
-/** Yaw from hull-forward to this station's nominal line of sight. */
-export function stationHullYaw(state: TankState, station: MotionStation) {
-  if (station === "driver") return 0;
-  if (station === "machine-gun") return state.weapon.mg.yaw;
-  if (station === "gunner") return state.turret.yaw;
-  // The interior eye looks across the turret at the breech, not down the barrel.
-  return state.turret.yaw + Math.atan2(-1.4, 2.25);
-}
 
 interface Lean {
   position: number;
@@ -77,7 +68,7 @@ export function createDrivingMotion(): MotionSource {
     previousTime = time;
     previousSpeed = tank.speed;
     const { inertia, vibration } = stationGain[station];
-    const yaw = stationHullYaw(state, station);
+    const yaw = stationHeading(state, station) - tank.yaw;
     const cos = Math.cos(yaw),
       sin = Math.sin(yaw);
     const back =
