@@ -7,6 +7,7 @@ import { DRIVE, AIM, type TankState } from "./tank-core";
 import { TankRoleViews } from "./tank-role-views";
 import type { SceneQuality } from "./tank-scene-quality";
 import { TankMechanicalAudio } from "./tank-mechanical-audio";
+import { TankVehicleAudio } from "./tank-vehicle-audio";
 import {
   LOAD,
   MODE,
@@ -42,6 +43,7 @@ const core = runtime.presentation;
 const views = new TankRoleViews();
 let activeStation: ReturnType<typeof mountStation> | undefined;
 function clearStation() {
+  vehicleAudio.reset();
   activeStation?.dispose();
   activeStation = undefined;
 }
@@ -95,6 +97,7 @@ let held = 0;
 let warningAudio: AudioContext | undefined;
 let soundEnabled = true;
 const mechanicalAudio = new TankMechanicalAudio();
+const vehicleAudio = new TankVehicleAudio();
 let soundedShot = 0;
 let soundedStun = 0;
 let soundedDamage = -100;
@@ -107,6 +110,7 @@ window.addEventListener("keydown", unlockWarningAudio);
 function warningTone(hit: boolean) {
   const audio = warningAudio;
   if (!soundEnabled || !audio || audio.state !== "running") return;
+  vehicleAudio.duck(hit ? 0.35 : 0.5);
   for (const offset of hit ? [0] : [0, 0.18]) {
     const oscillator = audio.createOscillator();
     const gain = audio.createGain();
@@ -427,6 +431,11 @@ function presentBattleAudio(state: TankState, role: CrewRole) {
     warningTone(true);
     soundedDamage = state.battle.lastHitAt;
   }
+  vehicleAudio.present(state, warningAudio, {
+    role,
+    enabled: soundEnabled,
+    active: !runtime.paused,
+  });
   if (role !== "loader") return;
   mechanicalAudio.present(state, warningAudio, soundEnabled);
   const { weapon, time } = state;

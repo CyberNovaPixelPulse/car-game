@@ -11,5 +11,5 @@ playwright-report/
 # Local visual review captures
 .impeccable/review/
 
-# Per-attempt verification records
-output/qa/
+# Per-attempt verification records and local audio previews
+output/

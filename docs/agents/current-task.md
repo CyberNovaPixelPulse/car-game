@@ -1,12 +1,13 @@
 # 目前任務
 
-- 任務：更新 [Spec #44](https://github.com/CyberNovaPixelPulse/car-game/issues/44) 的草稿 PR，同步 `main`、修正逾時防護和測試文件、執行輕量 CI。
-- 本輪預算：30 分鐘；2026-11-17 08:16 開始，08:46 截止（Asia/Taipei）。
-- 工作分支：`codex/retro-validation-guardrails`；實際來源以 `git rev-parse HEAD` 為準。
-- 本輪交付：併入 `main` 的 `ce3a1e0`。保留 #45 單人練習驗證紀錄與 #44 的流程說明，校正測試範例和每次執行的證據路徑。E2E 逾時只接受單一十進位正整數。
-- 逾時問題屬測試工具缺陷。原防護和 Playwright 的數值解析不同，導致同一參數可能在防護層被視為合法、在 Playwright 被解析為零。防護測試先重現接受無效值，再確認會拒絕，合法的兩種參數格式皆可通過。
-- 驗證：本機 `npm test` 與 build 已通過，兩個文件範例透過案例收集各選到一項。最新本機結果見 `npm run verify:status`，遠端結果見 [草稿 PR #43 的 checks](https://github.com/CyberNovaPixelPulse/car-game/pull/43/checks)。
-- 歷史結果：前一輪的雙軸複核和 CLI 拒絕證據記錄於 `4795832` 的任務摘要。
-- 交付狀態：PR 維持草稿。#41 的三人實機驗收與完整遊戲回歸另行安排。
+- 任務：為坦克加入擬真合成音效——行駛（履帶）、引擎、主炮開火、砲塔旋轉、砲彈裝填與裝填手「裝填完畢」通知。
+- 本輪預算：60 分鐘，拆兩個里程碑；2026-11-18 15:15 開始，16:15 截止（Asia/Taipei）。
+  - 里程碑一（30 分鐘）：純函式合成器與即時音效圖，接上所有職位。
+  - 里程碑二（30 分鐘）：音效開關擴及三個職位、文件、`npm test`、build、離線試聽檔。
+- 工作分支：`dev`；實際來源以 `git rev-parse HEAD` 為準。
+- 本輪交付：`web/tank-audio-synth.ts`（不依賴瀏覽器的音色合成）、`web/tank-vehicle-audio.ts`（WebAudio 即時圖與快照邊緣觸發）、`tools/render-audio-preview.ts`（輸出 WAV 試聽）、`docs/tank-audio.md`。
+- 音效只讀快照，不改任何遊戲規則或權威狀態。
+- 驗證結果：`npm test` 通過、build 通過（既有的大 chunk 警告與本輪無關）。另以 Node 版 WebAudio 離線執行同一份 `TankVehicleAudio`，跑 21 秒腳本（發動→加速→轉向→頂牆→轉砲→裝填→開火→退殼）：無 NaN、峰值不超過滿刻度、主炮為最大聲事件；此離線環境不在專案依賴內。
+- 驗證範圍：`npm test` 與 build。依 `AGENTS.md`，瀏覽器內實際播放只能用 Codex 內建瀏覽器，本輪未做；人工聆聽、語音合成在各瀏覽器的可用性皆列為未驗證。
 
 開始新任務、驗證結束及交付時更新本頁；實際run結果從索引取得，不在本頁複製逐項測試結果。
