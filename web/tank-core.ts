@@ -16,6 +16,7 @@ import {
   createEnemyBattle,
   createWaveTargets,
   stepEnemies,
+  validTankHits,
   type EnemyBattle,
 } from "./tank-enemies";
 import { MG_FIRE, stepMachineGun } from "./tank-machine-gun";
@@ -62,7 +63,7 @@ export const BATTLEFIELD = {
   ],
 } as const;
 export interface TankState {
-  version: 5;
+  version: 6;
   intel: TeamIntel;
   repair: RepairState;
   time: number;
@@ -80,7 +81,7 @@ export interface TankState {
   };
 }
 const initial = (seed = 1): TankState => ({
-  version: 5,
+  version: 6,
   intel: createTeamIntel(),
   repair: createRepairState(seed),
   time: 0,
@@ -432,7 +433,7 @@ export class TankCore implements GameCore<TankState> {
   restore(snapshot: string) {
     const next: TankState = JSON.parse(snapshot);
     if (
-      next.version !== 5 ||
+      next.version !== 6 ||
       !validTeamIntel(next.intel, next.time, next.weapon?.targets) ||
       !validRepair(next.repair) ||
       !next.battle ||
@@ -441,6 +442,7 @@ export class TankCore implements GameCore<TankState> {
       !Number.isInteger(next.battle.wave) ||
       next.battle.wave < 1 ||
       next.battle.wave > TANK_RULES.waves ||
+      !validTankHits(next.battle.hits, next.time, next.battle.shots) ||
       !Array.isArray(next.battle.projectiles) ||
       ![next.battle.shots, next.battle.lastHitAt, next.battle.lastDamage].every(
         Number.isFinite,
