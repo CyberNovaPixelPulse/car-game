@@ -1,4 +1,5 @@
 import type { PerspectiveCamera } from "three";
+import { DRIVER_VIEW } from "./tank-driver-view";
 import type { HeadOffset } from "./tank-camera-motion";
 
 /** Applied after rebuilding the base eye on every draw, never integrated frame to frame. */
@@ -7,11 +8,28 @@ export function applyHeadOffset(
   offset: Readonly<HeadOffset>,
   driver = false,
 ) {
-  // Only withdraw behind the driver's fixed aperture. Lateral translation or
-  // leaning forward would expose rays outside the nominal scouting opening.
-  camera.translateX(driver ? 0 : offset.x);
-  camera.translateY(driver ? 0 : offset.y);
-  camera.translateZ(driver ? Math.max(0, offset.z) : offset.z);
+  if (driver) {
+    // Stay inside the backward cone from the nominal eye. Through every edge
+    // of the fixed opening the new ray then lies within the original aperture.
+    const retreat = Math.min(
+      0.065,
+      Math.max(
+        0,
+        offset.z,
+        Math.abs(offset.x) / Math.tan(DRIVER_VIEW.horizontalFov / 2),
+        Math.abs(offset.y) / Math.tan(DRIVER_VIEW.verticalFov / 2),
+      ),
+    );
+    const horizontal = retreat * Math.tan(DRIVER_VIEW.horizontalFov / 2);
+    const vertical = retreat * Math.tan(DRIVER_VIEW.verticalFov / 2);
+    camera.translateX(Math.max(-horizontal, Math.min(horizontal, offset.x)));
+    camera.translateY(Math.max(-vertical, Math.min(vertical, offset.y)));
+    camera.translateZ(retreat);
+  } else {
+    camera.translateX(offset.x);
+    camera.translateY(offset.y);
+    camera.translateZ(offset.z);
+  }
   camera.rotateX(offset.pitch);
   camera.rotateY(offset.yaw);
   camera.rotateZ(offset.roll);
