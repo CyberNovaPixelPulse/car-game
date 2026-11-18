@@ -1,38 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
+import { observeSight } from "./tank-sight-observation";
 import { tankCrew } from "./tank-helpers";
 
 const motion = (page: Page) =>
   page.getByRole("button", { name: "鏡頭震動", exact: true });
-
-// Measure only the visible reticle's displacement relative to its own viewport.
-// Start on the replicated shot counter so a slower client's samples still
-// describe the same authority-accepted shot.
-async function observeShot(page: Page) {
-  return page.locator(".sight:visible").evaluate(async (sight) => {
-    const viewport = sight.parentElement!.getBoundingClientRect();
-    const shots = document.querySelector('[data-testid="shot-count"]')!;
-    const deadline = performance.now() + 8000;
-    let first: number | undefined;
-    let peak = 0;
-    while (performance.now() < deadline) {
-      const time = await new Promise<number>((resolve) =>
-        requestAnimationFrame(resolve),
-      );
-      if (shots.textContent !== "1") continue;
-      first ??= time;
-      const box = sight.getBoundingClientRect();
-      const offset = Math.hypot(
-        (box.left + box.width / 2 - viewport.left - viewport.width / 2) /
-          viewport.height,
-        (box.top + box.height / 2 - viewport.top - viewport.height / 2) /
-          viewport.height,
-      );
-      peak = Math.max(peak, offset);
-      if (time - first >= 700) break;
-    }
-    return { sawShot: first !== undefined, peak };
-  });
-}
 
 test("三人房間在行駛與機槍連射中開炮，各端呈現自己的震動選擇並可重連", async ({
   browser,
@@ -51,11 +22,12 @@ test("三人房間在行駛與機槍連射中開炮，各端呈現自己的震�
     await expect(motion(crew.gunner)).toHaveAttribute("aria-pressed", "true");
 
     await crew.driver.keyboard.down("s");
+    await expect(crew.gunner.getByTestId("tank-motion")).toHaveText("倒車");
     await expect
       .poll(async () =>
         Number(await crew.gunner.getByTestId("tank-speed").textContent()),
       )
-      .toBeLessThan(-0.5);
+      .toBeGreaterThan(0.5);
     await crew.loader.getByRole("img", { name: "機槍戰場視野" }).click();
     await crew.loader.keyboard.down("Space");
     await expect
@@ -64,14 +36,24 @@ test("三人房間在行駛與機槍連射中開炮，各端呈現自己的震�
       )
       .toBeGreaterThan(0);
 
+    // Arm both visible sights before firing. During MG work only the gunner's
+    // cannon counter is on screen; it brackets observations on both views.
+    const [finishGunner, finishLoader] = await Promise.all([
+      observeSight(crew.gunner),
+      observeSight(crew.loader),
+    ]);
+    await crew.gunner.keyboard.press("Space");
+    const accepted = crew.gunner.getByTestId("shot-count");
+    await expect(accepted).toBeVisible();
+    await expect(accepted).toHaveText("1");
+    await crew.gunner.waitForTimeout(750); // Entire 0.7-second shot envelope.
     const [gunner, loader] = await Promise.all([
-      observeShot(crew.gunner),
-      observeShot(crew.loader),
-      crew.gunner.keyboard.press("Space"),
+      finishGunner(),
+      finishLoader(),
     ]);
     await crew.loader.keyboard.up("Space");
     await crew.driver.keyboard.up("s");
-    expect(gunner.sawShot && loader.sawShot).toBe(true);
+    expect(Math.min(gunner.frames, loader.frames)).toBeGreaterThan(1);
     expect(gunner.peak).toBeGreaterThan(0.008);
     expect(gunner.peak).toBeLessThan(0.12);
     expect(loader.peak).toBeLessThan(0.001);

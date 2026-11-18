@@ -2,7 +2,13 @@ import type { MotionSource } from "./tank-camera-motion";
 import { DRIVING } from "./tank-settings";
 import { stationHeading } from "./tank-station-heading";
 
-export const addCollision: MotionSource = (state, station, since, mix) => {
+export const addCollision: MotionSource = (
+  state,
+  station,
+  since,
+  mix,
+  time,
+) => {
   const { impact, blocked } = state.tank;
   if (blocked) {
     // A low, continuous shudder while pushing, independent of the impact envelope.
@@ -10,7 +16,7 @@ export const addCollision: MotionSource = (state, station, since, mix) => {
     mix.continuous.y += 0.0025 * Math.sin(state.time * 69);
   }
   if (!impact || impact.at <= since) return;
-  const age = state.time - impact.at;
+  const age = time - impact.at;
   if (age < 0 || age >= 0.55) return;
   const intensity = Math.min(1, impact.normalSpeed / DRIVING.forward);
   const kick =

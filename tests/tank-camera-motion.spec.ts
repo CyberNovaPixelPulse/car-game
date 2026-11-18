@@ -1,3 +1,4 @@
+import { observeSight } from "./tank-sight-observation";
 import { expect, test } from "@playwright/test";
 
 test("砲手開炮時準星偏移後回穩，關閉鏡頭震動後仍可再次開炮", async ({
@@ -10,40 +11,31 @@ test("砲手開炮時準星偏移後回穩，關閉鏡頭震動後仍可再次�
   await expect(page.getByTestId("chamber-state")).toHaveText("主炮就緒");
   const motion = page.getByRole("button", { name: "鏡頭震動", exact: true });
   await expect(motion).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "調整鏡頭強度" }).click();
+  await page.getByRole("slider", { name: "持續晃動" }).press("Home");
+  await page.getByRole("button", { name: "關閉強度設定" }).click();
   await page.getByRole("img", { name: "主炮戰場視野" }).click();
 
-  // Read the displayed sight once per painted frame, including a frame before
-  // the real keypress. The loader AI supplies both rounds through normal work.
-  async function shoot() {
-    const observation = page.locator(".sight").evaluate(
-      (sight) =>
-        new Promise<number[]>((resolve) => {
-          const top = sight.getBoundingClientRect().top;
-          const samples: number[] = [];
-          const start = performance.now();
-          function sample(now: number) {
-            samples.push(sight.getBoundingClientRect().top - top);
-            if (now - start < 1250) requestAnimationFrame(sample);
-            else resolve(samples);
-          }
-          requestAnimationFrame(sample);
-        }),
-    );
+  async function shoot(expectedCount: number) {
+    const finish = await observeSight(page);
     await page.keyboard.press("Space");
-    return observation;
+    await expect(page.getByTestId("shot-count")).toHaveText(
+      String(expectedCount),
+    );
+    await page.waitForTimeout(850); // Observe the shot, rebound and return to idle.
+    return finish();
   }
-  const enabled = await shoot();
-  await expect(page.getByTestId("shot-count")).toHaveText("1");
-  expect(Math.max(...enabled.map(Math.abs))).toBeGreaterThan(1);
-  expect(Math.abs(enabled.at(-1)!)).toBeLessThan(1);
+  const enabled = await shoot(1);
+  expect(enabled.peak).toBeGreaterThan(0.008);
+  expect(enabled.last).toBeLessThan(0.001);
 
   await motion.click();
   await expect(motion).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByTestId("chamber-state")).toHaveText("主炮就緒");
   await page.getByRole("img", { name: "主炮戰場視野" }).click();
-  const disabled = await shoot();
-  await expect(page.getByTestId("shot-count")).toHaveText("2");
-  expect(Math.max(...disabled.map(Math.abs))).toBeLessThan(1);
+  const disabled = await shoot(2);
+  expect(disabled.frames).toBeGreaterThan(1);
+  expect(disabled.peak).toBeLessThan(0.001);
 });
 
 test("敵車開炮先帶來附近震動，砲手受擊時血量下降且強衝擊回穩", async ({
