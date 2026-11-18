@@ -1,3 +1,4 @@
+import { addCollision } from "./tank-collision-motion";
 import { createDrivingMotion } from "./tank-driving-motion";
 import type { TankState } from "./tank-core";
 import type { CameraPreferences } from "./tank-motion-preferences";
@@ -97,6 +98,7 @@ export class CrewCameraMotion {
   private readonly sources: MotionSource[] = [
     addCannon,
     createDrivingMotion(),
+    addCollision,
     addTankHit,
   ];
   private station?: MotionStation;
