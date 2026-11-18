@@ -1,12 +1,18 @@
 import type { MotionSource } from "./tank-camera-motion";
 import { AIMING, FIRING_FEEDBACK, MG_RULES } from "./tank-settings";
 
-export const addMachineGunKick: MotionSource = (state, station, since, mix) => {
+export const addMachineGunKick: MotionSource = (
+  state,
+  station,
+  since,
+  mix,
+  time,
+) => {
   if (station !== "machine-gun") return;
   const mg = state.weapon.mg;
   const firedAt = mg.flashUntil - FIRING_FEEDBACK.machineGun;
   if (!mg.shots || firedAt <= since + 1e-8) return;
-  const phase = (state.time - firedAt) / MG_RULES.interval;
+  const phase = (time - firedAt) / MG_RULES.interval;
   if (phase < 0 || phase >= 1) return;
 
   // Each real round has a short, self-contained kick. Alternating the side

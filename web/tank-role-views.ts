@@ -154,7 +154,9 @@ export class TankRoleViews {
       views.interior!.scene.render(
         state,
         offset,
-        preferences.enabled ? preferences.overall * preferences.impact : 0,
+        preferences.enabled && !state.battle.failed && !state.battle.won
+          ? preferences.overall * preferences.impact
+          : 0,
       );
     }
   }

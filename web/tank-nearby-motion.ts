@@ -2,12 +2,18 @@ import type { MotionSource } from "./tank-camera-motion";
 import { stationHeading } from "./tank-station-heading";
 import { SHELL_IMPACT_SECONDS } from "./tank-weapons";
 
-export const addNearbyBlasts: MotionSource = (state, station, since, mix) => {
+export const addNearbyBlasts: MotionSource = (
+  state,
+  station,
+  since,
+  mix,
+  time,
+) => {
   const eyeYaw = stationHeading(state, station);
   const seatGain =
     station === "machine-gun" ? 1.15 : station === "driver" ? 0.85 : 1;
   function addWave(x: number, z: number, at: number, strength: number) {
-    const age = state.time - at;
+    const age = time - at;
     if (at <= since + 1e-8 || age < 0 || age >= 0.46) return;
     const dx = state.tank.x - x,
       dz = state.tank.z - z;

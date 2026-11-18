@@ -54,13 +54,14 @@ export type MotionSource = (
   station: MotionStation,
   since: number,
   mix: MotionMix,
+  presentationTime: number,
 ) => void;
 
-const addCannon: MotionSource = (state, station, since, mix) => {
+const addCannon: MotionSource = (state, station, since, mix, time) => {
   // The latest accepted shot is sufficient: ejection alone outlasts the envelope.
   const firedAt = state.weapon.flashUntil - FIRING_FEEDBACK.cannon;
   if (!state.weapon.shotsFired || firedAt <= since + 1e-8) return;
-  const kick = cannonPulse(state.time - firedAt) * cannonGain[station];
+  const kick = cannonPulse(time - firedAt) * cannonGain[station];
   mix.impact.z += kick * 0.055;
   mix.impact.pitch += kick * 0.049;
   mix.impact.roll += kick * 0.009;
@@ -110,6 +111,7 @@ export class CrewCameraMotion {
   private since = 0;
   private lastTime = -1;
   private muted = true;
+  private outcomeAt?: number;
 
   sample(
     state: TankState,
@@ -130,8 +132,25 @@ export class CrewCameraMotion {
     this.muted = muted;
     if (muted) return STILL_HEAD;
 
+    // After the final hit the authority freezes on the exact contact tick.
+    // Finish only the already-visible view's last impulses on a local tail.
+    // Mounting, reconnecting, muting or switching seats at the outcome sets
+    // the baseline to that frozen timestamp and keeps the restored view still.
+    let elapsed = 0;
+    if (state.battle.failed || state.battle.won) {
+      if (state.time <= this.since) return STILL_HEAD;
+      const now = performance.now();
+      this.outcomeAt ??= now;
+      elapsed = (now - this.outcomeAt) / 1000;
+      if (elapsed >= 0.7) return STILL_HEAD;
+    } else {
+      this.outcomeAt = undefined;
+    }
     const mix = { impact: { ...STILL_HEAD }, continuous: { ...STILL_HEAD } };
-    for (const source of this.sources) source(state, station, this.since, mix);
+    for (const source of this.sources)
+      source(state, station, this.since, mix, state.time + elapsed);
+    if (elapsed > 0)
+      for (const axis of axes) mix.continuous[axis] *= 1 - elapsed / 0.7;
     return compose(mix, preferences);
   }
 }
