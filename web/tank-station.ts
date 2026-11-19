@@ -75,7 +75,7 @@ function stationMarkup(
       <label class="scene-quality">畫質 <select id="station-quality"><option value="low">低</option><option value="medium" selected>中</option><option value="high">高</option></select></label>
       ${motionControlsMarkup()}
       <button type="button" class="secondary" id="station-fullscreen" aria-pressed="false" aria-describedby="station-display-status">進入全螢幕</button>
-      ${role === "loader" ? `<button type="button" class="secondary" id="station-sound" aria-pressed="${soundEnabled}">音效：${soundEnabled ? "開" : "關"}</button>` : ""}
+      ${role !== "driver" ? `<button type="button" class="secondary" id="station-sound" aria-pressed="${soundEnabled}">音效：${soundEnabled ? "開" : "關"}</button>` : ""}
       <button class="secondary" id="station-leave">${practice ? "離開練習" : "離開房間"}</button>
     </div>
       ${role === "loader" ? calibrationResult : ""}

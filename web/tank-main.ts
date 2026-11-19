@@ -439,8 +439,8 @@ function presentBattleAudio(state: TankState, role: CrewRole) {
   )
     warningTone(true);
   soundedDamage = state.battle.lastHitAt;
+  mechanicalAudio.present(state, warningAudio, soundEnabled, role);
   if (role !== "loader") return;
-  mechanicalAudio.present(state, warningAudio, soundEnabled);
   const { weapon, time } = state;
   if (
     !first &&

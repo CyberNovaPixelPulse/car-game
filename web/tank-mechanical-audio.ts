@@ -1,7 +1,15 @@
+import { ratchetAngle, RATCHET_REGRIP_SECONDS } from "./tank-ratchet";
+import type { CrewRole } from "./crew";
+import { lastCannonFiredAt } from "./tank-weapons";
 import type { TankState } from "./tank-core";
 
 /** Short, original synthesized metal/transient sounds. Snapshot edges are cues, never rule clocks. */
 export class TankMechanicalAudio {
+  private cannonShots?: number;
+  private cannonBuffer?: AudioBuffer;
+  private ratchetBuffer?: AudioBuffer;
+  private lastTooth?: number;
+  private ratchetWorkAfter = 0;
   private chamber = "empty";
   private jam = false;
   private progressStep = 0;
@@ -13,9 +21,32 @@ export class TankMechanicalAudio {
   reset() {
     // The first valid snapshot seeds every edge before playback resumes.
     this.calibrationId = undefined;
+    this.cannonShots = undefined;
+    this.lastTooth = undefined;
+    this.ratchetWorkAfter = 0;
   }
-  present(state: TankState, audio: AudioContext | undefined, enabled: boolean) {
+  present(
+    state: TankState,
+    audio: AudioContext | undefined,
+    enabled: boolean,
+    role: CrewRole = "loader",
+  ) {
     const w = state.weapon;
+    const previousShots = this.cannonShots;
+    this.cannonShots = w.shotsFired;
+    if (
+      role === "gunner" &&
+      previousShots !== undefined &&
+      w.shotsFired > previousShots &&
+      enabled &&
+      audio?.state === "running" &&
+      state.time - lastCannonFiredAt(w) < 0.6
+    ) {
+      if (this.cannonBuffer?.sampleRate !== audio.sampleRate)
+        this.cannonBuffer = cannonBlast(audio);
+      playBuffer(audio, this.cannonBuffer);
+    }
+    if (role !== "loader") return;
     const calibration = state.repair.calibration;
     const audible =
       this.calibrationId !== undefined && enabled && audio?.state === "running";
@@ -32,6 +63,37 @@ export class TankMechanicalAudio {
       )
         this.calibrationCue(audio, calibration.result);
     }
+    if (
+      this.calibrationId === calibration.id &&
+      this.calibrationResult === "active" &&
+      calibration.result !== "active"
+    )
+      this.ratchetWorkAfter =
+        state.repair.activeSeconds +
+        (calibration.result === "failed"
+          ? RATCHET_REGRIP_SECONDS.failed
+          : RATCHET_REGRIP_SECONDS.success);
+    const ratcheting =
+      w.mode === "repair" &&
+      state.repair.status === "repairing" &&
+      calibration.result !== "active" &&
+      state.repair.activeSeconds >= this.ratchetWorkAfter;
+    const tooth = ratcheting
+      ? Math.floor(ratchetAngle(state.repair.activeSeconds) / (Math.PI / 12))
+      : undefined;
+    // A pawl clicks only on the upwards return. Seed the first tooth whenever
+    // the hand takes up the tool, and never burst through missed network frames.
+    if (
+      audible &&
+      tooth !== undefined &&
+      this.lastTooth !== undefined &&
+      tooth > this.lastTooth
+    ) {
+      if (this.ratchetBuffer?.sampleRate !== audio.sampleRate)
+        this.ratchetBuffer = ratchetClick(audio);
+      playBuffer(audio, this.ratchetBuffer);
+    }
+    this.lastTooth = tooth;
     this.calibrationId = calibration.id;
     this.calibrationResult = calibration.result;
     const step = Math.floor(w.loadProgress * 6);
@@ -140,4 +202,59 @@ export class TankMechanicalAudio {
       ringGain.disconnect();
     };
   }
+}
+
+// A pitched low body beneath the short crack keeps the cannon distinct from
+// the existing small metallic shots, including on speakers with little bass.
+function cannonBlast(audio: AudioContext) {
+  const buffer = audio.createBuffer(
+    1,
+    Math.ceil(audio.sampleRate * 0.52),
+    audio.sampleRate,
+  );
+  const samples = buffer.getChannelData(0);
+  const smoothing = 1 - Math.exp((-2 * Math.PI * 450) / audio.sampleRate);
+  let rumble = 0;
+  let phase = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const t = i / audio.sampleRate;
+    const noise = Math.random() * 2 - 1;
+    rumble += (noise - rumble) * smoothing;
+    phase += (2 * Math.PI * (46 + 100 * Math.exp(-t * 24))) / audio.sampleRate;
+    const attack = Math.min(1, t / 0.002);
+    const body =
+      (0.28 * Math.sin(phase) + 0.11 * Math.sin(2 * phase)) * Math.exp(-t * 10);
+    samples[i] =
+      attack *
+      (body +
+        0.42 * noise * Math.exp(-t * 64) +
+        0.49 * rumble * Math.exp(-t * 11));
+  }
+  return buffer;
+}
+
+function ratchetClick(audio: AudioContext) {
+  const buffer = audio.createBuffer(
+    1,
+    Math.ceil(audio.sampleRate * 0.035),
+    audio.sampleRate,
+  );
+  const samples = buffer.getChannelData(0);
+  for (let i = 0; i < samples.length; i++) {
+    const t = i / audio.sampleRate;
+    const strike = (Math.random() * 2 - 1) * 0.13 * Math.exp(-t * 520);
+    const ring =
+      0.15 * Math.sin(2 * Math.PI * 2080 * t) +
+      0.07 * Math.sin(2 * Math.PI * 3460 * t);
+    samples[i] = Math.min(1, t / 0.0007) * (strike + ring * Math.exp(-t * 185));
+  }
+  return buffer;
+}
+
+function playBuffer(audio: AudioContext, buffer: AudioBuffer) {
+  const sound = audio.createBufferSource();
+  sound.buffer = buffer;
+  sound.connect(audio.destination);
+  sound.onended = () => sound.disconnect();
+  sound.start(audio.currentTime);
 }
