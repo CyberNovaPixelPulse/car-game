@@ -6,6 +6,8 @@ import { applyHeadOffset, headStamp } from "./tank-head-camera";
 import { disposeArt } from "./tank-art-materials";
 import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import type { TankState } from "./tank-core";
+import { LoaderHands } from "./tank-loader-hands";
+import { LoaderRounds } from "./tank-loader-rounds";
 import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
 
 /** Enclosed loader workspace. Deliberately owns no battlefield geometry or rules. */
@@ -17,7 +19,8 @@ export class TankInteriorScene {
   private camera = new THREE.PerspectiveCamera(58, 1, 0.05, 16);
   private observer?: ResizeObserver;
   private breech?: { recoil: THREE.Object3D; slide: THREE.Object3D };
-  private round = new THREE.Group();
+  private hands = new LoaderHands();
+  private rounds!: LoaderRounds;
   private case = new THREE.Group();
   private textures: THREE.Texture[] = [];
   private materials: THREE.Material[] = [];
@@ -235,17 +238,13 @@ export class TankInteriorScene {
         band.rotation.x = Math.PI / 2;
       }
     };
-    this.scene.add(this.round, this.case);
-    makeShell(this.round);
+    this.scene.add(this.case, this.hands.group);
     makeShell(this.case, true);
-    // These display rounds sit in the Blender rack's cups and retention straps.
-    for (const z of [-0.66, -0.39, -0.12]) {
-      const spare = new THREE.Group();
-      this.scene.add(spare);
-      makeShell(spare, false, 0x606746);
-      spare.position.set(-1.4, 0.857, z);
-      spare.rotation.x = Math.PI / 2;
-    }
+    this.rounds = new LoaderRounds(this.scene, (paint) => {
+      const round = new THREE.Group();
+      makeShell(round, false, paint);
+      return round;
+    });
     // Conduits and junction boxes follow the wall, avoiding the ejection path.
     const pipe = new THREE.CatmullRomCurve3([
       new THREE.Vector3(-2.1, 0.3, 0.1),
@@ -345,6 +344,8 @@ export class TankInteriorScene {
     const stunned = state.time < w.stunnedUntil;
     const modelStamp = [
       w.chamber,
+      w.chamberShell,
+      w.mode,
       Math.floor(w.loadProgress * 90),
       w.crouching,
       stunned,
@@ -364,8 +365,11 @@ export class TankInteriorScene {
         w.chamber === "ejecting" ? 0.22 * (1 - eject) : 0;
       this.breech.slide.position.y = w.chamber === "loaded" ? 0 : -0.53;
     }
-    this.round.visible = w.chamber === "loading";
-    this.round.position.set(0, 1.47, 1.15 - w.loadProgress * 1.65);
+    this.rounds.present(
+      w,
+      this.hands,
+      w.mode === "loading" && !w.crouching && !stunned,
+    );
     this.case.visible =
       w.chamber === "ejecting" ||
       (w.shotsFired > 0 && recovery >= 0 && recovery < 0.25);
