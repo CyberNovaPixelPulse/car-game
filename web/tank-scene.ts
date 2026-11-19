@@ -76,7 +76,7 @@ export class TankScene {
     }
   }
   private build() {
-    this.cannonBlast = new PlayerCannonBlast(this.scene);
+    this.cannonBlast = new PlayerCannonBlast(this.scene, this.assets.manager);
     this.mgFlash = new MuzzleFlash(this.scene, 0.22);
     const software = noteRenderer(this.renderer);
     this.player = new VehicleModel("sherman", this.assets.manager);
