@@ -4,6 +4,7 @@ Blender --background --factory-startup --python tools/blender/build_crew_closeup
 The authoring dimensions are scene proportions for our game cameras.
 """
 
+import json
 import math
 from pathlib import Path
 import sys
@@ -121,14 +122,16 @@ def build_loader(k):
         k.box(rack, (0.08, 0.10, 0.45), (-1.43, y, 0.247), mat="Paint")
         k.bolts(rack, [(-1.32, y, 0.057), (-1.557, y, 0.057)], "z",
                 r=0.029, h=0.017, mat="Machined")
-    for y in (0.12, 0.39, 0.66):
+    cups = json.loads((ROOT / "web/tank-loader-rack.json").read_text())
+    for cup_z in cups["z"].values():
+        x, y = cups["x"], -cup_z
         k.lathe(rack, [(0.110, 0), (0.133, 0), (0.133, 0.039), (0.110, 0.049)],
-                24, loc=(-1.40, y, 0.539), mat="Machined", closed=True)
+                24, loc=(x, y, cups["cupBaseY"]), mat="Machined", closed=True)
         k.lathe(rack, [(0.093, -0.022), (0.112, -0.022), (0.112, 0.022), (0.093, 0.022)],
-                24, loc=(-1.40, y, 1.02), mat="Paint", closed=True)
-        k.box(rack, (0.044, 0.075, 0.108), (-1.286, y, 1.02), mat="Recess", bevel=0.010)
-        k.box(rack, (0.023, 0.054, 0.063), (-1.258, y, 1.048), mat="Latch", bevel=0.007)
-        k.cyl_y(rack, 0.018, 0.086, (-1.263, y, 1.005), mat="Machined", segs=12)
+                24, loc=(x, y, 1.02), mat="Paint", closed=True)
+        k.box(rack, (0.044, 0.075, 0.108), (x + 0.114, y, 1.02), mat="Recess", bevel=0.010)
+        k.box(rack, (0.023, 0.054, 0.063), (x + 0.142, y, 1.048), mat="Latch", bevel=0.007)
+        k.cyl_y(rack, 0.018, 0.086, (x + 0.137, y, 1.005), mat="Machined", segs=12)
 
     root = C.empty("LoaderFittings")
     pivot = C.empty("BreechRecoil", parent=root)

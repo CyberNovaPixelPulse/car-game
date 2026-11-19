@@ -102,7 +102,7 @@ let soundEnabled = true;
 const mechanicalAudio = new TankMechanicalAudio();
 let soundedShot = 0;
 let soundedStun = 0;
-let soundedDamage = -100;
+let soundedDamage: number | undefined;
 function unlockWarningAudio() {
   warningAudio ??= new AudioContext();
   void warningAudio.resume().catch(() => {});
@@ -386,9 +386,7 @@ function station(role: CrewRole) {
   document.documentElement.dataset.surface = "battle";
   clearStation();
   mechanicalAudio.reset();
-  soundedShot = 0;
-  soundedStun = 0;
-  soundedDamage = -100;
+  soundedDamage = undefined;
   const practice = runtime.practice && practiceControls(runtime.practice);
   activeStation = mountStation(content, role, recovery, {
     quality: sceneQuality,
@@ -433,21 +431,31 @@ function onlineStation(room: Room) {
 }
 
 function presentBattleAudio(state: TankState, role: CrewRole) {
-  if (state.battle.lastHitAt !== soundedDamage && state.battle.lastDamage) {
+  const first = soundedDamage === undefined;
+  if (
+    !first &&
+    state.battle.lastHitAt !== soundedDamage &&
+    state.battle.lastDamage
+  )
     warningTone(true);
-    soundedDamage = state.battle.lastHitAt;
-  }
+  soundedDamage = state.battle.lastHitAt;
   if (role !== "loader") return;
   mechanicalAudio.present(state, warningAudio, soundEnabled);
   const { weapon, time } = state;
-  if (weapon.chamber === "ejecting" && weapon.shotsFired !== soundedShot) {
+  if (
+    !first &&
+    weapon.chamber === "ejecting" &&
+    weapon.shotsFired !== soundedShot
+  )
     warningTone(false);
-    soundedShot = weapon.shotsFired;
-  }
-  if (time < weapon.stunnedUntil && weapon.stunnedUntil !== soundedStun) {
+  if (
+    !first &&
+    time < weapon.stunnedUntil &&
+    weapon.stunnedUntil !== soundedStun
+  )
     warningTone(true);
-    soundedStun = weapon.stunnedUntil;
-  }
+  soundedShot = weapon.shotsFired;
+  soundedStun = weapon.stunnedUntil;
 }
 
 core.present = (state) => {
@@ -469,7 +477,10 @@ core.present = (state) => {
     session.room?.phase === "battle"
   )
     runtime.finish();
-  if (!runtime.awaitingFirstSnapshot) presentBattleAudio(state, station.role);
+  if (runtime.awaitingFirstSnapshot) {
+    mechanicalAudio.reset();
+    soundedDamage = undefined;
+  } else presentBattleAudio(state, station.role);
   views.render(
     state,
     runtime.paused || runtime.awaitingFirstSnapshot,

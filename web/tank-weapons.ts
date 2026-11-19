@@ -94,6 +94,7 @@ export interface WeaponState {
   loadProgress: number;
   ejectAt: number;
   shotsFired: number;
+  lastShotPose?: GunPose & { hullYaw: number };
   flashUntil: number;
   randomState: number;
   jamChecked: boolean;
@@ -232,12 +233,22 @@ export function createWeaponState(seed = 1): WeaponState {
     ],
   };
 }
-export function fireWeapon(w: WeaponState, pose: GunPose, now: number) {
+export function lastCannonFiredAt(w: WeaponState) {
+  return w.shotsFired ? w.flashUntil - FIRING_FEEDBACK.cannon : -Infinity;
+}
+
+export function fireWeapon(
+  w: WeaponState,
+  pose: GunPose & { hullYaw?: number },
+  now: number,
+) {
   if (w.chamber !== "loaded") return;
   const dx = Math.sin(pose.yaw) * Math.cos(pose.pitch);
   const dy = Math.sin(pose.pitch);
   const dz = -Math.cos(pose.yaw) * Math.cos(pose.pitch);
   w.shotsFired++;
+  const { x, z, yaw, pitch, hullYaw = yaw } = pose;
+  w.lastShotPose = { x, z, yaw, pitch, hullYaw };
   w.flashUntil = now + FIRING_FEEDBACK.cannon;
   w.projectiles.push({
     shell: w.chamberShell!,
@@ -447,6 +458,15 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
     ["he", "ap", "smoke"].includes(w.selectedShell) &&
     (w.chamberShell === null ||
       ["he", "ap", "smoke"].includes(w.chamberShell)) &&
+    (w.lastShotPose === undefined ||
+      (!!w.lastShotPose &&
+        [
+          w.lastShotPose.x,
+          w.lastShotPose.z,
+          w.lastShotPose.yaw,
+          w.lastShotPose.hullYaw,
+          w.lastShotPose.pitch,
+        ].every(Number.isFinite))) &&
     typeof w.crouching === "boolean" &&
     ["empty", "loading", "loaded", "ejecting"].includes(w.chamber) &&
     [w.loadProgress, w.ejectAt, w.shotsFired, w.stunnedUntil].every(
