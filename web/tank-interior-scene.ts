@@ -9,6 +9,7 @@ import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import type { TankState } from "./tank-core";
 import { LoaderHands } from "./tank-loader-hands";
 import { LoaderRounds } from "./tank-loader-rounds";
+import { loaderCanWork } from "./tank-weapons";
 import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
 
 /** Enclosed loader workspace. Deliberately owns no battlefield geometry or rules. */
@@ -346,7 +347,10 @@ export class TankInteriorScene {
       state.time < w.ejectAt + 0.25;
     const motion = w.chamber === "ejecting" || tail;
     const stunned = state.time < w.stunnedUntil;
+    const loading = w.mode === "loading" && loaderCanWork(w, state.time);
+    const jamTravel = this.rounds.jamTravel(w, state.time, loading);
     const modelStamp = [
+      jamTravel,
       w.chamber,
       w.chamberShell,
       w.mode,
@@ -373,11 +377,7 @@ export class TankInteriorScene {
         w.chamber === "ejecting" ? 0.22 * (1 - eject) : 0;
       this.breech.slide.position.y = w.chamber === "loaded" ? 0 : -0.53;
     }
-    this.rounds.present(
-      w,
-      this.hands,
-      w.mode === "loading" && !w.crouching && !stunned,
-    );
+    this.rounds.present(w, this.hands, loading, jamTravel);
     this.case.visible =
       w.chamber === "ejecting" ||
       (w.shotsFired > 0 && recovery >= 0 && recovery < 0.25);
