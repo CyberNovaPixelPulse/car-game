@@ -23,6 +23,8 @@ import {
 } from "./tank-speedometer";
 import { JAM_RULES, SHELL_LABELS } from "./tank-weapons";
 
+const calibrationResult = `<p class="repair-calibration-result hud-panel" data-testid="repair-calibration-result" hidden><span class="calibration-result-message" role="status"></span><span class="calibration-shared-needle" aria-hidden="true"></span></p>`;
+
 const repairWorkspace = `<section class="repair-workspace" aria-label="車內維修" hidden>
         <h3>車體維修</h3>
         <p class="repair-readout" data-testid="repair-status" role="status"></p>
@@ -39,7 +41,7 @@ const repairWorkspace = `<section class="repair-workspace" aria-label="車內維
           <p>按住 <kbd>R</kbd> 維修 · <kbd>空白鍵</kbd> 校準</p>
           <p class="calibration-position" data-testid="repair-calibration-position"></p>
         </div>
-        <p class="repair-controls">按住 <kbd>C</kbd> 蹲下避殼 · <kbd>Tab</kbd> 返回裝填</p>
+        <p class="repair-controls"><kbd>←</kbd>／<kbd>→</kbd> 轉頭 · <kbd>Tab</kbd> 返回裝填</p>
       </section>`;
 
 const weaponStatus = `<div class="weapon-status">
@@ -76,13 +78,14 @@ function stationMarkup(
       ${role === "loader" ? `<button type="button" class="secondary" id="station-sound" aria-pressed="${soundEnabled}">音效：${soundEnabled ? "開" : "關"}</button>` : ""}
       <button class="secondary" id="station-leave">${practice ? "離開練習" : "離開房間"}</button>
     </div>
+      ${role === "loader" ? calibrationResult : ""}
       <p class="display-status hud-panel" id="station-display-status" role="status" hidden></p>
       ${role === "gunner" ? '<div class="battle-intel hud-panel"><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p><p data-testid="target-status">目前沒有觀測到敵車</p><p data-testid="flight-status"></p></div>' : role === "loader" ? '<div class="battle-intel hud-panel" hidden><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p><p data-testid="mg-target-status"></p></div>' : ""}
     </div>
     <div class="battle-alerts">
       <div class="battle-pause hud-panel" data-testid="battle-pause" role="status" hidden></div>
       <p class="hud-panel" data-testid="damage-warning" role="status"></p>
-      <p class="repair-calibration-result hud-panel" data-testid="repair-calibration-result" hidden><span class="calibration-result-message" role="status"></span><span class="calibration-shared-needle" aria-hidden="true"></span></p>
+      ${role === "loader" ? "" : calibrationResult}
       ${role === "gunner" ? '<p class="hud-panel" data-testid="enemy-warning" role="status"></p><p class="hud-panel" data-testid="enemy-activity" role="status"></p>' : ""}
       ${role === "loader" ? '<p class="ejection-warning hud-panel" data-testid="ejection-warning" role="status"></p><p class="loader-posture hud-panel"><span data-testid="loader-status">站立・可以工作</span> <strong class="stun-timer" data-testid="stun-remaining"></strong></p>' : ""}
     </div>
@@ -115,11 +118,13 @@ function stationMarkup(
           </div>
         </div>
         <div class="loading-workspace">
-          <div class="interior-viewport">${repairWorkspace}</div>
-          <section class="jam-game hud-panel" aria-label="卡彈排除" hidden><h3>卡彈：停在目標區</h3><div class="jam-track"><span class="jam-zone" data-testid="jam-zone">目標</span><span class="jam-needle" data-testid="jam-needle"></span></div><p data-testid="jam-result">按空白鍵停針</p></section>
+          <div class="interior-viewport"></div>
         </div>
       </div>
-      <div class="battle-work hud-panel">${weaponStatus}<p class="note loading-help">按 1 高爆彈、2 穿甲彈、3 煙霧彈。按住 R 裝填，放開保留進度；同發彈種鎖定。等待開火、退殼後再裝下一發。</p><p class="note">按住 C 蹲下避殼，放開起身；蹲下時無法工作。</p></div>
+      <div class="battle-work hud-panel">
+        <section class="jam-game" aria-label="卡彈排除" hidden><h3>卡彈：停在目標區</h3><div class="jam-track"><span class="jam-zone" data-testid="jam-zone">目標</span><span class="jam-needle" data-testid="jam-needle"></span></div><p data-testid="jam-result">按空白鍵停針</p></section>
+        ${repairWorkspace}
+        ${weaponStatus}<p class="note loading-help">按 1 高爆彈、2 穿甲彈、3 煙霧彈。按住 R 裝填，放開保留進度；同發彈種鎖定。等待開火、退殼後再裝下一發。←／→ 轉頭。</p><p class="note">按住 C 蹲下避殼，放開起身；蹲下時無法工作。</p></div>
     `
     }
   </section>`;

@@ -503,6 +503,10 @@ window.addEventListener("keydown", (event) => {
     )
   )
     return;
+  if (views.lookKey(event.code, true, event.repeat)) {
+    event.preventDefault();
+    return;
+  }
   if (activeStation?.role === "loader" && event.code === "Tab") {
     event.preventDefault();
     if (!event.repeat) runtime.action(MODE);
@@ -561,6 +565,7 @@ window.addEventListener("keydown", (event) => {
   runtime.setInput(held);
 });
 window.addEventListener("keyup", (event) => {
+  if (views.lookKey(event.code, false)) return;
   const key =
     activeStation?.role === "gunner"
       ? aimKeys[event.code]
@@ -576,6 +581,7 @@ window.addEventListener("keyup", (event) => {
   runtime.setInput(held);
 });
 function releaseControls() {
+  views.releaseLook();
   held = 0;
   runtime.clearInput();
 }
@@ -646,6 +652,7 @@ runtime.onRoom = (room) => {
     choosingRole = undefined;
     onlineStation(room);
     if (runtime.paused) {
+      views.releaseLook();
       held = 0;
       runtime.clearInput();
     }
