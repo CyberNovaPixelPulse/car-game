@@ -5,6 +5,7 @@ import { INTERIOR_VIEW } from "./tank-battle-view";
 // Pose in the loader's neutral standing frame. Looking around the station must
 // never drag the arms or the object the player is touching along with the head.
 const eye = new THREE.Vector3(INTERIOR_VIEW.eyeX, 1.9, INTERIOR_VIEW.eyeZ);
+const bodyRight = new THREE.Vector3(2.25, 0, -1.4).normalize();
 const restAxis = new THREE.Vector3(0, 1, 0);
 const upperBind = 0.36;
 const foreBind = 0.32;
@@ -103,6 +104,7 @@ class GlovedArm {
     palm: THREE.Vector3,
     grip: number,
     pinch = 0,
+    bearingWeight = 0,
   ) {
     this.back.copy(palm).normalize().negate();
     this.along
@@ -117,11 +119,11 @@ class GlovedArm {
     for (const shape of this.grips) shape.weights[shape.index] = grip;
     for (const shape of this.pinches) shape.weights[shape.index] = pinch;
     this.cuff.copy(wrist).addScaledVector(this.along, -0.044 * garmentWidth);
-    this.locateJoints();
+    this.locateJoints(bearingWeight);
     this.poseSleeve();
   }
 
-  private locateJoints() {
+  private locateJoints(bearingWeight: number) {
     const standing = this.standing;
     const eye = standing.position;
     const extended = THREE.MathUtils.smoothstep(
@@ -208,6 +210,14 @@ class GlovedArm {
       )
       .normalize();
     this.elbow.copy(this.cuff).addScaledVector(fore, -posedLength);
+    // The rear elbow opens to the side under the weight, then comes back
+    // under the wrist as the palm pushes the base forward.
+    this.elbow.addScaledVector(
+      bodyRight,
+      this.side * 0.15 * (1 - extended) * bearingWeight,
+    );
+    const foreSpan = fore.subVectors(this.cuff, this.elbow).length();
+    fore.normalize();
     const elbowOffset = this.reach.subVectors(this.elbow, eye);
     const shoulderProjection = elbowOffset.dot(this.shoulderRay);
     const shoulderMissSq = Math.max(
@@ -215,7 +225,7 @@ class GlovedArm {
       elbowOffset.lengthSq() - shoulderProjection ** 2,
     );
     const upperLength = Math.max(
-      lengthRatio * posedLength,
+      lengthRatio * foreSpan,
       Math.sqrt(shoulderMissSq) * 1.025,
     );
     const shoulderDepth =
@@ -272,7 +282,6 @@ class GlovedArm {
       .setFromUnitVectors(this.neutral, this.upperAxis)
       .multiply(this.neutralTurn);
     this.hinge.set(1, 0, 0).applyQuaternion(this.bend);
-    this.inner.set(0, 0, 1).applyQuaternion(this.bend);
     const foldRoll = 1.35 * this.foreAxis.dot(this.hinge);
     this.cuffTurn.setFromAxisAngle(this.upperAxis, foldRoll);
     this.bend.premultiply(this.cuffTurn);
@@ -293,7 +302,6 @@ class GlovedArm {
     this.cuffTurn.setFromAxisAngle(this.foreAxis, foldRoll);
     this.bend.premultiply(this.cuffTurn);
     this.hinge.set(1, 0, 0).applyQuaternion(this.bend);
-    this.inner.set(0, 0, 1).applyQuaternion(this.bend);
     const joint = this.reach.copy(this.upperAxis).multiplyScalar(upperLength);
     this.foreFrame.compose(
       joint,

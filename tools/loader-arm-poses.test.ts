@@ -85,6 +85,16 @@ test("both sleeves follow their own glove through pickup, carry and release", as
           forearm.subVectors(actual, upperArm);
           shoulders[side].getWorldPosition(actual);
           upperArm.sub(actual);
+          if (side === 0 && step === 580)
+            assert.ok(
+              upperArm.angleTo(forearm) > Math.PI / 4,
+              "rear elbow must bend under the load",
+            );
+          if (side === 0 && step === 850)
+            assert.ok(
+              upperArm.angleTo(forearm) < Math.PI / 4,
+              "rear elbow must extend on the push",
+            );
           assert.ok(
             upperArm.angleTo(forearm) < (141 * Math.PI) / 180,
             "elbow folds into the upper arm",

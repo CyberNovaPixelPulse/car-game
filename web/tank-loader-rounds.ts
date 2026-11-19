@@ -182,6 +182,8 @@ export class LoaderRounds {
       this.fingers,
       this.palm,
       0.03 + 0.27 * seated * support * (1 - heel),
+      0,
+      seated * support * (1 - phase(p, 0.65, 0.8)),
     );
   }
 }
