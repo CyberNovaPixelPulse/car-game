@@ -53,13 +53,13 @@ export class TankInteriorScene {
   }
   private build() {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
     this.scene.background = new THREE.Color(0x171e1c);
-    this.scene.add(new THREE.HemisphereLight(0xe4e5cf, 0x252c25, 1.3));
-    const lamp = new THREE.SpotLight(0xffe4ad, 36, 9, Math.PI / 3, 0.55, 2);
+    this.scene.add(new THREE.HemisphereLight(0xe1e4d9, 0x363a32, 1.15));
+    const lamp = new THREE.SpotLight(0xffe6c6, 22, 9, Math.PI / 3, 0.68, 2);
     lamp.target.position.set(0, 1.2, -0.6);
     this.scene.add(lamp.target);
     lamp.castShadow = true;
@@ -67,7 +67,7 @@ export class TankInteriorScene {
     lamp.shadow.bias = -0.001;
     lamp.position.set(1.2, 2.5, 1.4);
     this.scene.add(lamp);
-    const fill = new THREE.PointLight(0xc6d5d0, 14, 7, 2);
+    const fill = new THREE.PointLight(0xc6d5d0, 7.5, 7, 2);
     fill.position.set(-1.4, 1.9, 0.8);
     this.scene.add(fill);
     this.reflectedFlash.position.set(-0.28, 1.93, 0.35);
@@ -249,6 +249,16 @@ export class TankInteriorScene {
       }
     };
     this.scene.add(this.case, this.hands.group);
+    new GLTFLoader(this.assets.manager).load(
+      "/assets/closeups/loader-gloves.glb",
+      ({ scene }) => {
+        if (this.disposed || !this.hands.dress(scene)) {
+          disposeArt(scene);
+          return;
+        }
+        this.invalidate();
+      },
+    );
     makeShell(this.case, true);
     this.rounds = new LoaderRounds(this.scene, (paint) => {
       const round = new THREE.Group();
@@ -347,7 +357,7 @@ export class TankInteriorScene {
   async prepare(state: TankState) {
     await this.assets.wait();
     if (this.disposed) throw new Error("視野準備已取消。");
-    if (!this.breech || !this.repair)
+    if (!this.breech || !this.repair || !this.hands.ready)
       throw new Error("無法載入車內模型，請重試準備。");
     this.render(state);
     await this.renderer.compileAsync(this.scene, this.camera);

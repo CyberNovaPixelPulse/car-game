@@ -12,6 +12,7 @@ const LEFT_REST = new THREE.Vector3(0.92, 0.99, 1.38);
 export class LoaderRepair {
   private readonly wrist = new THREE.Vector3();
   private readonly toolWrist = new THREE.Vector3();
+  private readonly toolFingers = new THREE.Vector3();
   private observedAttempt?: number;
   private resultAt?: number;
   private readonly tangent = new THREE.Vector3();
@@ -112,11 +113,13 @@ export class LoaderRepair {
     if (!working) this.wrist.lerp(LEFT_REST, withdraw);
     this.palm.negate();
     this.fingers.set(0, 1, 0);
-    this.hands.left.place(this.wrist, this.fingers, this.palm);
+    this.hands.left.place(this.wrist, this.fingers, this.palm, 0.08);
 
     this.wrenchGrip(repair.activeSeconds);
+    let pinch = 0;
     if (onRing) {
       this.toolWrist.copy(this.wrist);
+      this.toolFingers.copy(this.fingers);
       const confirmed =
         c.confirmedAt !== undefined ||
         c.result === "success" ||
@@ -133,11 +136,19 @@ export class LoaderRepair {
       this.ring.localToWorld(this.wrist);
       this.fingers.set(-0.24, 1, 0).transformDirection(this.ring.matrixWorld);
       const reach = smooth(c.elapsed + (reacting ? resultAge * 2 : 0), 0, 0.2);
+      pinch = reach * (1 - withdraw);
+      this.fingers.lerp(this.toolFingers, 1 - pinch).normalize();
       this.wrist.lerp(this.toolWrist, 1 - reach).lerp(RIGHT_REST, withdraw);
       if (reacting && working)
         this.wrist.lerp(this.toolWrist, smooth(resultAge, 0.25, 0.43));
     }
-    this.hands.right.place(this.wrist, this.fingers, this.palm);
+    this.hands.right.place(
+      this.wrist,
+      this.fingers,
+      this.palm,
+      (1 - pinch) * (working ? 0.96 : 0.12),
+      pinch,
+    );
   }
 
   private wrenchGrip(seconds: number) {
