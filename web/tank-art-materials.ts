@@ -133,7 +133,14 @@ export function disposeArt(
       if (value instanceof THREE.Texture) textures.add(value);
     material.dispose();
   }
-  for (const texture of textures) texture.dispose();
+  const bitmaps = new Set<ImageBitmap>();
+  for (const texture of textures) {
+    const source = texture.source.data;
+    if (typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap)
+      bitmaps.add(source);
+    texture.dispose();
+  }
+  for (const bitmap of bitmaps) bitmap.close();
   for (const geometry of geometries) geometry.dispose();
 }
 
