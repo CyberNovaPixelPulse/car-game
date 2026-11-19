@@ -13,6 +13,11 @@ import { LoaderRounds } from "./tank-loader-rounds";
 import { loaderCanWork } from "./tank-weapons";
 import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
 
+const WORK_FORWARD = new THREE.Vector3(
+  INTERIOR_VIEW.targetX - INTERIOR_VIEW.eyeX,
+  0,
+  INTERIOR_VIEW.targetZ - INTERIOR_VIEW.eyeZ,
+).normalize();
 const CABIN_UP = new THREE.Vector3(0, 1, 0);
 
 /** Enclosed loader workspace. Deliberately owns no battlefield geometry or rules. */
@@ -22,6 +27,7 @@ export class TankInteriorScene {
   private disposed = false;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(58, 1, 0.05, 16);
+  private sightLine = new THREE.Vector3();
   private framing = interiorFraming(16 / 9);
   private observer?: ResizeObserver;
   private breech?: { recoil: THREE.Object3D; slide: THREE.Object3D };
@@ -420,7 +426,7 @@ export class TankInteriorScene {
         w.chamber === "ejecting" ? 0.22 * (1 - eject) : 0;
       this.breech.slide.position.y = w.chamber === "loaded" ? 0 : -0.53;
     }
-    this.rounds.present(w, this.hands, loading, jamTravel, !this.reducedMotion);
+    this.rounds.present(w, this.hands, loading, jamTravel, this.reducedMotion);
     this.repair?.present(state, resultAge);
     this.case.visible =
       w.chamber === "ejecting" ||
@@ -444,8 +450,38 @@ export class TankInteriorScene {
       w.crouching ? 1.12 : INTERIOR_VIEW.standingTargetY,
       INTERIOR_VIEW.targetZ,
     );
-    this.camera.position.add(this.hands.lean);
-    this.camera.rotation.z = tilt;
+    const camera = this.camera;
+    let lens = 58;
+    if (this.rounds.activePose && !this.reducedMotion) {
+      // The head follows the shared torso. Keep the turret-relative horizontal
+      // bearing so the player's look keys and directional alerts stay aligned.
+      camera.position.copy(this.rounds.body.eye);
+      const sight = this.sightLine.subVectors(
+        this.rounds.focus,
+        camera.position,
+      );
+      const working =
+        THREE.MathUtils.smoothstep(w.loadProgress, 0, 0.17) *
+        (1 - THREE.MathUtils.smoothstep(w.loadProgress, 0.88, 1));
+      const targetPitch = THREE.MathUtils.clamp(
+        Math.atan2(sight.y, Math.max(0.25, sight.dot(WORK_FORWARD))),
+        -1.0,
+        -0.08,
+      );
+      const pitch = THREE.MathUtils.lerp(-0.272, targetPitch, working);
+      sight.copy(WORK_FORWARD);
+      sight.y = Math.tan(pitch);
+      camera.lookAt(sight.add(camera.position));
+      lens += 20 * working;
+      camera.rotation.z *= working;
+    } else {
+      camera.rotation.z = tilt;
+    }
+    if (camera.fov !== lens) {
+      camera.fov = lens;
+      camera.updateProjectionMatrix();
+    }
+
     const workYaw =
       w.mode === "repair" ? this.framing.repairYaw : this.framing.loadingYaw;
     this.camera.rotateOnWorldAxis(CABIN_UP, workYaw + lookYaw);

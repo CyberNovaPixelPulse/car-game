@@ -16,7 +16,10 @@ export interface LoaderHandTarget {
 }
 
 const { upper, fore } = LOADER_ARM_LENGTHS;
-const reach = upper + fore - 0.001;
+// Keep a small bend even at the longest reach; the torso makes up the rest.
+const reach = Math.sqrt(
+  upper ** 2 + fore ** 2 + 2 * upper * fore * Math.cos(Math.PI / 9),
+);
 const cuffOffset = 0.044 * 1.22;
 const halfShoulders = 0.21;
 const homeEye = new THREE.Vector3(INTERIOR_VIEW.eyeX, 1.9, INTERIOR_VIEW.eyeZ);
@@ -132,10 +135,23 @@ class BodyArm {
         .crossVectors(this.direction, this.cross)
         .multiplyScalar(this.side);
     }
+    // Swivel the elbow in its hinge plane to follow the hand. Fade the
+    // correction when the two directions oppose each other to avoid a flip.
+    this.bend.normalize();
+    this.cross.copy(this.fingers).negate();
+    this.cross.addScaledVector(this.direction, -this.cross.dot(this.direction));
+    if (this.cross.lengthSq() > 1e-6) {
+      this.cross.normalize();
+      this.back.crossVectors(this.bend, this.cross);
+      const alignment = this.bend.dot(this.cross);
+      const angle = Math.atan2(this.back.dot(this.direction), alignment);
+      const swivel = 0.72 * weight * smooth(alignment, -1, -0.7);
+      this.bend.applyAxisAngle(this.direction, clamp(angle, -1, 1) * swivel);
+    }
     this.elbow
       .copy(this.shoulder)
       .addScaledVector(this.direction, along)
-      .addScaledVector(this.bend.normalize(), height);
+      .addScaledVector(this.bend, height);
     this.cuff.copy(this.shoulder).addScaledVector(this.direction, d);
     this.wrist.copy(this.cuff).addScaledVector(this.fingers, cuffOffset);
   }
@@ -184,8 +200,10 @@ export class LoaderBody {
     this.origin.copy(homeChest);
     if (weight > 0) {
       this.behind.set(Math.sin(yaw), 0, Math.cos(yaw));
-      this.anchor.addScaledVector(this.behind, 0.43 + 0.2 * push);
-      this.anchor.y = clamp(this.anchor.y + 0.31, 1.36, 1.79);
+      this.anchor.addScaledVector(this.behind, 0.58 + 0.17 * push);
+      this.anchor.x += 0.16 * Math.cos(yaw);
+      this.anchor.z -= 0.16 * Math.sin(yaw);
+      this.anchor.y = clamp(this.anchor.y + 0.36, 1.36, 1.79) - 0.33 * push;
       this.origin.lerp(this.anchor, weight);
     }
     this.left.prepare(left, wl, this.rotation);

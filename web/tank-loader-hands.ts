@@ -5,13 +5,25 @@ import { INTERIOR_VIEW } from "./tank-battle-view";
 // Pose in the loader's neutral standing frame. Looking around the station must
 // never drag the arms or the object the player is touching along with the head.
 const eye = new THREE.Vector3(INTERIOR_VIEW.eyeX, 1.9, INTERIOR_VIEW.eyeZ);
-const bodyRight = new THREE.Vector3(2.25, 0, -1.4).normalize();
 const restAxis = new THREE.Vector3(0, 1, 0);
+const hingeAxis = new THREE.Vector3(1, 0, 0);
 const upperBind = 0.36;
 const foreBind = 0.32;
 const lengthRatio = upperBind / foreBind;
 const garmentWidth = 1.22;
 const clamp = THREE.MathUtils.clamp;
+
+type BodyArm = {
+  shoulder: THREE.Vector3;
+  elbow: THREE.Vector3;
+  cuff: THREE.Vector3;
+  wrist: THREE.Vector3;
+  fingers: THREE.Vector3;
+  palm: THREE.Vector3;
+};
+const unit = new THREE.Vector3(1, 1, 1);
+const upperOffset = new THREE.Vector3(0, upperBind, 0);
+const foreOffset = new THREE.Vector3(0, foreBind, 0);
 
 type Morph = { weights: number[]; index: number };
 
@@ -104,7 +116,65 @@ class GlovedArm {
     palm: THREE.Vector3,
     grip: number,
     pinch = 0,
-    bearingWeight = 0,
+  ) {
+    this.poseGlove(wrist, fingers, palm, grip, pinch);
+    this.sleeve.scale.set(this.side, 1, 1);
+    this.locateJoints();
+    this.poseSleeve();
+  }
+
+  poseLoading(arm: BodyArm, grip: number, scale: number) {
+    this.poseGlove(arm.wrist, arm.fingers, arm.palm, grip, 0);
+    this.shoulder.copy(arm.shoulder);
+    this.elbow.copy(arm.elbow);
+    this.cuff.copy(arm.cuff);
+    if (!this.upper || !this.fore || !this.wristBone) return;
+    this.sleeve.position.copy(arm.shoulder);
+    this.sleeve.scale.set(this.side * scale, scale, scale);
+    this.upperAxis.subVectors(arm.elbow, arm.shoulder);
+    this.foreAxis.subVectors(arm.cuff, arm.elbow);
+    this.upperAxis.x *= this.side;
+    this.foreAxis.x *= this.side;
+    this.upperAxis.normalize();
+    this.foreAxis.normalize();
+    this.hinge.crossVectors(this.upperAxis, this.foreAxis).normalize();
+    this.inner.crossVectors(this.hinge, this.upperAxis);
+    this.bend.setFromRotationMatrix(
+      this.basis.makeBasis(this.hinge, this.upperAxis, this.inner),
+    );
+    this.upper.matrix.compose(this.origin, this.bend, unit);
+    const flex = this.upperAxis.angleTo(this.foreAxis);
+    // The cuff and elbow are the original bind offsets. Flexion is a rotation
+    // about the elbow's hinge; no bone in the loading chain ever scales.
+    this.cuffTurn.setFromAxisAngle(hingeAxis, flex);
+    this.fore.matrix.compose(upperOffset, this.cuffTurn, unit);
+    this.bend.multiply(this.cuffTurn);
+    this.roll.copy(this.back);
+    this.roll.x *= this.side;
+    const twist = 0.9 * this.roll.dot(this.hinge);
+    this.roll.copy(this.along);
+    this.roll.x *= this.side;
+    this.inner.crossVectors(this.foreAxis, this.roll);
+    const swing = 0.44 * this.inner.length();
+    this.roll.copy(this.inner).normalize().applyQuaternion(this.bend.invert());
+    this.cuffTurn.setFromAxisAngle(this.roll, swing);
+    this.bend.setFromAxisAngle(restAxis, twist);
+    this.cuffTurn.multiply(this.bend);
+    this.wristBone.matrix.compose(foreOffset, this.cuffTurn, unit);
+    const compression = THREE.MathUtils.smoothstep(
+      flex,
+      Math.PI / 15,
+      (11 * Math.PI) / 18,
+    );
+    for (const shape of this.folds) shape.weights[shape.index] = compression;
+  }
+
+  private poseGlove(
+    wrist: THREE.Vector3,
+    fingers: THREE.Vector3,
+    palm: THREE.Vector3,
+    grip: number,
+    pinch: number,
   ) {
     this.back.copy(palm).normalize().negate();
     this.along
@@ -119,11 +189,9 @@ class GlovedArm {
     for (const shape of this.grips) shape.weights[shape.index] = grip;
     for (const shape of this.pinches) shape.weights[shape.index] = pinch;
     this.cuff.copy(wrist).addScaledVector(this.along, -0.044 * garmentWidth);
-    this.locateJoints(bearingWeight);
-    this.poseSleeve();
   }
 
-  private locateJoints(bearingWeight: number) {
+  private locateJoints() {
     const standing = this.standing;
     const eye = standing.position;
     const extended = THREE.MathUtils.smoothstep(
@@ -210,14 +278,6 @@ class GlovedArm {
       )
       .normalize();
     this.elbow.copy(this.cuff).addScaledVector(fore, -posedLength);
-    // The rear elbow opens to the side under the weight, then comes back
-    // under the wrist as the palm pushes the base forward.
-    this.elbow.addScaledVector(
-      bodyRight,
-      this.side * 0.15 * (1 - extended) * bearingWeight,
-    );
-    const foreSpan = fore.subVectors(this.cuff, this.elbow).length();
-    fore.normalize();
     const elbowOffset = this.reach.subVectors(this.elbow, eye);
     const shoulderProjection = elbowOffset.dot(this.shoulderRay);
     const shoulderMissSq = Math.max(
@@ -225,7 +285,7 @@ class GlovedArm {
       elbowOffset.lengthSq() - shoulderProjection ** 2,
     );
     const upperLength = Math.max(
-      lengthRatio * foreSpan,
+      lengthRatio * posedLength,
       Math.sqrt(shoulderMissSq) * 1.025,
     );
     const shoulderDepth =
@@ -337,7 +397,6 @@ class GlovedArm {
 /** Both jobs use the same pair. Meshes share art, each arm owns its bone poses. */
 export class LoaderHands {
   readonly group = new THREE.Group();
-  readonly lean = new THREE.Vector3();
   private standing = new THREE.PerspectiveCamera(58, 16 / 9, 0.05, 16);
   readonly left = new GlovedArm(-1, this.group, this.standing);
   readonly right = new GlovedArm(1, this.group, this.standing);
@@ -357,17 +416,6 @@ export class LoaderHands {
     // Widening the lens on a narrow display exposes more of the lap. Keep
     // both sleeve attachments below that lower edge as the player reaches.
     this.left.shoulderDrop = this.right.shoulderDrop = 1.46 / zoom;
-  }
-
-  leanToward(target?: THREE.Vector3, weight = 0) {
-    this.lean.set(0, 0, 0);
-    if (target && weight > 0) {
-      this.lean.subVectors(target, eye);
-      const distance = this.lean.length();
-      this.lean.setLength(weight * clamp((distance - 1.24) * 0.3, 0, 0.44));
-    }
-    this.standing.position.copy(eye).add(this.lean);
-    this.standing.updateMatrixWorld();
   }
 
   dress(asset: THREE.Group) {
