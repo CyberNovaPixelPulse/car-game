@@ -252,10 +252,23 @@ export class TankScene {
     this.lastDraw = now;
     this.tank.visible = this.view === "gunner";
     this.player.animate(t.x, t.z, t.yaw);
-    this.tank.position.set(t.x, 0, t.z);
-    this.tank.rotation.y = -t.yaw;
-    this.turret.rotation.y = -state.turret.yaw;
-    this.elevation.rotation.x = state.turret.pitch;
+    const fired =
+      shotAge < CANNON_BLAST_SECONDS ? state.weapon.lastShotPose : undefined;
+    // Sample the model's own pivots at fire time, then draw it at the current pose.
+    this.posePlayer(
+      fired?.x ?? t.x,
+      fired?.z ?? t.z,
+      fired?.hullYaw ?? t.yaw,
+      fired ? fired.yaw - fired.hullYaw : state.turret.yaw,
+      fired?.pitch ?? state.turret.pitch,
+    );
+    this.cannonBlast.present(
+      this.player.muzzle,
+      state.weapon.shotsFired,
+      shotAge,
+    );
+    if (fired)
+      this.posePlayer(t.x, t.z, t.yaw, state.turret.yaw, state.turret.pitch);
     const view = battleView(
       t,
       this.view === "machine-gun" ? state.weapon.mg : state.turret,
@@ -345,11 +358,6 @@ export class TankScene {
       }
       mesh.position.set(p.x, p.y, p.z);
     }
-    this.cannonBlast.present(
-      this.player.muzzle,
-      state.weapon.shotsFired,
-      shotAge,
-    );
     if (this.view === "machine-gun")
       this.mgFlash.present(
         this.mgMuzzle,
@@ -360,6 +368,18 @@ export class TankScene {
     this.smoke.render(state.weapon.smoke, state.time);
     this.renderEffects(state);
     this.renderer.render(this.scene, this.camera);
+  }
+  private posePlayer(
+    x: number,
+    z: number,
+    hullYaw: number,
+    turretYaw: number,
+    pitch: number,
+  ) {
+    this.tank.position.set(x, 0, z);
+    this.tank.rotation.y = -hullYaw;
+    this.turret.rotation.y = -turretYaw;
+    this.elevation.rotation.x = pitch;
   }
   private renderEffects(state: TankState) {
     for (const [id, line] of this.mgTracers) {

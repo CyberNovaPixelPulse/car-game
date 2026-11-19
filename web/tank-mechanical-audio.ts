@@ -11,23 +11,15 @@ export class TankMechanicalAudio {
   private calibrationId?: number;
   private calibrationResult = "idle";
   reset() {
-    this.chamber = "empty";
-    this.jam = false;
-    this.progressStep = 0;
-    this.shots = 0;
-    this.cooling = false;
-    this.mode = "loading";
+    // The first valid snapshot seeds every edge before playback resumes.
     this.calibrationId = undefined;
-    this.calibrationResult = "idle";
   }
   present(state: TankState, audio: AudioContext | undefined, enabled: boolean) {
     const w = state.weapon;
     const calibration = state.repair.calibration;
-    if (
-      this.calibrationId !== undefined &&
-      enabled &&
-      audio?.state === "running"
-    ) {
+    const audible =
+      this.calibrationId !== undefined && enabled && audio?.state === "running";
+    if (audible) {
       if (
         calibration.id !== this.calibrationId &&
         calibration.result === "active"
@@ -45,7 +37,7 @@ export class TankMechanicalAudio {
     const step = Math.floor(w.loadProgress * 6);
     const cooling = state.time < w.mg.coolUntil;
     const play = (kind: "slide" | "latch" | "case" | "shot" | "jam") => {
-      if (enabled && audio?.state === "running") this.strike(audio, kind);
+      if (audible) this.strike(audio, kind);
     };
     if (w.chamber !== this.chamber)
       play(

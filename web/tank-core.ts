@@ -238,6 +238,7 @@ export class TankCore implements GameCore<TankState> {
         this.state.weapon,
         {
           ...this.state.tank,
+          hullYaw: this.state.tank.yaw,
           yaw: this.state.tank.yaw + this.state.turret.yaw,
           pitch: this.state.turret.pitch,
         },

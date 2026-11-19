@@ -5,7 +5,7 @@ import type { TankState } from "./tank-core";
 import type { CameraPreferences } from "./tank-motion-preferences";
 import { addNearbyBlasts } from "./tank-nearby-motion";
 import { addTankHit } from "./tank-hit-motion";
-import { FIRING_FEEDBACK } from "./tank-settings";
+import { lastCannonFiredAt } from "./tank-weapons";
 
 export type MotionStation = "driver" | "gunner" | TankState["weapon"]["mode"];
 
@@ -59,8 +59,8 @@ export type MotionSource = (
 
 const addCannon: MotionSource = (state, station, since, mix, time) => {
   // The latest accepted shot is sufficient: ejection alone outlasts the envelope.
-  const firedAt = state.weapon.flashUntil - FIRING_FEEDBACK.cannon;
-  if (!state.weapon.shotsFired || firedAt <= since + 1e-8) return;
+  const firedAt = lastCannonFiredAt(state.weapon);
+  if (firedAt <= since + 1e-8) return;
   const kick = cannonPulse(time - firedAt) * cannonGain[station];
   mix.impact.z += kick * 0.055;
   mix.impact.pitch += kick * 0.049;

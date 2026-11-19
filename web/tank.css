@@ -1474,7 +1474,7 @@ legend {
   display: none;
 }
 .repair-calibration svg {
-  width: min(15dvh, 136px, 100%);
+  width: min(23dvh, 200px, 100%);
   height: auto;
   display: block;
   margin: 0 auto;
@@ -1505,7 +1505,7 @@ legend {
   transform-origin: 100px 100px;
 }
 .repair-workspace .calibration-position {
-  font-size: 12px;
+  font-size: 13px;
 }
 .repair-calibration-result {
   font-variant-numeric: tabular-nums;
@@ -1518,9 +1518,14 @@ legend {
   --work-width: clamp(168px, 29vw, 320px);
   --hud-width: clamp(140px, 23vw, 284px);
 }
-.repair-workspace:has(.repair-calibration:not([hidden])) .repair-requirements,
-.repair-workspace:has(.repair-calibration:not([hidden])) .repair-controls {
-  display: none;
+@media (max-height: 800px) {
+  .repair-workspace:has(.repair-calibration:not([hidden]))
+    :is(.repair-requirements, h3) {
+    display: none;
+  }
+  .repair-calibration svg {
+    width: min(23dvh, 160px, 100%);
+  }
 }
 @media (max-height: 800px), (max-width: 800px) {
   .battle-station[data-role="loader"] .battle-work {
@@ -1530,7 +1535,7 @@ legend {
     gap: 2px 6px;
   }
   .repair-workspace .repair-readout {
-    font-size: 14px;
+    font-size: 16px;
     margin: 2px 0;
   }
   .repair-workspace h3,
@@ -1541,7 +1546,7 @@ legend {
   .repair-workspace p,
   .jam-game p {
     margin: 2px 0;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.4;
   }
 }

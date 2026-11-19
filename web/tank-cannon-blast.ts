@@ -1,19 +1,15 @@
 import * as THREE from "three";
 import { MuzzleFlash } from "./tank-muzzle-flash";
 import type { TankState } from "./tank-core";
-import { FIRING_FEEDBACK } from "./tank-settings";
+import { lastCannonFiredAt } from "./tank-weapons";
 
 const FLASH_SECONDS = 0.1;
 export const CANNON_BLAST_SECONDS = 0.5;
 
 /** Every station samples the same accepted shot on the battle clock. */
 export function cannonShotAge(state: TankState) {
-  if (!state.weapon.shotsFired || state.battle.won || state.battle.failed)
-    return Infinity;
-  return Math.max(
-    0,
-    state.time - (state.weapon.flashUntil - FIRING_FEEDBACK.cannon),
-  );
+  if (state.battle.won || state.battle.failed) return Infinity;
+  return Math.max(0, state.time - lastCannonFiredAt(state.weapon));
 }
 
 export function cabinFlashIntensity(age: number) {
