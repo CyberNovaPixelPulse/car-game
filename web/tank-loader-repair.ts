@@ -3,6 +3,11 @@ import { disposeArt } from "./tank-art-materials";
 import type { TankState } from "./tank-core";
 import { LoaderBody, type LoaderHandTarget } from "./tank-loader-body";
 import type { LoaderHands } from "./tank-loader-hands";
+import {
+  RATCHET_REGRIP_SECONDS,
+  ratchetAngle,
+  ratchetVelocity,
+} from "./tank-ratchet";
 import { REPAIR_RULES } from "./tank-settings";
 
 const smooth = THREE.MathUtils.smoothstep;
@@ -13,6 +18,13 @@ const faceAtBrace = new THREE.Vector3(0.027, 0.035, -0.029);
 const braceTurn = new THREE.Quaternion().setFromEuler(
   new THREE.Euler(-0.046, -0.14, 0.15, "ZXY"),
 );
+const loadedBrace = braceTurn
+  .clone()
+  .multiply(
+    new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(0.036, 0, 0.065, "ZXY"),
+    ),
+  );
 const handle = new THREE.Vector3(0.226, 0, 0.032);
 const gripCentre = new THREE.Vector3(0, 0.058, -0.032);
 // Roll the hand around the grip axis so the knuckles lead into each stroke.
@@ -68,15 +80,10 @@ class HandTarget implements LoaderHandTarget {
   }
 }
 
-function stroke(seconds: number) {
-  return (
-    -0.18 + 0.52 * Math.sin(seconds * 7.1) + 0.12 * Math.sin(seconds * 12.3)
-  );
-}
-
 /** Contact points are children of the exported panel, shared with the artist's model. */
 export class LoaderRepair {
   readonly body = new LoaderBody();
+  private readonly braceRotation = new THREE.Quaternion();
   private readonly left = new HandTarget();
   private readonly right = new HandTarget();
   private readonly pinch = new HandTarget();
@@ -85,6 +92,7 @@ export class LoaderRepair {
   private resultAt?: number;
   private parkedAttempt?: number;
   private parkedAngle = 0;
+  private parkedPressure = 0;
   private workAtFailure?: number;
   private ringStart = 0;
   private readonly rimPoint = new THREE.Vector3();
@@ -151,7 +159,11 @@ export class LoaderRepair {
           ? repair.failureUntil - REPAIR_RULES.failureWait
           : time);
       const age = time - this.resultAt;
-      if (age >= 0 && age < (c.result === "failed" ? 0.58 : 0.43)) return age;
+      if (
+        age >= 0 &&
+        age < (c.result === "failed" ? 0.58 : RATCHET_REGRIP_SECONDS.success)
+      )
+        return age;
       this.observedAttempt = undefined;
     }
     return Infinity;
@@ -177,7 +189,7 @@ export class LoaderRepair {
         ? repair.activeSeconds - this.workAtFailure
         : Infinity;
     const waitingForGrip =
-      workSinceFailure < 0.4 &&
+      workSinceFailure < RATCHET_REGRIP_SECONDS.failed &&
       (repair.status === "waiting" || repair.status === "ready");
     this.tool.visible =
       this.panel.visible && (working || onRing || waitingForGrip);
@@ -192,11 +204,14 @@ export class LoaderRepair {
 
     // Only credited work moves the ratchet. It stays seated at the last
     // stroke while the fingers operate the adjacent ring.
-    const movingAngle = stroke(repair.activeSeconds);
+    const movingAngle = ratchetAngle(repair.activeSeconds);
+    const pressure = smooth(-ratchetVelocity(repair.activeSeconds), 0, 4);
     if (onRing && this.parkedAttempt !== c.id) {
       this.parkedAttempt = c.id;
       if (calibrating) this.workAtFailure = undefined;
-      this.parkedAngle = stroke(Math.max(0, repair.activeSeconds - c.elapsed));
+      const parkedAt = Math.max(0, repair.activeSeconds - c.elapsed);
+      this.parkedAngle = ratchetAngle(parkedAt);
+      this.parkedPressure = smooth(-ratchetVelocity(parkedAt), 0, 4);
       this.ringStart = this.ring.rotation.z;
       // Regrasp at the upper right, clear of the parked handle. Whole knurl
       // spacings retain the same two contact surfaces on a partly turned dial.
@@ -208,9 +223,9 @@ export class LoaderRepair {
     }
     const ratcheting = onRing
       ? returnToTool
-        ? smooth(resultAge, 0.34, 0.43)
+        ? smooth(resultAge, 0.34, RATCHET_REGRIP_SECONDS.success)
         : 0
-      : smooth(workSinceFailure, 0.24, 0.4);
+      : smooth(workSinceFailure, 0.24, RATCHET_REGRIP_SECONDS.failed);
     this.tool.rotation.z = THREE.MathUtils.lerp(
       this.parkedAngle,
       movingAngle,
@@ -218,7 +233,13 @@ export class LoaderRepair {
     );
 
     const scale = this.hands.right.glove.scale.x;
-    this.left.match(this.brace, faceAtBrace, heel, braceTurn, scale);
+    // Roll about the planted heel. The knuckles rise just enough for the
+    // flexing fingertips to keep their pads against the face of the panel.
+    const handLoad =
+      pressure * ratcheting +
+      (onRing ? this.parkedPressure * (1 - smooth(c.elapsed, 0, 0.16)) : 0);
+    this.braceRotation.slerpQuaternions(braceTurn, loadedBrace, handLoad);
+    this.left.match(this.brace, faceAtBrace, heel, this.braceRotation, scale);
     this.right.match(this.tool, handle, gripCentre, handleTurn, scale);
     // After a failed adjustment both arms start below the bench. Replant the
     // brace and take up the handle before resuming the ratchet stroke.
@@ -269,7 +290,7 @@ export class LoaderRepair {
     this.left.contact = this.right.contact = (1 - released) * reaching;
     this.body.solveRepair(this.left, this.right);
     this.hands.group.visible = true;
-    this.hands.left.poseWork(this.body.left, 0);
+    this.hands.left.poseWork(this.body.left, 0.18 * handLoad);
     this.hands.right.poseWork(
       this.body.right,
       grip * (1 - released),
