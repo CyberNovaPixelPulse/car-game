@@ -469,7 +469,7 @@ core.present = (state) => {
     session.room?.phase === "battle"
   )
     runtime.finish();
-  presentBattleAudio(state, station.role);
+  if (!runtime.awaitingFirstSnapshot) presentBattleAudio(state, station.role);
   views.render(
     state,
     runtime.paused || runtime.awaitingFirstSnapshot,

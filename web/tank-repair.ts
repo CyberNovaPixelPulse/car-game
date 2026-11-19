@@ -22,6 +22,8 @@ export interface RepairState {
   calibration: {
     id: number;
     result: "idle" | "active" | "success" | "perfect" | "failed";
+    /** Time of an accepted Space on this attempt. Absent on interruptions and older snapshots. */
+    confirmedAt?: number;
     elapsed: number;
     target: number;
     nextAt: number;
@@ -79,6 +81,7 @@ export function stopRepairCalibration(state: TankState) {
     (repair.status !== "repairing" && repair.status !== "full")
   )
     return;
+  c.confirmedAt = state.time;
   const needle = c.elapsed / REPAIR_RULES.calibrationDuration;
   const perfectStart =
     c.target + (REPAIR_RULES.calibrationWidth - REPAIR_RULES.perfectWidth) / 2;
@@ -171,6 +174,7 @@ export function stepRepair(state: TankState, held: boolean, dt: number) {
     }
   } else if (repair.activeSeconds >= c.nextAt) {
     c.id++;
+    delete c.confirmedAt;
     c.elapsed = 0;
     c.target = random(repair) * (1 - REPAIR_RULES.calibrationWidth);
     c.result = "active";
@@ -182,6 +186,7 @@ export function stepRepair(state: TankState, held: boolean, dt: number) {
 
 export function validRepair(
   repair: RepairState | undefined,
+  time: number,
 ): repair is RepairState {
   return (
     !!repair &&
@@ -193,6 +198,13 @@ export function validRepair(
     repair.activeSeconds >= 0 &&
     repair.failureUntil >= 0 &&
     !!repair.calibration &&
+    (repair.calibration.confirmedAt === undefined ||
+      (Number.isFinite(repair.calibration.confirmedAt) &&
+        repair.calibration.confirmedAt >= 0 &&
+        repair.calibration.confirmedAt <= time &&
+        ["success", "perfect", "failed"].includes(
+          repair.calibration.result,
+        ))) &&
     typeof repair.calibration.suspended === "boolean" &&
     [
       repair.calibration.id,

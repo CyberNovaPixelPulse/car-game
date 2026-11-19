@@ -365,6 +365,8 @@ export class TankInteriorScene {
     const stunned = state.time < w.stunnedUntil;
     const loading = w.mode === "loading" && loaderCanWork(w, state.time);
     const jamTravel = this.rounds.jamTravel(w, state.time, loading);
+    const resultAge = this.repair?.resultAge(state) ?? Infinity;
+    const calibration = state.repair.calibration;
     const modelStamp = [
       jamTravel,
       w.chamber,
@@ -374,6 +376,11 @@ export class TankInteriorScene {
       w.crouching,
       stunned,
       w.mode === "repair" && state.repair.status,
+      w.mode === "repair" && calibration.result,
+      w.mode === "repair" &&
+        calibration.result === "active" &&
+        Math.floor(calibration.elapsed * 30),
+      Math.floor(resultAge * 30),
       w.mode === "repair" && Math.floor(state.repair.activeSeconds * 30),
       motion ? Math.floor(state.time * 30) : "still",
     ].join(":");
@@ -400,7 +407,7 @@ export class TankInteriorScene {
       this.breech.slide.position.y = w.chamber === "loaded" ? 0 : -0.53;
     }
     this.rounds.present(w, this.hands, loading, jamTravel);
-    this.repair?.present(state);
+    this.repair?.present(state, resultAge);
     this.case.visible =
       w.chamber === "ejecting" ||
       (w.shotsFired > 0 && recovery >= 0 && recovery < 0.25);
