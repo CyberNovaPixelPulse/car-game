@@ -261,7 +261,6 @@ class Particles {
 }
 
 export interface EffectAnchors {
-  playerMuzzle: THREE.Object3D;
   enemyMuzzle(id: number): THREE.Object3D | undefined;
   /** The loader's own M2, present only in the machine-gun view. */
   mg?: { muzzle: THREE.Object3D; eject: THREE.Object3D };
@@ -450,10 +449,7 @@ export class BattleEffects {
       for (const i of w.impacts) this.impacts.add(i.id);
     }
 
-    if (w.shotsFired > this.shots) {
-      this.firedAt = now;
-      this.muzzleBlast(anchors.playerMuzzle, 1);
-    }
+    if (w.shotsFired > this.shots) this.firedAt = now;
     this.shots = w.shotsFired;
 
     // The M2's own round: muzzle smoke and spent brass falling past the eye.

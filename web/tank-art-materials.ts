@@ -112,6 +112,7 @@ export function disposeArt(
   root: THREE.Object3D | THREE.Object3D[],
   extra: { materials?: THREE.Material[]; textures?: THREE.Texture[] } = {},
 ) {
+  const skeletons = new Set<THREE.Skeleton>();
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set(extra.materials);
   const textures = new Set(extra.textures);
@@ -121,6 +122,7 @@ export function disposeArt(
         (object.shadow as THREE.LightShadow | undefined)?.dispose();
       if (!(object instanceof THREE.Mesh)) return;
       if (object instanceof THREE.InstancedMesh) object.dispose();
+      if (object instanceof THREE.SkinnedMesh) skeletons.add(object.skeleton);
       geometries.add(object.geometry);
       for (const material of Array.isArray(object.material)
         ? object.material
@@ -133,7 +135,15 @@ export function disposeArt(
       if (value instanceof THREE.Texture) textures.add(value);
     material.dispose();
   }
-  for (const texture of textures) texture.dispose();
+  const bitmaps = new Set<ImageBitmap>();
+  for (const texture of textures) {
+    const source = texture.source.data;
+    if (typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap)
+      bitmaps.add(source);
+    texture.dispose();
+  }
+  for (const bitmap of bitmaps) bitmap.close();
+  for (const skeleton of skeletons) skeleton.dispose();
   for (const geometry of geometries) geometry.dispose();
 }
 

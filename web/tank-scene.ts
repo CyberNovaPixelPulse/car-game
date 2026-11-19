@@ -14,6 +14,11 @@ import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import { disposeArt } from "./tank-art-materials";
 import { SmokeScene } from "./tank-smoke-scene";
 import { MuzzleFlash } from "./tank-muzzle-flash";
+import {
+  PlayerCannonBlast,
+  CANNON_BLAST_SECONDS,
+  cannonShotAge,
+} from "./tank-cannon-blast";
 import { BattleEffects } from "./tank-battle-effects";
 import { FIRING_FEEDBACK } from "./tank-settings";
 import { battleProjection, battleView } from "./tank-battle-view";
@@ -33,7 +38,7 @@ export class TankScene {
   private lastDraw = -Infinity;
   private scene = new THREE.Scene();
   private smoke = new SmokeScene(this.scene);
-  private cannonFlash!: MuzzleFlash;
+  private cannonBlast!: PlayerCannonBlast;
   private effects!: BattleEffects;
   private mgFlash!: MuzzleFlash;
   private mgMuzzle = new THREE.Group();
@@ -49,6 +54,7 @@ export class TankScene {
   private sight?: HTMLElement;
   private assets = new ArtPreparation();
   private environment = new AbortController();
+  private driverArmour?: Promise<boolean>;
   private player!: VehicleModel;
   private width = 0;
   private height = 0;
@@ -76,7 +82,7 @@ export class TankScene {
     }
   }
   private build() {
-    this.cannonFlash = new MuzzleFlash(this.scene, 0.6);
+    this.cannonBlast = new PlayerCannonBlast(this.scene, this.assets.manager);
     this.effects = new BattleEffects(this.scene, this.quality);
     this.mgFlash = new MuzzleFlash(this.scene, 0.22);
     const software = noteRenderer(this.renderer);
@@ -127,7 +133,13 @@ export class TankScene {
     preloadVehicles(this.assets.manager);
     this.scene.add(this.tank);
     this.scene.add(this.mount);
-    if (this.view === "driver") buildDriverArmour(this.mount);
+    if (this.view === "driver") {
+      this.driverArmour = buildDriverArmour(
+        this.mount,
+        this.assets.manager,
+        () => this.disposed,
+      ).catch(() => false);
+    }
     if (this.view === "machine-gun") {
       const steel = new THREE.MeshStandardMaterial({
         color: 0x434a43,
@@ -189,7 +201,10 @@ export class TankScene {
   }
   async prepare(state: TankState) {
     await this.assets.wait();
+    const driverArmourReady = await this.driverArmour;
     if (this.disposed) throw new Error("視野準備已取消。");
+    if (driverArmourReady === false)
+      throw new Error("無法載入駕駛觀察窗，請重試準備。");
     this.render(state); // Instantiate authority-provided vehicle art, without advancing any rules.
     await this.assets.wait();
     if (this.disposed) throw new Error("視野準備已取消。");
@@ -217,10 +232,11 @@ export class TankScene {
         e.hp > 0,
       ]),
     ].join(":");
+    const shotAge = cannonShotAge(state);
     const animated =
       state.weapon.smoke.some((c) => state.time < c.until) ||
       state.weapon.impacts.length > 0 ||
-      state.time < state.weapon.flashUntil ||
+      shotAge < CANNON_BLAST_SECONDS ||
       state.time < state.weapon.mg.flashUntil ||
       state.weapon.targets.some((e) => state.time < e.flashUntil) ||
       state.weapon.targets.some((e) => e.hp <= 0) ||
@@ -253,12 +269,23 @@ export class TankScene {
     this.lastDraw = now;
     this.tank.visible = this.view === "gunner";
     this.player.animate(t.x, t.z, t.yaw);
-    this.tank.position.set(t.x, 0, t.z);
-    this.tank.rotation.y = -t.yaw;
-    this.turret.rotation.y = -state.turret.yaw;
-    this.elevation.rotation.x = state.turret.pitch;
-    this.effects.recoilBarrel(this.elevation);
-    this.effects.rockHull(this.tank, state.turret.yaw);
+    const fired =
+      shotAge < CANNON_BLAST_SECONDS ? state.weapon.lastShotPose : undefined;
+    // Sample the model's own pivots at fire time, then draw it at the current pose.
+    this.posePlayer(
+      fired?.x ?? t.x,
+      fired?.z ?? t.z,
+      fired?.hullYaw ?? t.yaw,
+      fired ? fired.yaw - fired.hullYaw : state.turret.yaw,
+      fired?.pitch ?? state.turret.pitch,
+    );
+    this.cannonBlast.present(
+      this.player.muzzle,
+      state.weapon.shotsFired,
+      shotAge,
+    );
+    if (fired)
+      this.posePlayer(t.x, t.z, t.yaw, state.turret.yaw, state.turret.pitch);
     const view = battleView(
       t,
       this.view === "machine-gun" ? state.weapon.mg : state.turret,
@@ -349,12 +376,6 @@ export class TankScene {
       }
       mesh.position.set(p.x, p.y, p.z);
     }
-    this.cannonFlash.present(
-      this.player.muzzle,
-      state.weapon.flashUntil,
-      state.time,
-      FIRING_FEEDBACK.cannon,
-    );
     if (this.mgMount) {
       const mg = state.weapon.mg;
       if (this.mgKick.shots >= 0 && mg.shots > this.mgKick.shots)
@@ -380,17 +401,30 @@ export class TankScene {
     this.smoke.render(state.weapon.smoke, state.time);
     this.renderEffects(state);
     this.effects.update(state, {
-      playerMuzzle: this.player.muzzle,
       enemyMuzzle: (id) => this.enemyModels.get(id)?.muzzle,
       mg: this.mgMount
         ? { muzzle: this.mgMuzzle, eject: this.mgEject }
         : undefined,
     });
+    this.effects.recoilBarrel(this.elevation);
+    this.effects.rockHull(this.tank, state.turret.yaw);
     this.effects.setLens(
       this.camera,
       this.renderer.getDrawingBufferSize(this.lensSize).y,
     );
     this.renderer.render(this.scene, this.camera);
+  }
+  private posePlayer(
+    x: number,
+    z: number,
+    hullYaw: number,
+    turretYaw: number,
+    pitch: number,
+  ) {
+    this.tank.position.set(x, 0, z);
+    this.tank.rotation.y = -hullYaw;
+    this.turret.rotation.y = -turretYaw;
+    this.elevation.rotation.x = pitch;
   }
   private renderEffects(state: TankState) {
     for (const [id, line] of this.mgTracers) {
@@ -455,7 +489,7 @@ export class TankScene {
     this.assets.cancel();
     this.environment.abort();
     this.sky?.dispose();
-    this.cannonFlash?.dispose();
+    this.cannonBlast?.dispose();
     this.effects?.dispose();
     this.mgFlash?.dispose();
     for (const flash of this.enemyFlashes.values()) flash.dispose();

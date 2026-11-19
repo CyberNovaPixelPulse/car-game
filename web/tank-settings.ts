@@ -37,8 +37,6 @@ export const MG_AIMING = {
 } as const;
 export const JAM_RULES = {
   chance: 0.25,
-  /** Seconds of the loader's hands to clear a jammed round. */
-  clear: 1.6,
   progress: 0.4,
   width: 0.24,
   speed: 0.65,

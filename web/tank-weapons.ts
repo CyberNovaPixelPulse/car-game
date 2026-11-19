@@ -142,6 +142,7 @@ export interface WeaponState {
   loadProgress: number;
   ejectAt: number;
   shotsFired: number;
+  lastShotPose?: GunPose & { hullYaw: number };
   flashUntil: number;
   randomState: number;
   jamChecked: boolean;
@@ -281,12 +282,22 @@ export function createWeaponState(seed = 1): WeaponState {
     ],
   };
 }
-export function fireWeapon(w: WeaponState, pose: GunPose, now: number) {
+export function lastCannonFiredAt(w: WeaponState) {
+  return w.shotsFired ? w.flashUntil - FIRING_FEEDBACK.cannon : -Infinity;
+}
+
+export function fireWeapon(
+  w: WeaponState,
+  pose: GunPose & { hullYaw?: number },
+  now: number,
+) {
   if (w.chamber !== "loaded") return;
   const dx = Math.sin(pose.yaw) * Math.cos(pose.pitch);
   const dy = Math.sin(pose.pitch);
   const dz = -Math.cos(pose.yaw) * Math.cos(pose.pitch);
   w.shotsFired++;
+  const { x, z, yaw, pitch, hullYaw = yaw } = pose;
+  w.lastShotPose = { x, z, yaw, pitch, hullYaw };
   w.flashUntil = now + FIRING_FEEDBACK.cannon;
   const speed = BALLISTICS.speed[w.chamberShell!];
   w.projectiles.push({
@@ -311,11 +322,23 @@ function random(w: WeaponState) {
   w.randomState = (Math.imul(w.randomState, 1664525) + 1013904223) >>> 0;
   return w.randomState / 4294967296;
 }
-/**
- * Kept for the ordered action path: a jam now clears itself while the
- * loader works it (no needle mini-game), so a stop request does nothing.
- */
-export function stopJam(_w: WeaponState, _now: number) {}
+export function stopJam(w: WeaponState, now: number) {
+  const j = w.jam;
+  if (
+    w.mode !== "loading" ||
+    !loaderCanWork(w, now) ||
+    !j.active ||
+    j.result !== "trying"
+  )
+    return;
+  if (j.needle >= j.zone && j.needle <= j.zone + JAM_RULES.width) {
+    j.active = false;
+    j.result = "cleared";
+  } else {
+    j.result = "failed";
+    j.retryAt = now + JAM_RULES.retry;
+  }
+}
 export function loaderCanWork(w: WeaponState, now: number) {
   return !w.crouching && now >= w.stunnedUntil;
 }
@@ -355,12 +378,18 @@ export function stepWeapon(
     if (!w.crouching) w.stunnedUntil = w.ejectAt + LOADER_STUN_SECONDS;
   }
   const j = w.jam;
-  // A jammed round is worked free by hand: the needle is the clearing progress.
   if (j.active && w.mode === "loading" && loaderCanWork(w, now)) {
-    j.needle = Math.min(1, j.needle + dt / JAM_RULES.clear);
-    if (j.needle >= 1) {
-      j.active = false;
-      j.result = "cleared";
+    if (j.result === "failed" && now >= j.retryAt) j.result = "trying";
+    if (j.result === "trying") {
+      j.needle += j.direction * dt * JAM_RULES.speed;
+      if (j.needle > 1) {
+        j.needle = 2 - j.needle;
+        j.direction = -1;
+      }
+      if (j.needle < 0) {
+        j.needle = -j.needle;
+        j.direction = 1;
+      }
     }
   }
   if (
@@ -480,6 +509,15 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
     ["he", "ap", "smoke"].includes(w.selectedShell) &&
     (w.chamberShell === null ||
       ["he", "ap", "smoke"].includes(w.chamberShell)) &&
+    (w.lastShotPose === undefined ||
+      (!!w.lastShotPose &&
+        [
+          w.lastShotPose.x,
+          w.lastShotPose.z,
+          w.lastShotPose.yaw,
+          w.lastShotPose.hullYaw,
+          w.lastShotPose.pitch,
+        ].every(Number.isFinite))) &&
     typeof w.crouching === "boolean" &&
     ["empty", "loading", "loaded", "ejecting"].includes(w.chamber) &&
     [w.loadProgress, w.ejectAt, w.shotsFired, w.stunnedUntil].every(

@@ -1,263 +1,432 @@
 import * as THREE from "three";
+import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
+import { LOADER_ARM_SCALE } from "./tank-loader-body";
+import { INTERIOR_VIEW } from "./tank-battle-view";
 
-/**
- * The loader's own arms, seen from his eyes: he swings a round off the ready
- * rack, turns it nose-first behind the breech, shoves it in with both hands
- * and rams the last stretch home with his right fist. Purely presentation:
- * the pose is a function of the authoritative load progress.
- */
-const UPPER = 0.33;
-const FORE = 0.31;
-const UP = new THREE.Vector3(0, 1, 0);
+// Pose in the loader's neutral standing frame. Looking around the station must
+// never drag the arms or the object the player is touching along with the head.
+const eye = new THREE.Vector3(INTERIOR_VIEW.eyeX, 1.9, INTERIOR_VIEW.eyeZ);
+const restAxis = new THREE.Vector3(0, 1, 0);
+const hingeAxis = new THREE.Vector3(1, 0, 0);
+const upperBind = 0.36;
+const foreBind = 0.32;
+const lengthRatio = upperBind / foreBind;
+const garmentWidth = 1.22;
+const clamp = THREE.MathUtils.clamp;
 
-interface Arm {
+type BodyArm = {
   shoulder: THREE.Vector3;
-  pole: THREE.Vector3;
-  upper: THREE.Mesh;
-  fore: THREE.Mesh;
-  hand: THREE.Group;
-}
+  elbow: THREE.Vector3;
+  cuff: THREE.Vector3;
+  wrist: THREE.Vector3;
+  fingers: THREE.Vector3;
+  palm: THREE.Vector3;
+};
+const unit = new THREE.Vector3(1, 1, 1);
+const upperOffset = new THREE.Vector3(0, upperBind, 0);
+const foreOffset = new THREE.Vector3(0, foreBind, 0);
 
-export class LoaderHands {
-  readonly group = new THREE.Group();
-  private arms: Arm[];
-  private materials: THREE.Material[] = [];
-  private a = new THREE.Vector3();
-  private b = new THREE.Vector3();
-  private c = new THREE.Vector3();
-  private m = new THREE.Matrix4();
+type Morph = { weights: number[]; index: number };
 
-  constructor() {
-    const sleeve = this.mat(0x5a5a3c, 0.95);
-    const cuff = this.mat(0x4a4a30, 0.95);
-    const glove = this.mat(0x5b3d25, 0.75);
-    const seam = this.mat(0x3b2716, 0.8);
-    this.arms = [-1, 1].map((side) => {
-      const upper = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.058, 0.07, 1, 12),
-        sleeve,
-      );
-      const fore = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.045, 0.058, 1, 12),
-        sleeve,
-      );
-      const hand = this.buildHand(side, glove, seam, cuff);
-      for (const part of [upper, fore]) {
-        part.castShadow = true;
-        this.group.add(part);
-      }
-      this.group.add(hand);
-      return {
-        shoulder: new THREE.Vector3(),
-        pole: new THREE.Vector3(side * 0.8, -1, 0.3).normalize(),
-        upper,
-        fore,
-        hand,
-      };
-    });
-    this.group.visible = false;
-  }
+class GlovedArm {
+  readonly glove = new THREE.Group();
+  shoulderDrop = 1.46;
+  private sleeve = new THREE.Group();
+  private upper?: THREE.Bone;
+  private fore?: THREE.Bone;
+  private wristBone?: THREE.Bone;
+  private grips: Morph[] = [];
+  private pinches: Morph[] = [];
+  private folds: Morph[] = [];
+  private shoulder = new THREE.Vector3();
+  private elbow = new THREE.Vector3();
+  private cuff = new THREE.Vector3();
+  private along = new THREE.Vector3();
+  private back = new THREE.Vector3();
+  private across = new THREE.Vector3();
+  private shoulderRay = new THREE.Vector3();
+  private elbowRay = new THREE.Vector3();
+  private reach = new THREE.Vector3();
+  private upperAxis = new THREE.Vector3();
+  private foreAxis = new THREE.Vector3();
+  private hinge = new THREE.Vector3();
+  private inner = new THREE.Vector3();
+  private roll = new THREE.Vector3();
+  private scale = new THREE.Vector3();
+  private origin = new THREE.Vector3();
+  private bend = new THREE.Quaternion();
+  private neutral = new THREE.Vector3();
+  private neutralTurn = new THREE.Quaternion();
+  private handHeading = new THREE.Vector3();
+  private cuffTurn = new THREE.Quaternion();
+  private basis = new THREE.Matrix4();
+  private foreFrame = new THREE.Matrix4();
+  private wristFrame = new THREE.Matrix4();
 
-  private mat(color: number, roughness: number) {
-    const material = new THREE.MeshStandardMaterial({ color, roughness });
-    this.materials.push(material);
-    return material;
-  }
-
-  /** Gloved hand: palm faces local -Z, fingers point local +Y. */
-  private buildHand(
-    side: number,
-    glove: THREE.Material,
-    seam: THREE.Material,
-    cuff: THREE.Material,
+  constructor(
+    private side: number,
+    parent: THREE.Group,
+    private standing: THREE.PerspectiveCamera,
   ) {
-    const hand = new THREE.Group();
-    const palm = new THREE.Mesh(
-      new THREE.BoxGeometry(0.085, 0.095, 0.035),
-      glove,
-    );
-    palm.position.y = 0.02;
-    hand.add(palm);
-    const wrist = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.042, 0.046, 0.07, 10),
-      cuff,
-    );
-    wrist.position.y = -0.05;
-    hand.add(wrist);
-    // Four fingers in two joints, curled towards the palm as if gripping.
-    for (let i = 0; i < 4; i++) {
-      const x = (i - 1.5) * 0.021;
-      const length = [0.045, 0.05, 0.048, 0.038][i];
-      const base = new THREE.Group();
-      base.position.set(x, 0.068, 0);
-      base.rotation.x = -0.45;
-      const first = new THREE.Mesh(
-        new THREE.CapsuleGeometry(0.0105, length, 3, 8),
-        glove,
-      );
-      first.position.y = length / 2;
-      base.add(first);
-      const tip = new THREE.Group();
-      tip.position.y = length;
-      tip.rotation.x = -0.75;
-      const second = new THREE.Mesh(
-        new THREE.CapsuleGeometry(0.0095, length * 0.7, 3, 8),
-        glove,
-      );
-      second.position.y = length * 0.35;
-      tip.add(second);
-      base.add(tip);
-      hand.add(base);
-    }
-    const thumb = new THREE.Group();
-    thumb.position.set(-side * 0.045, 0.0, -0.01);
-    thumb.rotation.set(-0.5, 0, side * 0.9);
-    const thumbMesh = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.012, 0.05, 3, 8),
-      glove,
-    );
-    thumbMesh.position.y = 0.03;
-    thumb.add(thumbMesh);
-    hand.add(thumb);
-    // Stitched back seam reads as a work glove rather than a mitten.
-    const stitch = new THREE.Mesh(
-      new THREE.BoxGeometry(0.006, 0.08, 0.004),
-      seam,
-    );
-    stitch.position.set(0, 0.02, 0.019);
-    hand.add(stitch);
-    hand.traverse((o) => {
-      if (o instanceof THREE.Mesh) o.castShadow = true;
-    });
-    return hand;
+    this.glove.scale.setScalar(garmentWidth);
+    this.sleeve.scale.x = side;
+    this.neutral.set(0.5 * side, 0.6, -0.66).normalize();
+    this.neutralTurn.setFromUnitVectors(restAxis, this.neutral);
+    parent.add(this.sleeve, this.glove);
   }
 
-  /**
-   * Pose both arms. `round` is the shell group (body along local Z, nose at -Z);
-   * `progress` is the load progress 0..1; `shake` rattles a jammed round.
-   * Returns the shell's pose so the scene can place it.
-   */
-  pose(
-    camera: THREE.Camera,
-    round: THREE.Object3D,
-    progress: number,
-    shake: number,
-    crouching: boolean,
-  ) {
-    this.group.visible = true;
-    const p = progress;
-    const ease = (t: number) => t * t * (3 - 2 * t);
-    const clamp = THREE.MathUtils.clamp;
-    // Shell path: lift off the rack, turn nose-first, then shove it home.
-    const lift = ease(clamp(p / 0.3, 0, 1));
-    const align = ease(clamp((p - 0.3) / 0.15, 0, 1));
-    const push = ease(clamp((p - 0.45) / 0.45, 0, 1));
-    const ram = ease(clamp((p - 0.9) / 0.1, 0, 1));
-    const rack = this.a.set(1.5, 1.0, 0.25);
-    const top = this.b.set(1.05, 1.82, 0.95);
-    const cradle = this.c.set(0.28, 1.56, 0.98);
-    // Quadratic Bezier from the rack, over the top, to the cradle.
-    const u = lift;
-    round.position
-      .copy(rack)
-      .multiplyScalar((1 - u) * (1 - u))
-      .addScaledVector(top, 2 * u * (1 - u))
-      .addScaledVector(cradle, u * u);
-    round.rotation.set(
-      (Math.PI / 2) * (1 - lift),
-      0.5 * (1 - align) * lift,
-      0.3 * Math.sin(lift * Math.PI),
-    );
-    if (p > 0.3) {
-      round.position.lerp(this.a.set(0, 1.47, 0.95), align);
-      round.position.z = THREE.MathUtils.lerp(round.position.z, -0.25, push);
-      round.position.z -= 0.25 * ram;
-    }
-    if (shake > 0) {
-      round.position.x += Math.sin(shake * 61) * 0.012;
-      round.position.y += Math.sin(shake * 47) * 0.01;
-      round.rotation.z += Math.sin(shake * 53) * 0.04;
-    }
-    round.updateMatrixWorld();
-
-    // Shoulders hang below and either side of the eye.
-    camera.updateMatrixWorld();
-    const eye = camera.getWorldPosition(this.a);
-    const drop = crouching ? 0.22 : 0.3;
-    this.arms[0].shoulder.set(eye.x - 0.2, eye.y - drop, eye.z + 0.08);
-    this.arms[1].shoulder.set(eye.x + 0.2, eye.y - drop, eye.z + 0.02);
-
-    const axis = this.b.set(0, 0, -1).transformDirection(round.matrixWorld);
-    // Left hand cradles the case from below; it lets go for the final ram.
-    const leftGrip = round.localToWorld(new THREE.Vector3(-0.03, -0.12, 0.02));
-    const leftRest = new THREE.Vector3(0.75, 1.25, 1.0);
-    const left = leftGrip.lerp(leftRest, ram);
-    this.reach(
-      this.arms[0],
-      left,
-      new THREE.Vector3().copy(axis).lerp(UP, 0.2).normalize(),
-      UP,
-    );
-    // Right hand grips the base, then becomes a fist driving it forward.
-    const right = round.localToWorld(new THREE.Vector3(0.0, 0.0, 0.345));
-    if (ram > 0) right.addScaledVector(axis, -0.02 * ram);
-    this.reach(this.arms[1], right, UP, axis);
-    return round;
+  dress(hand: THREE.Object3D, sleeve: THREE.Object3D) {
+    const upper = sleeve.getObjectByName("UpperArm");
+    const fore = sleeve.getObjectByName("Forearm");
+    const wrist = sleeve.getObjectByName("Wrist");
+    if (!(
+      upper instanceof THREE.Bone &&
+      fore instanceof THREE.Bone &&
+      wrist instanceof THREE.Bone
+    ))
+      return false;
+    this.upper = upper;
+    this.fore = fore;
+    this.wristBone = wrist;
+    for (const bone of [upper, fore, wrist]) bone.matrixAutoUpdate = false;
+    hand.scale.x *= this.side;
+    this.glove.add(hand);
+    this.sleeve.add(sleeve);
+    for (const piece of [sleeve, hand])
+      piece.traverse((part) => {
+        if (!(part instanceof THREE.Mesh)) return;
+        part.castShadow = part.receiveShadow = true;
+        // The bind-pose bounds don't enclose the elbow moving sideways in a reach.
+        if (part instanceof THREE.SkinnedMesh) part.frustumCulled = false;
+        const keys = part.morphTargetDictionary;
+        const weights = part.morphTargetInfluences;
+        if (!keys || !weights) return;
+        if (keys.Grip !== undefined)
+          this.grips.push({ weights, index: keys.Grip });
+        if (keys.Pinch !== undefined)
+          this.pinches.push({ weights, index: keys.Pinch });
+        if (keys.ElbowFlex !== undefined)
+          this.folds.push({ weights, index: keys.ElbowFlex });
+      });
+    return true;
   }
 
-  hide() {
-    this.group.visible = false;
-  }
-
-  /** Two-bone arm from shoulder to hand, elbow bent towards the pole. */
-  private reach(
-    arm: Arm,
-    target: THREE.Vector3,
+  place(
+    wrist: THREE.Vector3,
     fingers: THREE.Vector3,
     palm: THREE.Vector3,
+    grip: number,
+    pinch = 0,
   ) {
-    const reach = UPPER + FORE - 0.02;
-    const toHand = target.clone().sub(arm.shoulder);
-    let distance = toHand.length();
-    // Out of reach: the loader leans in, so the shoulder follows the hand.
-    if (distance > reach) {
-      arm.shoulder.addScaledVector(toHand.normalize(), distance - reach);
-      toHand.copy(target).sub(arm.shoulder);
-      distance = reach;
-    }
-    const dir = toHand.clone().normalize();
-    const along =
-      (distance * distance + UPPER * UPPER - FORE * FORE) / (2 * distance);
-    const lift = Math.sqrt(Math.max(0, UPPER * UPPER - along * along));
-    const bend = arm.pole
-      .clone()
-      .addScaledVector(dir, -arm.pole.dot(dir))
+    this.poseGlove(wrist, fingers, palm, grip, pinch);
+    this.sleeve.scale.set(this.side, 1, 1);
+    this.locateJoints();
+    this.poseSleeve();
+  }
+
+  poseWork(arm: BodyArm, grip: number, pinch = 0) {
+    this.poseGlove(arm.wrist, arm.fingers, arm.palm, grip, pinch);
+    const scale = LOADER_ARM_SCALE;
+    this.shoulder.copy(arm.shoulder);
+    this.elbow.copy(arm.elbow);
+    this.cuff.copy(arm.cuff);
+    if (!this.upper || !this.fore || !this.wristBone) return;
+    this.sleeve.position.copy(arm.shoulder);
+    this.sleeve.scale.set(this.side * scale, scale, scale);
+    this.upperAxis.subVectors(arm.elbow, arm.shoulder);
+    this.foreAxis.subVectors(arm.cuff, arm.elbow);
+    this.upperAxis.x *= this.side;
+    this.foreAxis.x *= this.side;
+    this.upperAxis.normalize();
+    this.foreAxis.normalize();
+    this.hinge.crossVectors(this.upperAxis, this.foreAxis).normalize();
+    this.inner.crossVectors(this.hinge, this.upperAxis);
+    this.bend.setFromRotationMatrix(
+      this.basis.makeBasis(this.hinge, this.upperAxis, this.inner),
+    );
+    this.upper.matrix.compose(this.origin, this.bend, unit);
+    const flex = this.upperAxis.angleTo(this.foreAxis);
+    // The cuff and elbow are the original bind offsets. Flexion is a rotation
+    // about the elbow's hinge, at the lengths authored in the Blender armature.
+    this.cuffTurn.setFromAxisAngle(hingeAxis, flex);
+    this.fore.matrix.compose(upperOffset, this.cuffTurn, unit);
+    this.bend.multiply(this.cuffTurn);
+    this.roll.copy(this.back);
+    this.roll.x *= this.side;
+    const twist = 0.9 * this.roll.dot(this.hinge);
+    this.roll.copy(this.along);
+    this.roll.x *= this.side;
+    this.inner.crossVectors(this.foreAxis, this.roll);
+    const swing = 0.44 * this.inner.length();
+    this.roll.copy(this.inner).normalize().applyQuaternion(this.bend.invert());
+    this.cuffTurn.setFromAxisAngle(this.roll, swing);
+    this.bend.setFromAxisAngle(restAxis, twist);
+    this.cuffTurn.multiply(this.bend);
+    this.wristBone.matrix.compose(foreOffset, this.cuffTurn, unit);
+    const compression = THREE.MathUtils.smoothstep(
+      flex,
+      Math.PI / 15,
+      (11 * Math.PI) / 18,
+    );
+    for (const shape of this.folds) shape.weights[shape.index] = compression;
+  }
+
+  private poseGlove(
+    wrist: THREE.Vector3,
+    fingers: THREE.Vector3,
+    palm: THREE.Vector3,
+    grip: number,
+    pinch: number,
+  ) {
+    this.back.copy(palm).normalize().negate();
+    this.along
+      .copy(fingers)
+      .addScaledVector(this.back, -fingers.dot(this.back))
       .normalize();
-    const elbow = arm.shoulder
-      .clone()
-      .addScaledVector(dir, along)
-      .addScaledVector(bend, lift);
-    this.segment(arm.upper, arm.shoulder, elbow);
-    this.segment(arm.fore, elbow, target);
-    // Palm normal (-Z) faces `palm`; fingers (+Y) run along `fingers`.
-    const z = palm.clone().negate().normalize();
-    const y = fingers.clone().addScaledVector(z, -fingers.dot(z)).normalize();
-    const x = new THREE.Vector3().crossVectors(y, z);
-    arm.hand.quaternion.setFromRotationMatrix(this.m.makeBasis(x, y, z));
-    arm.hand.position.copy(target);
+    this.across.crossVectors(this.along, this.back);
+    this.glove.quaternion.setFromRotationMatrix(
+      this.basis.makeBasis(this.across, this.along, this.back),
+    );
+    this.glove.position.copy(wrist);
+    for (const shape of this.grips) shape.weights[shape.index] = grip;
+    for (const shape of this.pinches) shape.weights[shape.index] = pinch;
+    this.cuff.copy(wrist).addScaledVector(this.along, -0.044 * garmentWidth);
   }
 
-  private segment(mesh: THREE.Mesh, from: THREE.Vector3, to: THREE.Vector3) {
-    const d = to.clone().sub(from);
-    mesh.position.copy(from).addScaledVector(d, 0.5);
-    mesh.scale.set(1, d.length(), 1);
-    mesh.quaternion.setFromUnitVectors(UP, d.normalize());
+  private locateJoints() {
+    const standing = this.standing;
+    const eye = standing.position;
+    const extended = THREE.MathUtils.smoothstep(
+      this.cuff.distanceTo(eye),
+      1.2,
+      2.4,
+    );
+    // A retracted wrist can be closer than the near plane. Continue toward the
+    // lap at a finite depth instead of flipping the projection behind the eye.
+    const contact = this.reach
+      .copy(this.cuff)
+      .applyMatrix4(standing.matrixWorldInverse);
+    contact.z = Math.min(-0.34, contact.z);
+    this.handHeading
+      .copy(this.along)
+      .transformDirection(standing.matrixWorldInverse);
+    const natural = this.roll
+      .copy(contact)
+      .addScaledVector(this.handHeading, -0.32);
+    natural.z = Math.min(-0.34, natural.z);
+    natural.applyMatrix4(standing.projectionMatrix);
+    contact.applyMatrix4(standing.projectionMatrix);
+    const rest = Math.max(0, -0.85 - contact.y);
+    // In a cradle the forearm follows the heel of the palm. As the arm
+    // extends, the elbow moves in between the wrist and the loader's shoulder.
+    const offsetX = clamp(natural.x - contact.x, -0.26, 0.26);
+    const offsetY = clamp(natural.y - contact.y, -0.36, 0.08);
+    const nearX = contact.x + this.side * 0.14 + 0.5 * offsetX;
+    const farX = THREE.MathUtils.lerp(contact.x, this.side * 0.38, 0.46);
+    const x = clamp(
+      THREE.MathUtils.lerp(nearX, farX, extended),
+      this.side < 0 ? -0.62 : -0.37,
+      this.side < 0 ? 0.2 : 0.39,
+    );
+    const nearY = contact.y - 0.3 + 0.48 * offsetY;
+    const farY = THREE.MathUtils.lerp(contact.y, -1.4, 0.43);
+    const y =
+      clamp(THREE.MathUtils.lerp(nearY, farY, extended), -0.53, 0.12) - rest;
+    this.elbowRay.set(x, y, 0).unproject(standing).sub(eye).normalize();
+    this.shoulderRay
+      .set(this.side * 0.34, -this.shoulderDrop - rest, 0)
+      .unproject(standing)
+      .sub(eye)
+      .normalize();
+
+    // Fit the reach between the work surface and the seated body. The palm
+    // chooses the elbow depth as it rolls around the object.
+    const offset = this.reach.subVectors(this.cuff, eye);
+    const alongRay = offset.dot(this.elbowRay);
+    const missSq = Math.max(0, offset.lengthSq() - alongRay * alongRay);
+    const cosine = this.elbowRay.dot(this.shoulderRay);
+    const sine = Math.sqrt(Math.max(0, 1 - cosine * cosine));
+    const inset = (alongRay * sine) / (lengthRatio + sine);
+    const foreLength = Math.max(
+      0.34,
+      1.025 * Math.sqrt(missSq + inset * inset),
+    );
+    const projectedLength = Math.sqrt(Math.max(0, foreLength ** 2 - missSq));
+    const baseline = this.foreAxis
+      .copy(offset)
+      .addScaledVector(this.elbowRay, -(alongRay - projectedLength))
+      .normalize();
+    const align =
+      0.75 *
+      (1 - THREE.MathUtils.smoothstep(baseline.dot(this.along), -0.38, 0.8));
+    const neutralDepth = alongRay - this.along.dot(this.elbowRay) * foreLength;
+    const elbowDepth = THREE.MathUtils.lerp(
+      alongRay - projectedLength,
+      neutralDepth,
+      align,
+    );
+    this.elbow.copy(eye).addScaledVector(this.elbowRay, elbowDepth);
+    const fore = this.foreAxis.subVectors(this.cuff, this.elbow);
+    const posedLength = THREE.MathUtils.lerp(fore.length(), foreLength, 0.3);
+    // A foreshortened forearm gets a stable direction from the palm heel as
+    // well as its screen projection, even when elbow and wrist nearly coincide.
+    const projectedFore = fore.length();
+    const minimumAlong =
+      0.23 * projectedFore + Math.max(0, 0.8 * foreLength - projectedFore);
+    fore
+      .addScaledVector(
+        this.along,
+        Math.max(0, minimumAlong - fore.dot(this.along)),
+      )
+      .normalize();
+    this.elbow.copy(this.cuff).addScaledVector(fore, -posedLength);
+    const elbowOffset = this.reach.subVectors(this.elbow, eye);
+    const shoulderProjection = elbowOffset.dot(this.shoulderRay);
+    const shoulderMissSq = Math.max(
+      0,
+      elbowOffset.lengthSq() - shoulderProjection ** 2,
+    );
+    const upperLength = Math.max(
+      lengthRatio * posedLength,
+      Math.sqrt(shoulderMissSq) * 1.025,
+    );
+    const shoulderDepth =
+      shoulderProjection +
+      (0.95 - 0.65 * extended) *
+        Math.sqrt(Math.max(0, upperLength ** 2 - shoulderMissSq));
+    this.shoulder
+      .copy(eye)
+      .addScaledVector(this.shoulderRay, shoulderDepth)
+      .sub(this.elbow)
+      .setLength(upperLength)
+      .add(this.elbow);
+    // At the beginning of a catch the resting hand can pass quite close to
+    // the torso. Keep the upper arm outside the folded forearm.
+    const upper = this.upperAxis
+      .subVectors(this.elbow, this.shoulder)
+      .normalize();
+    const cosineFlex = upper.dot(fore);
+    const maxFlex = -0.766; // cos(140 degrees)
+    if (cosineFlex < maxFlex) {
+      const away = this.roll.set(0, 1, 0);
+      away.addScaledVector(fore, -away.dot(fore));
+      upper
+        .addScaledVector(fore, -cosineFlex)
+        .addScaledVector(
+          away,
+          THREE.MathUtils.smoothstep(-cosineFlex, -maxFlex, 1) * 0.55,
+        )
+        .normalize()
+        .multiplyScalar(Math.sqrt(1 - maxFlex * maxFlex))
+        .addScaledVector(fore, maxFlex);
+      this.shoulder.copy(this.elbow).addScaledVector(upper, -upperLength);
+    }
   }
 
-  dispose() {
-    this.group.traverse((o) => {
-      if (o instanceof THREE.Mesh) o.geometry.dispose();
-    });
-    for (const m of this.materials) m.dispose();
+  private poseSleeve() {
+    if (!this.upper || !this.fore || !this.wristBone) return;
+    this.sleeve.position.copy(this.shoulder);
+    this.upperAxis.subVectors(this.elbow, this.shoulder);
+    this.foreAxis.subVectors(this.cuff, this.elbow);
+    this.upperAxis.x *= this.side;
+    this.foreAxis.x *= this.side;
+    const upperLength = this.upperAxis.length();
+    const foreLength = this.foreAxis.length();
+    const clothWidth =
+      garmentWidth *
+      (1 + 0.25 * THREE.MathUtils.smoothstep(foreLength, 0.44, 0.92));
+    this.upperAxis.normalize();
+    this.foreAxis.normalize();
+    // Transport the arm's rest frame through the reach. At full extension the
+    // geometric bend plane can reverse across a single frame. A bounded roll
+    // toward the inside of the elbow keeps the seam continuous there.
+    this.bend
+      .setFromUnitVectors(this.neutral, this.upperAxis)
+      .multiply(this.neutralTurn);
+    this.hinge.set(1, 0, 0).applyQuaternion(this.bend);
+    const foldRoll = 1.35 * this.foreAxis.dot(this.hinge);
+    this.cuffTurn.setFromAxisAngle(this.upperAxis, foldRoll);
+    this.bend.premultiply(this.cuffTurn);
+    const flex = THREE.MathUtils.smoothstep(
+      this.upperAxis.angleTo(this.foreAxis),
+      Math.PI / 15,
+      (11 * Math.PI) / 18,
+    );
+    for (const shape of this.folds) shape.weights[shape.index] = flex;
+    this.upper.matrix.compose(
+      this.origin,
+      this.bend,
+      this.scale.set(clothWidth, upperLength / upperBind, clothWidth),
+    );
+    this.bend
+      .setFromUnitVectors(this.neutral, this.foreAxis)
+      .multiply(this.neutralTurn);
+    this.cuffTurn.setFromAxisAngle(this.foreAxis, foldRoll);
+    this.bend.premultiply(this.cuffTurn);
+    this.hinge.set(1, 0, 0).applyQuaternion(this.bend);
+    const joint = this.reach.copy(this.upperAxis).multiplyScalar(upperLength);
+    this.foreFrame.compose(
+      joint,
+      this.bend,
+      this.scale.set(clothWidth, foreLength / foreBind, clothWidth),
+    );
+    this.fore.matrix.copy(this.upper.matrix).invert().multiply(this.foreFrame);
+    joint.addScaledVector(this.foreAxis, foreLength);
+    // The end of the cuff rolls toward the back of the glove; the elbow
+    // stays in its hinge plane during wrist pronation.
+    this.roll.copy(this.back);
+    this.roll.x *= this.side;
+    const twist = 0.9 * this.roll.dot(this.hinge);
+    this.cuffTurn.setFromAxisAngle(this.foreAxis, twist).multiply(this.bend);
+    this.roll.copy(this.along);
+    this.roll.x *= this.side;
+    this.inner.crossVectors(this.foreAxis, this.roll);
+    const swing = 0.44 * this.inner.length();
+    this.bend.setFromAxisAngle(this.inner.normalize(), swing);
+    this.cuffTurn.premultiply(this.bend);
+    this.wristFrame.compose(
+      joint,
+      this.cuffTurn,
+      this.scale.set(garmentWidth, foreLength / foreBind, garmentWidth),
+    );
+    this.wristBone.matrix
+      .copy(this.foreFrame)
+      .invert()
+      .multiply(this.wristFrame);
+  }
+}
+
+/** Both jobs use the same pair. Meshes share art, each arm owns its bone poses. */
+export class LoaderHands {
+  readonly group = new THREE.Group();
+  private standing = new THREE.PerspectiveCamera(58, 16 / 9, 0.05, 16);
+  readonly left = new GlovedArm(-1, this.group, this.standing);
+  readonly right = new GlovedArm(1, this.group, this.standing);
+  ready = false;
+  constructor() {
+    this.group.visible = false;
+    this.standing.position.copy(eye);
+    this.standing.lookAt(
+      INTERIOR_VIEW.targetX,
+      INTERIOR_VIEW.standingTargetY,
+      INTERIOR_VIEW.targetZ,
+    );
+    this.standing.updateMatrixWorld();
+  }
+
+  frameTorso(zoom: number) {
+    // Widening the lens on a narrow display exposes more of the lap. Keep
+    // both sleeve attachments below that lower edge as the player reaches.
+    this.left.shoulderDrop = this.right.shoulderDrop = 1.46 / zoom;
+  }
+
+  dress(asset: THREE.Group) {
+    const hand = asset.getObjectByName("WorkGlove");
+    const sleeve = asset.getObjectByName("SleevedArm");
+    if (!hand || !sleeve) return false;
+    this.ready =
+      this.left.dress(hand.clone(), cloneSkeleton(sleeve)) &&
+      this.right.dress(hand, sleeve);
+    return this.ready;
   }
 }

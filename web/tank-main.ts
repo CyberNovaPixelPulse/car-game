@@ -105,7 +105,7 @@ const mechanicalAudio = new TankMechanicalAudio();
 const vehicleAudio = new TankVehicleAudio();
 let soundedShot = 0;
 let soundedStun = 0;
-let soundedDamage = -100;
+let soundedDamage: number | undefined;
 function unlockWarningAudio() {
   warningAudio ??= new AudioContext();
   void warningAudio.resume().catch(() => {});
@@ -391,9 +391,7 @@ function station(role: CrewRole) {
   document.documentElement.dataset.surface = "battle";
   clearStation();
   mechanicalAudio.reset();
-  soundedShot = 0;
-  soundedStun = 0;
-  soundedDamage = -100;
+  soundedDamage = undefined;
   const practice = runtime.practice && practiceControls(runtime.practice);
   activeStation = mountStation(content, role, recovery, {
     quality: sceneQuality,
@@ -438,26 +436,36 @@ function onlineStation(room: Room) {
 }
 
 function presentBattleAudio(state: TankState, role: CrewRole) {
-  if (state.battle.lastHitAt !== soundedDamage && state.battle.lastDamage) {
+  const first = soundedDamage === undefined;
+  if (
+    !first &&
+    state.battle.lastHitAt !== soundedDamage &&
+    state.battle.lastDamage
+  )
     warningTone(true);
-    soundedDamage = state.battle.lastHitAt;
-  }
+  soundedDamage = state.battle.lastHitAt;
+  mechanicalAudio.present(state, warningAudio, soundEnabled, role);
   vehicleAudio.present(state, warningAudio, {
     role,
     enabled: soundEnabled,
     active: !runtime.paused,
   });
   if (role !== "loader") return;
-  mechanicalAudio.present(state, warningAudio, soundEnabled);
   const { weapon, time } = state;
-  if (weapon.chamber === "ejecting" && weapon.shotsFired !== soundedShot) {
+  if (
+    !first &&
+    weapon.chamber === "ejecting" &&
+    weapon.shotsFired !== soundedShot
+  )
     warningTone(false);
-    soundedShot = weapon.shotsFired;
-  }
-  if (time < weapon.stunnedUntil && weapon.stunnedUntil !== soundedStun) {
+  if (
+    !first &&
+    time < weapon.stunnedUntil &&
+    weapon.stunnedUntil !== soundedStun
+  )
     warningTone(true);
-    soundedStun = weapon.stunnedUntil;
-  }
+  soundedShot = weapon.shotsFired;
+  soundedStun = weapon.stunnedUntil;
 }
 
 core.present = (state) => {
@@ -479,7 +487,10 @@ core.present = (state) => {
     session.room?.phase === "battle"
   )
     runtime.finish();
-  presentBattleAudio(state, station.role);
+  if (runtime.awaitingFirstSnapshot || runtime.paused || document.hidden) {
+    mechanicalAudio.reset();
+    soundedDamage = undefined;
+  } else presentBattleAudio(state, station.role);
   views.render(
     state,
     runtime.paused || runtime.awaitingFirstSnapshot,
@@ -513,6 +524,10 @@ window.addEventListener("keydown", (event) => {
     )
   )
     return;
+  if (views.lookKey(event.code, true, event.repeat)) {
+    event.preventDefault();
+    return;
+  }
   if (activeStation?.role === "loader" && event.code === "Tab") {
     event.preventDefault();
     if (!event.repeat) runtime.action(MODE);
@@ -578,6 +593,7 @@ window.addEventListener("keydown", (event) => {
   runtime.setInput(held);
 });
 window.addEventListener("keyup", (event) => {
+  if (views.lookKey(event.code, false)) return;
   const key =
     activeStation?.role === "gunner"
       ? aimKeys[event.code]
@@ -595,12 +611,16 @@ window.addEventListener("keyup", (event) => {
   runtime.setInput(held);
 });
 function releaseControls() {
+  views.releaseLook();
   held = 0;
   runtime.clearInput();
 }
 window.addEventListener("blur", releaseControls);
 document.addEventListener("visibilitychange", () => {
+  mechanicalAudio.reset();
+  soundedDamage = undefined;
   if (document.hidden) releaseControls();
+  else if (activeStation) core.draw(0);
 });
 function frame(now: number) {
   if (runtime.mode === "online" || runtime.mode === "practice") {
@@ -665,6 +685,7 @@ runtime.onRoom = (room) => {
     choosingRole = undefined;
     onlineStation(room);
     if (runtime.paused) {
+      views.releaseLook();
       held = 0;
       runtime.clearInput();
     }

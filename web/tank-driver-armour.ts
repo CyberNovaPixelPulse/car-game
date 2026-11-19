@@ -1,64 +1,64 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { disposeArt, surfaceMaps } from "./tank-art-materials";
 import { DRIVER_VIEW } from "./tank-driver-view";
 import { weather } from "./tank-weathering";
 
-/**
- * The driver's direct-vision block, styled after period footage: a dark
- * interior, a narrow horizontal slit of thick, dirty glass with bright
- * chromed end caps, and the blurred ghosts of the prism's other faces above
- * and below. The clear opening keeps DRIVER_VIEW's angles exactly, because
- * scouting uses the same restriction.
- */
-export function buildDriverArmour(mount: THREE.Object3D) {
+/** The model origin is its far throat. The artist dimensions scale to the
+ * same aperture and depth used by the driver's camera and scouting. */
+export async function buildDriverArmour(
+  mount: THREE.Object3D,
+  manager: THREE.LoadingManager,
+  cancelled: () => boolean,
+) {
+  const asset = await new GLTFLoader(manager).loadAsync(
+    "/assets/closeups/driver-window.glb",
+  );
+  const frame = asset.scene.getObjectByName("DriverWindow");
+  const opening = frame?.userData.opening;
+  if (
+    cancelled() ||
+    !frame ||
+    !Array.isArray(opening) ||
+    opening.length !== 3 ||
+    !opening.every((size) => Number.isFinite(size) && size > 0)
+  ) {
+    disposeArt(asset.scene);
+    return false;
+  }
+
   const far = DRIVER_VIEW.openingDistance;
+  frame.position.z = -far;
+  frame.scale.set(
+    (far * Math.tan(DRIVER_VIEW.horizontalFov / 2)) / opening[0],
+    (far * Math.tan(DRIVER_VIEW.verticalFov / 2)) / opening[1],
+    DRIVER_VIEW.armourDepth / opening[2],
+  );
+  const maps = surfaceMaps("green_metal_rust", 1.8, "metal", false, manager);
+  frame.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    object.receiveShadow = true;
+    const material = object.material;
+    if (!(material instanceof THREE.MeshStandardMaterial)) return;
+    material.side = THREE.DoubleSide;
+    material.emissive.copy(material.color);
+    material.emissiveIntensity = 0.22;
+    material.roughnessMap = maps.roughnessMap;
+    material.normalMap = maps.normalMap;
+    material.normalScale.set(0.18, 0.18);
+  });
+
+  const workLight = new THREE.PointLight(0xc6cfab, 0.55, 2, 2);
+  workLight.position.set(-0.18, 0.24, -0.1);
+  mount.add(asset.scene, buildDriverDetails(far), workLight);
+  return true;
+}
+
+function buildDriverDetails(far: number) {
   const near = far - DRIVER_VIEW.armourDepth;
   const x = far * Math.tan(DRIVER_VIEW.horizontalFov / 2);
   const y = far * Math.tan(DRIVER_VIEW.verticalFov / 2);
-  const nearX = x + 0.05;
-  const nearY = y + 0.05;
-  const material = new THREE.MeshStandardMaterial({
-    color: 0x0d0f13,
-    roughness: 0.92,
-    metalness: 0.35,
-    emissive: 0x05070a,
-    emissiveIntensity: 1,
-  });
   const armour = new THREE.Group();
-  const corners = (width: number, height: number, z: number) => [
-    [-width, -height, -z],
-    [width, -height, -z],
-    [width, height, -z],
-    [-width, height, -z],
-  ];
-  const rings = [
-    ...corners(nearX, nearY, near),
-    ...corners(x, y, far),
-    ...corners(4, 3, near),
-    ...corners(4, 3, far),
-  ];
-  const vertices: number[] = [];
-  function quad(a: number, b: number, c: number, d: number) {
-    for (const index of [a, b, c, a, c, d]) vertices.push(...rings[index]);
-  }
-  for (let i = 0; i < 4; i++) {
-    const next = (i + 1) % 4;
-    quad(i, next, next + 4, i + 4); // the visible thickness of the opening
-    quad(i + 8, next + 8, next, i); // the near interior plate
-    quad(i + 4, next + 4, next + 12, i + 12);
-    quad(i + 12, next + 12, next + 8, i + 8);
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute(
-    "position",
-    new THREE.Float32BufferAttribute(vertices, 3),
-  );
-  geometry.computeVertexNormals();
-  // Both surfaces remain opaque even at the eye's extreme viewport aspect ratios.
-  material.side = THREE.DoubleSide;
-  const frame = new THREE.Mesh(geometry, material);
-  frame.receiveShadow = true;
-  armour.add(frame);
-
   // Thick armoured glass: grime, chips and a chrome rim with rounded ends.
   const glass = new THREE.Mesh(
     new THREE.PlaneGeometry(x * 2, y * 2),
@@ -86,17 +86,13 @@ export function buildDriverArmour(mount: THREE.Object3D) {
         toneMapped: false,
       }),
     );
-    ghost.position.set(0, side * (nearY + y * 0.85), -(near - 0.004));
+    ghost.position.set(0, side * (y * 1.85 + 0.05), -(near - 0.004));
     ghost.renderOrder = 11;
     armour.add(ghost);
   }
 
   armour.add(buildFenders());
-
-  const workLight = new THREE.PointLight(0x9fb2c8, 0.25, 2, 2);
-  workLight.position.set(-0.18, 0.3, -0.1);
-  armour.add(workLight);
-  mount.add(armour);
+  return armour;
 }
 
 /**

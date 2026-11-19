@@ -6,7 +6,16 @@ export const INTERIOR_VIEW = {
   eyeZ: 1.55,
   targetX: -0.05,
   targetZ: -0.7,
+  standingTargetY: 1.16,
 } as const;
+
+/** Keep the authored horizontal workspace in frame as the HUD columns draw
+ * closer. Below a square viewport, further narrowing only widens the lens. */
+export function interiorFraming(aspect: number) {
+  const zoom = Math.min(1, aspect / (16 / 9));
+  const narrow = Math.min(0.4, 1 - zoom);
+  return { zoom, loadingYaw: 0.64 * narrow, repairYaw: -0.65 * narrow };
+}
 
 export type BattleView = "driver" | "gunner" | "machine-gun";
 export const EXTERIOR_VERTICAL_FOV = (65 * Math.PI) / 180;

@@ -21,7 +21,9 @@ import {
   presentSpeedometerNeedle,
   speedometerMarkup,
 } from "./tank-speedometer";
-import { SHELL_LABELS } from "./tank-weapons";
+import { JAM_RULES, SHELL_LABELS } from "./tank-weapons";
+
+const calibrationResult = `<p class="repair-calibration-result hud-panel" data-testid="repair-calibration-result" hidden><span class="calibration-result-message" role="status"></span><span class="calibration-shared-needle" aria-hidden="true"></span></p>`;
 
 const repairWorkspace = `<section class="repair-workspace" aria-label="車內維修" hidden>
         <h3>車體維修</h3>
@@ -39,7 +41,7 @@ const repairWorkspace = `<section class="repair-workspace" aria-label="車內維
           <p>按住 <kbd>R</kbd> 維修 · <kbd>空白鍵</kbd> 校準</p>
           <p class="calibration-position" data-testid="repair-calibration-position"></p>
         </div>
-        <p class="repair-controls">按住 <kbd>C</kbd> 蹲下避殼 · <kbd>Tab</kbd> 返回裝填</p>
+        <p class="repair-controls"><kbd>←</kbd>／<kbd>→</kbd> 轉頭 · <kbd>Tab</kbd> 返回裝填</p>
       </section>`;
 
 const weaponStatus = `<div class="weapon-status">
@@ -76,13 +78,14 @@ function stationMarkup(
       <button type="button" class="secondary" id="station-sound" aria-pressed="${soundEnabled}">音效：${soundEnabled ? "開" : "關"}</button>
       <button class="secondary" id="station-leave">${practice ? "離開練習" : "離開房間"}</button>
     </div>
+      ${role === "loader" ? calibrationResult : ""}
       <p class="display-status hud-panel" id="station-display-status" role="status" hidden></p>
       ${role === "gunner" ? '<div class="battle-intel hud-panel"><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p><p data-testid="target-status">目前沒有觀測到敵車</p><p data-testid="flight-status"></p></div>' : role === "loader" ? '<div class="battle-intel hud-panel" hidden><p class="smoke-status" data-testid="smoke-status" role="status">視線清晰</p><p data-testid="mg-target-status"></p></div>' : ""}
     </div>
     <div class="battle-alerts">
       <div class="battle-pause hud-panel" data-testid="battle-pause" role="status" hidden></div>
       <p class="hud-panel" data-testid="damage-warning" role="status"></p>
-      <p class="repair-calibration-result hud-panel" data-testid="repair-calibration-result" hidden><span class="calibration-result-message" role="status"></span><span class="calibration-shared-needle" aria-hidden="true"></span></p>
+      ${role === "loader" ? "" : calibrationResult}
       ${role === "gunner" ? '<p class="hud-panel" data-testid="enemy-warning" role="status"></p><p class="hud-panel" data-testid="enemy-activity" role="status"></p>' : ""}
       ${role === "loader" ? '<p class="ejection-warning hud-panel" data-testid="ejection-warning" role="status"></p><p class="loader-posture hud-panel"><span data-testid="loader-status">站立・可以工作</span> <strong class="stun-timer" data-testid="stun-remaining"></strong></p>' : ""}
     </div>
@@ -115,10 +118,13 @@ function stationMarkup(
           </div>
         </div>
         <div class="loading-workspace">
-          <div class="interior-viewport">${repairWorkspace}</div>
+          <div class="interior-viewport"></div>
         </div>
       </div>
-      <div class="battle-work hud-panel">${weaponStatus}<p class="note loading-help">按 1 高爆彈、2 穿甲彈、3 煙霧彈。按住 R 裝填，放開保留進度；同發彈種鎖定。等待開火、退殼後再裝下一發。</p><p class="note">按住 C 蹲下避殼，放開起身；蹲下時無法工作。</p></div>
+      <div class="battle-work hud-panel">
+        <section class="jam-game" aria-label="卡彈排除" hidden><h3>卡彈：停在目標區</h3><div class="jam-track"><span class="jam-zone" data-testid="jam-zone">目標</span><span class="jam-needle" data-testid="jam-needle"></span></div><p data-testid="jam-result">按空白鍵停針</p></section>
+        ${repairWorkspace}
+        ${weaponStatus}<p class="note loading-help">按 1 高爆彈、2 穿甲彈、3 煙霧彈。按住 R 裝填，放開保留進度；同發彈種鎖定。等待開火、退殼後再裝下一發。←／→ 轉頭。</p><p class="note">按住 C 蹲下避殼，放開起身；蹲下時無法工作。</p></div>
     `
     }
   </section>`;
@@ -247,7 +253,8 @@ function bindBattleHud(
   const damageWarning = readout(root, "damage-warning");
   const result = readout(root, "battle-result");
   const outcome = root.querySelector<HTMLElement>(".battle-outcome")!;
-  const presentCalibration = bindSharedCalibration(root);
+  const presentCalibration =
+    role === "loader" ? bindSharedCalibration(root) : undefined;
   const presentWeapon = role === "driver" ? undefined : bindWeaponStatus(root);
   const bowHeat = role === "driver" ? readout(root, "bow-heat") : undefined;
   const bowStatus = role === "driver" ? readout(root, "bow-status") : undefined;
@@ -300,7 +307,7 @@ function bindBattleHud(
     const calibrationNeedle =
       (state.repair.calibration.elapsed / REPAIR_RULES.calibrationDuration) *
       360;
-    presentCalibration(state, calibrationNeedle);
+    presentCalibration?.(state, calibrationNeedle);
     presentWeapon?.(state.weapon);
     const bow = state.weapon.bow;
     if (bow && bowHeat && bowStatus && bowShots) {
@@ -334,7 +341,7 @@ function bindWeaponStatus(root: HTMLElement) {
       ? `${SHELL_LABELS[weapon.chamberShell]}（已鎖定）`
       : "無";
     chamber.textContent = weapon.jam.active
-      ? `卡彈・排除中 ${Math.round(weapon.jam.needle * 100)}%`
+      ? "卡彈"
       : chamberText[weapon.chamber];
     load.textContent = String(Math.round(weapon.loadProgress * 100));
     progress.value = weapon.loadProgress * 100;
@@ -429,6 +436,7 @@ function bindLoaderHud(root: HTMLElement) {
   const repair = root.querySelector<HTMLElement>(".repair-workspace")!;
   const presentRepair = bindRepairWorkspace(repair);
   const presentMachineGun = bindMachineGunHud(root);
+  const presentJam = bindJamGame(root);
   const modeText = {
     loading: "裝填模式",
     "machine-gun": "機槍模式",
@@ -463,6 +471,7 @@ function bindLoaderHud(root: HTMLElement) {
       weapon.chamber === "ejecting" ? "彈殼即將退出！按住 C 蹲下避開" : "";
     presentRepair(state, needle);
     presentMachineGun(state, stunned);
+    presentJam(state);
   };
 }
 
@@ -504,6 +513,29 @@ function bindMachineGunHud(root: HTMLElement) {
       state.intel.contacts
         .map((enemy) => contactReadout(enemy, state.time, false))
         .join("；") || "目前沒有觀測到敵車";
+  };
+}
+
+function bindJamGame(root: HTMLElement) {
+  const game = root.querySelector<HTMLElement>(".jam-game")!;
+  const title = game.querySelector("h3")!;
+  const zone = readout(game, "jam-zone");
+  const needle = readout(game, "jam-needle");
+  const result = readout(game, "jam-result");
+  zone.style.width = `${JAM_RULES.width * 100}%`;
+
+  return ({ weapon, time }: TankState) => {
+    const jam = weapon.jam;
+    const cleared = jam.result === "cleared";
+    title.textContent = cleared ? "故障已排除" : "卡彈：停在目標區";
+    game.hidden = weapon.mode !== "loading" || (!jam.active && !cleared);
+    zone.style.left = `${jam.zone * 100}%`;
+    needle.style.left = `${jam.needle * 100}%`;
+    result.textContent = cleared
+      ? "解除成功，繼續裝填"
+      : jam.result === "failed"
+        ? `未命中，重試倒數 ${Math.max(0, jam.retryAt - time).toFixed(1)} 秒`
+        : "按空白鍵停針";
   };
 }
 

@@ -214,7 +214,7 @@ export class TankVehicleAudio {
     const dt = state.time - this.last.time;
     this.continuous(state, frame, graph, now, dt);
     if (frame.enabled) {
-      this.events(state, outside, now);
+      this.events(state, frame.role, outside, now);
       this.battle.present(
         state,
         { role: frame.role, outside },
@@ -393,9 +393,19 @@ export class TankVehicleAudio {
     }
   }
 
-  private events(state: TankState, outside: boolean, now: number) {
+  private events(
+    state: TankState,
+    role: CrewRole,
+    outside: boolean,
+    now: number,
+  ) {
     const w = state.weapon;
-    if (w.shotsFired > this.last.shots) this.cannon(outside, now);
+    if (w.shotsFired > this.last.shots) {
+      // The gunner already hears the shot through TankMechanicalAudio.
+      if (role !== "gunner") this.cannon(outside, now);
+      this.play("recoil", now + 0.035, { gain: 0.6 });
+      this.play("runout", now + 0.36, { gain: 0.45 });
+    }
     // The semi-automatic breech throws the case when the ejection completes.
     if (this.last.chamber === "ejecting" && w.chamber !== "ejecting") {
       // Breech block drops open, the extractor flicks the case out, and it
@@ -441,8 +451,6 @@ export class TankVehicleAudio {
       this.play("cannon", now, { gain: 1.6, destination: graph.master });
       this.play("cannon", now, { gain: 0.9, destination: graph.space });
     } else this.play("cannon", now, { gain: 1.6 });
-    this.play("recoil", now + 0.035, { gain: 0.6 });
-    this.play("runout", now + 0.36, { gain: 0.45 });
     this.play("rattle", now + 0.05, { gain: 0.4 });
   }
 
