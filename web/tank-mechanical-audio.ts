@@ -8,7 +8,7 @@ export class TankMechanicalAudio {
   private shots = 0;
   private cooling = false;
   private mode = "loading";
-  private calibrationId = 0;
+  private calibrationId?: number;
   private calibrationResult = "idle";
   reset() {
     this.chamber = "empty";
@@ -17,20 +17,25 @@ export class TankMechanicalAudio {
     this.shots = 0;
     this.cooling = false;
     this.mode = "loading";
-    this.calibrationId = 0;
+    this.calibrationId = undefined;
     this.calibrationResult = "idle";
   }
   present(state: TankState, audio: AudioContext | undefined, enabled: boolean) {
     const w = state.weapon;
     const calibration = state.repair.calibration;
-    if (enabled && audio?.state === "running") {
+    if (
+      this.calibrationId !== undefined &&
+      enabled &&
+      audio?.state === "running"
+    ) {
       if (
         calibration.id !== this.calibrationId &&
         calibration.result === "active"
       )
         this.calibrationCue(audio, "active");
       else if (
-        calibration.result !== this.calibrationResult &&
+        this.calibrationResult === "active" &&
+        calibration.id === this.calibrationId &&
         ["success", "perfect", "failed"].includes(calibration.result)
       )
         this.calibrationCue(audio, calibration.result);

@@ -483,7 +483,7 @@ export class TankCore implements GameCore<TankState> {
     if (
       next.version !== 6 ||
       !validTeamIntel(next.intel, next.time, next.weapon?.targets) ||
-      !validRepair(next.repair) ||
+      !validRepair(next.repair, next.time) ||
       !next.battle ||
       typeof next.battle.failed !== "boolean" ||
       typeof next.battle.won !== "boolean" ||
