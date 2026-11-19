@@ -15,6 +15,11 @@ import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import { disposeArt } from "./tank-art-materials";
 import { SmokeScene } from "./tank-smoke-scene";
 import { MuzzleFlash } from "./tank-muzzle-flash";
+import {
+  PlayerCannonBlast,
+  CANNON_BLAST_SECONDS,
+  cannonShotAge,
+} from "./tank-cannon-blast";
 import { FIRING_FEEDBACK } from "./tank-settings";
 import { battleProjection, battleView } from "./tank-battle-view";
 import { buildDriverArmour } from "./tank-driver-armour";
@@ -33,7 +38,7 @@ export class TankScene {
   private lastDraw = -Infinity;
   private scene = new THREE.Scene();
   private smoke = new SmokeScene(this.scene);
-  private cannonFlash!: MuzzleFlash;
+  private cannonBlast!: PlayerCannonBlast;
   private mgFlash!: MuzzleFlash;
   private mgMuzzle = new THREE.Group();
   private enemyFlashes = new Map<number, MuzzleFlash>();
@@ -71,7 +76,7 @@ export class TankScene {
     }
   }
   private build() {
-    this.cannonFlash = new MuzzleFlash(this.scene, 0.6);
+    this.cannonBlast = new PlayerCannonBlast(this.scene);
     this.mgFlash = new MuzzleFlash(this.scene, 0.22);
     const software = noteRenderer(this.renderer);
     this.player = new VehicleModel("sherman", this.assets.manager);
@@ -216,10 +221,11 @@ export class TankScene {
         e.hp > 0,
       ]),
     ].join(":");
+    const shotAge = cannonShotAge(state);
     const animated =
       state.weapon.smoke.some((c) => state.time < c.until) ||
       state.weapon.impacts.length > 0 ||
-      state.time < state.weapon.flashUntil ||
+      shotAge < CANNON_BLAST_SECONDS ||
       state.time < state.weapon.mg.flashUntil ||
       state.weapon.targets.some((e) => state.time < e.flashUntil);
     const aimState =
@@ -339,11 +345,10 @@ export class TankScene {
       }
       mesh.position.set(p.x, p.y, p.z);
     }
-    this.cannonFlash.present(
+    this.cannonBlast.present(
       this.player.muzzle,
-      state.weapon.flashUntil,
-      state.time,
-      FIRING_FEEDBACK.cannon,
+      state.weapon.shotsFired,
+      shotAge,
     );
     if (this.view === "machine-gun")
       this.mgFlash.present(
@@ -437,7 +442,7 @@ export class TankScene {
     this.assets.cancel();
     this.environment.abort();
     this.sky?.dispose();
-    this.cannonFlash?.dispose();
+    this.cannonBlast?.dispose();
     this.mgFlash?.dispose();
     for (const flash of this.enemyFlashes.values()) flash.dispose();
     this.enemyFlashes.clear();

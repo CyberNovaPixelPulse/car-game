@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { INTERIOR_VIEW } from "./tank-battle-view";
 import { STILL_HEAD } from "./tank-camera-motion";
+import { cabinFlashIntensity, cannonShotAge } from "./tank-cannon-blast";
 import { applyHeadOffset, headStamp } from "./tank-head-camera";
 import { disposeArt } from "./tank-art-materials";
 import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
@@ -22,6 +23,7 @@ export class TankInteriorScene {
   private hands = new LoaderHands();
   private rounds!: LoaderRounds;
   private case = new THREE.Group();
+  private readonly reflectedFlash = new THREE.PointLight(0xffce96, 0, 4);
   private textures: THREE.Texture[] = [];
   private materials: THREE.Material[] = [];
   private dirty = true;
@@ -62,6 +64,8 @@ export class TankInteriorScene {
     const fill = new THREE.PointLight(0xc6d5d0, 14, 7, 2);
     fill.position.set(-1.4, 1.9, 0.8);
     this.scene.add(fill);
+    this.reflectedFlash.position.set(-0.28, 1.93, 0.35);
+    this.scene.add(this.reflectedFlash);
     const mat = (color: number, metalness = 0.15, roughness = 0.65) => {
       const material = new THREE.MeshStandardMaterial({
         color,
@@ -351,10 +355,14 @@ export class TankInteriorScene {
       stunned,
       motion ? Math.floor(state.time * 30) : "still",
     ].join(":");
-    const stamp = [modelStamp, stunGain, headStamp(offset)].join(":");
+    const reflection = cabinFlashIntensity(cannonShotAge(state));
+    const stamp = [modelStamp, stunGain, headStamp(offset), reflection].join(
+      ":",
+    );
     if (!this.dirty && stamp === this.visualStamp) return;
     this.dirty = false;
     this.visualStamp = stamp;
+    this.reflectedFlash.intensity = reflection;
     const eject =
       w.chamber === "ejecting"
         ? THREE.MathUtils.clamp(1 - (w.ejectAt - state.time) / 0.8, 0, 1)
