@@ -477,7 +477,7 @@ core.present = (state) => {
     session.room?.phase === "battle"
   )
     runtime.finish();
-  if (runtime.awaitingFirstSnapshot) {
+  if (runtime.awaitingFirstSnapshot || runtime.paused || document.hidden) {
     mechanicalAudio.reset();
     soundedDamage = undefined;
   } else presentBattleAudio(state, station.role);
@@ -598,7 +598,10 @@ function releaseControls() {
 }
 window.addEventListener("blur", releaseControls);
 document.addEventListener("visibilitychange", () => {
+  mechanicalAudio.reset();
+  soundedDamage = undefined;
   if (document.hidden) releaseControls();
+  else if (activeStation) core.draw(0);
 });
 function frame(now: number) {
   if (runtime.mode === "online" || runtime.mode === "practice") {

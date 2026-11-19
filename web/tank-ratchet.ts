@@ -1,15 +1,22 @@
 // Local animation angles only. The host's credited repair time drives tool,
 // glove pressure and sound together, including when work is interrupted.
+const strokeAmplitude = 0.52;
+const strokeFrequency = 7.1;
+const wristAmplitude = 0.12;
+const wristFrequency = 12.3;
+
 export function ratchetAngle(seconds: number) {
   return (
-    -0.18 + 0.52 * Math.sin(seconds * 7.1) + 0.12 * Math.sin(seconds * 12.3)
+    -0.18 +
+    strokeAmplitude * Math.sin(seconds * strokeFrequency) +
+    wristAmplitude * Math.sin(seconds * wristFrequency)
   );
 }
 
 export function ratchetVelocity(seconds: number) {
   return (
-    0.52 * 7.1 * Math.cos(seconds * 7.1) +
-    0.12 * 12.3 * Math.cos(seconds * 12.3)
+    strokeAmplitude * strokeFrequency * Math.cos(seconds * strokeFrequency) +
+    wristAmplitude * wristFrequency * Math.cos(seconds * wristFrequency)
   );
 }
 

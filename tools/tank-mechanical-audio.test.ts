@@ -107,7 +107,7 @@ test("the gunner hears a fresh accepted cannon shot once, including after mounti
   );
 });
 
-test("the mechanic hears clicks on the return stroke and silence while pushing, releasing, or turning the dial", () => {
+test("the loader hears clicks on the return stroke and silence while pushing, releasing, or turning the dial", () => {
   const state = new TankCore(() => "loader").view();
   state.weapon.mode = "repair";
   state.repair.status = "repairing";
@@ -195,5 +195,51 @@ test("releasing R after a successful calibration lets the return animation finis
   assert.ok(
     starts.length > afterResult,
     "the first return stroke after the player resumes can sound",
+  );
+});
+
+test("a skipped return stroke never plays a click on the following downstroke", () => {
+  const state = new TankCore(() => "loader").view();
+  state.weapon.mode = "repair";
+  state.repair.status = "repairing";
+  const audio = new TankMechanicalAudio();
+  const { context, starts } = recordingOutput();
+  // These two visible frames straddle the peak; the handle is higher on the
+  // second frame than the first, but it has already started moving down.
+  for (const at of [1, 1.2]) {
+    state.time = state.repair.activeSeconds = at;
+    audio.present(state, context, true, "loader");
+  }
+  assert.deepEqual(starts, []);
+});
+
+test("an accepted gunner shot survives a long foreground frame without replay on restore", () => {
+  const state = new TankCore(() => "gunner").view();
+  const audio = new TankMechanicalAudio();
+  const { context, starts } = recordingOutput();
+  const present = () => audio.present(state, context, true, "gunner");
+  const fire = () => {
+    state.weapon.chamber = "loaded";
+    state.weapon.chamberShell = "ap";
+    fireWeapon(state.weapon, { x: 0, z: 0, yaw: 0, pitch: 0 }, state.time);
+  };
+  present();
+  fire();
+  state.time += 0.61;
+  present();
+  assert.ok(
+    starts.length > 0,
+    "a delayed frame can still present a new foreground shot",
+  );
+  const afterShot = starts.length;
+  present();
+  assert.equal(starts.length, afterShot);
+  audio.reset();
+  fire();
+  present();
+  assert.equal(
+    starts.length,
+    afterShot,
+    "a newly visible station seeds its first snapshot",
   );
 });
