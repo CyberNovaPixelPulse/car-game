@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { ProceduralVehicle, type Kind } from "./tank-vehicle-procedural";
+import { weather, weatherSeed } from "./tank-weathering";
 
 export { buildBrowning } from "./tank-vehicle-procedural";
 
@@ -178,7 +179,7 @@ export class VehicleModel {
       if (object instanceof THREE.Mesh && !shared)
         shared = object.material as THREE.MeshStandardMaterial;
     });
-    const paint = shared!.clone();
+    const paint = weather(shared!.clone(), weatherSeed());
     this.paint = paint;
     this.paintColor.copy(paint.color);
     const adoptPivot = (

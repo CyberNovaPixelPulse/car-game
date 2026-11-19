@@ -37,6 +37,8 @@ export const MG_AIMING = {
 } as const;
 export const JAM_RULES = {
   chance: 0.25,
+  /** Seconds of the loader's hands to clear a jammed round. */
+  clear: 1.6,
   progress: 0.4,
   width: 0.24,
   speed: 0.65,
@@ -50,13 +52,37 @@ export const SHELL_DAMAGE = {
   ap: { direct: 180, radius: 0, splash: 0 },
   smoke: { direct: 0, radius: 0, splash: 0 },
 } as const;
-export const BALLISTICS = { speed: 32, gravity: 9.81, lifetime: 5 } as const;
+/**
+ * 75 mm M3 muzzle velocities (m/s): M61 APC 619, M48 HE 463, M89 smoke 259.
+ * At these speeds a shell drops only centimetres across this field, as it
+ * would for a real crew; only the slow smoke round arcs visibly.
+ */
+export const BALLISTICS = {
+  speed: { he: 463, ap: 619, smoke: 259 },
+  gravity: 9.81,
+  lifetime: 5,
+} as const;
+/**
+ * Driver's fixed bow machine gun (.30 cal M1919 in the hull ball mount).
+ * It points along the hull; against armour it is little more than noise.
+ */
+export const BOW_MG = {
+  interval: 0.12,
+  damage: 0.05,
+  range: 90,
+  burst: 6,
+  cooldown: 3,
+  cooling: 0.35,
+  /** Hull-local mount: right of centre, at the front glacis. */
+  mount: { right: 0.62, forward: 2.35, height: 1.55 },
+} as const;
+/** Loader's M2HB .50 cal: ~410 rounds/min, as in the reference range footage. */
 export const MG_RULES = {
   burst: 5,
   cooldown: 3,
   cooling: 0.3,
-  interval: 0.1,
-  damage: 1,
+  interval: 0.147,
+  damage: 1.45,
   range: 100,
 } as const;
 export const SMOKE_SECONDS = 8;

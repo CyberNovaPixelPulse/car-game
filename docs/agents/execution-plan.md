@@ -6,7 +6,7 @@
 
 1. 開始時更新 `docs/agents/current-task.md`：範圍、交付物、預算、開始與截止時間。未另約定時，以30分鐘檢查點規劃；較長功能拆里程碑。
 2. 第一條可試玩的正常流程完成即提供入口並進行審查。完整驗收獨立記錄，未完成時維持Draft與明確缺口。
-3. 改動先跑 `npm test`。它只做便宜檢查與案例收集；應用程式變更另跑build。
+3. 改動先跑 `npm test`。應用程式變更另跑 `npm run build`。
 4. 失敗先分類：正常玩家缺陷、測試假設／策略、工具／環境、未知。記錄證據、影響、新假設及下一個最小案例。
 5. 同一問題最多兩輪有新假設的修正／驗證。仍未收斂就保存、交付現況；一般維護與測試工具擴張另列工作。
 6. 截止前停止新增修補與測試，交付來源、入口、逐批結果、審查狀態與未解問題。完整綠燈不作為試玩或審查前置條件。
@@ -22,7 +22,7 @@
 
 ## 檢查與證據
 
-- `npm test`／`npm run verify:fast`：規則自檢、既有型別檢查、Playwright案例收集；不啟動瀏覽器。CI另外執行既有build。
+- `npm test`／`npm run verify:fast` 執行驗證政策與遊戲規則測試、PeerServer 啟動檢查、型別檢查及 Playwright 案例收集。CI 的 `verify` 也執行建置。瀏覽器回歸另行驗證。
 - 每次快速檢查建立獨立 `output/qa/<run-id>/`，以原子方式更新 `output/qa/latest.json`。`npm run verify:status`讀取最新報告；已退出程序的running紀錄顯示interrupted。
 - 手動或資源主機E2E每次嘗試使用全新證據／log／JSON目錄。重複案例改用獨立命令目錄，避免共用手動PNG別名；E2E入口也建立唯一run、接管證據／JSON／test-results，拒絕舊輸出路徑覆寫、UI無限等待、平行worker及repeat-each。入口拒絕也保留本次失敗報告，最新狀態不沿用上輪通過；後續新增capture採用 `testInfo.outputPath()`。
 - 兩輪上限與假設分類需要判斷，由執行／審查把關；本輪不新增自動除錯排程器。global timeout與本機多場景禁用由設定檢查。

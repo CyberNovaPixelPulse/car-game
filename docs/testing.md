@@ -1,6 +1,6 @@
 # 坦克驗證
 
-執行入口與停止條件見 [執行草案 v2](agents/execution-plan.md)。`npm test` 只做規則自檢、型別檢查及案例收集。Codex 的瀏覽器驗證依 [專案指令](../AGENTS.md) 使用內建瀏覽器。以下 Playwright E2E 指令適用於資源已確認的非 macOS 驗證主機。
+執行入口與停止條件見 [執行草案 v2](agents/execution-plan.md)。`npm test` 執行型別檢查、驗證政策與遊戲規則測試、PeerServer 啟動檢查，以及瀏覽器測試案例收集。PeerServer 檢查會啟動本機服務並確認 `/health` 回應，WebRTC 資料傳輸由瀏覽器端到端測試驗證。Codex 的瀏覽器驗證依 [專案指令](../AGENTS.md) 使用內建瀏覽器。以下 Playwright E2E 指令適用於資源已確認的非 macOS 驗證主機。
 
 #45 的單人練習沿用同一瀏覽器使用者接點：首頁選職、正常鍵盤／按鈕、真實本機權威與 AI，再觀察可見儀表、工作狀態與結果。單人入口案例觀察沒有 Peer 信令 WebSocket（Vite 開發熱更新 WebSocket 不屬於遊戲連線）；不以假房間或狀態注入代替。新案例與每次 red／green、失敗 trace 分目錄保存。多人先例及證據仍按以下真實三人連線流程執行，兩者不可混稱。固定來源完整回歸及既有失敗的改動前對照見 [練習驗證紀錄](practice-validation.md)。
 

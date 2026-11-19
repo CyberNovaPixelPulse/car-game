@@ -5,6 +5,7 @@ import { applyHeadOffset, headStamp } from "./tank-head-camera";
 import { disposeArt } from "./tank-art-materials";
 import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import type { TankState } from "./tank-core";
+import { LoaderHands } from "./tank-loader-hands";
 import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
 
 /** Enclosed loader workspace. Deliberately owns no battlefield geometry or rules. */
@@ -19,6 +20,9 @@ export class TankInteriorScene {
   private block = new THREE.Group();
   private round = new THREE.Group();
   private case = new THREE.Group();
+  private hands = new LoaderHands();
+  /** The ready-rack round the loader takes; it leaves the rack while he carries it. */
+  private rackRound?: THREE.Object3D;
   private textures: THREE.Texture[] = [];
   private materials: THREE.Material[] = [];
   private dirty = true;
@@ -238,7 +242,7 @@ export class TankInteriorScene {
         band.rotation.x = Math.PI / 2;
       }
     };
-    this.scene.add(this.round, this.case);
+    this.scene.add(this.round, this.case, this.hands.group);
     makeShell(this.round);
     makeShell(this.case, true);
     // Ready rack and strapped, nose-up ammunition against the right wall.
@@ -248,6 +252,7 @@ export class TankInteriorScene {
         const round = new THREE.Group();
         this.scene.add(round);
         makeShell(round, false, row ? 0x4a5050 : 0x606746);
+        if (row === 0 && i === 3) this.rackRound = round;
         round.position.set(1.48 + row * 0.32, 0.88, -0.95 + i * 0.4);
         round.rotation.x = Math.PI / 2;
         mesh(
@@ -360,7 +365,7 @@ export class TankInteriorScene {
       Math.floor(w.loadProgress * 90),
       w.crouching,
       stunned,
-      motion ? Math.floor(state.time * 30) : "still",
+      motion || w.jam.active ? Math.floor(state.time * 30) : "still",
     ].join(":");
     const stamp = [modelStamp, stunGain, headStamp(offset)].join(":");
     if (!this.dirty && stamp === this.visualStamp) return;
@@ -373,19 +378,6 @@ export class TankInteriorScene {
     const recovery = state.time - w.ejectAt;
     this.recoil.position.z = w.chamber === "ejecting" ? 0.22 * (1 - eject) : 0;
     this.block.position.y = w.chamber === "loaded" ? 0 : -0.5;
-    this.round.visible = w.chamber === "loading";
-    this.round.position.set(0, 1.47, 1.15 - w.loadProgress * 1.65);
-    this.case.visible =
-      w.chamber === "ejecting" ||
-      (w.shotsFired > 0 && recovery >= 0 && recovery < 0.25);
-    const flight =
-      w.chamber === "ejecting" ? eject : 1 + Math.max(0, recovery) * 3;
-    this.case.position.set(
-      flight * 0.72,
-      1.47 - flight * flight * 0.4,
-      -0.45 + flight * 2.0,
-    );
-    this.case.rotation.z = flight * 0.7;
     const tilt = stunned && !this.reducedMotion ? 0.025 * stunGain : 0;
     this.camera.position.set(
       INTERIOR_VIEW.eyeX,
@@ -398,6 +390,28 @@ export class TankInteriorScene {
       INTERIOR_VIEW.targetZ,
     );
     this.camera.rotation.z = tilt;
+    this.round.visible = w.chamber === "loading";
+    if (this.round.visible)
+      this.hands.pose(
+        this.camera,
+        this.round,
+        w.loadProgress,
+        w.jam.active && !this.reducedMotion ? state.time : 0,
+        w.crouching,
+      );
+    else this.hands.hide();
+    if (this.rackRound) this.rackRound.visible = !this.round.visible;
+    this.case.visible =
+      w.chamber === "ejecting" ||
+      (w.shotsFired > 0 && recovery >= 0 && recovery < 0.25);
+    const flight =
+      w.chamber === "ejecting" ? eject : 1 + Math.max(0, recovery) * 3;
+    this.case.position.set(
+      flight * 0.72,
+      1.47 - flight * flight * 0.4,
+      -0.45 + flight * 2.0,
+    );
+    this.case.rotation.z = flight * 0.7;
     applyHeadOffset(this.camera, offset);
     this.renderer.shadowMap.needsUpdate = this.modelStamp !== modelStamp;
     this.modelStamp = modelStamp;
@@ -408,6 +422,8 @@ export class TankInteriorScene {
     this.disposed = true;
     this.assets.cancel();
     this.observer?.disconnect();
+    this.hands.group.removeFromParent();
+    this.hands.dispose();
     disposeArt(this.scene, {
       materials: this.materials,
       textures: this.textures,

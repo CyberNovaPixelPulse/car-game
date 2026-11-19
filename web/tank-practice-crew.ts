@@ -1,7 +1,6 @@
 import { CREW_ROLES, type CrewRole } from "./crew";
 import { TankCore, BATTLEFIELD, AIM, DRIVE } from "./tank-core";
 import {
-  JAM_RULES,
   BALLISTICS,
   DRIVING,
   REPAIR_RULES,
@@ -234,7 +233,8 @@ export class PracticeCrew {
       Math.sin(Math.atan2(dx, -dz) - state.tank.yaw - state.turret.yaw),
       Math.cos(Math.atan2(dx, -dz) - state.tank.yaw - state.turret.yaw),
     );
-    const flight = Math.max(0, range - 4.8) / BALLISTICS.speed;
+    const shell = state.weapon.chamberShell ?? state.weapon.selectedShell;
+    const flight = Math.max(0, range - 4.8) / BALLISTICS.speed[shell];
     const pitch = Math.atan2(
       1.8 - 2.48 + (BALLISTICS.gravity * flight * flight) / 2,
       range,
@@ -343,12 +343,6 @@ export class PracticeCrew {
     }
     if (w.jam.active) {
       this.loaderStatus = "排除卡彈";
-      if (
-        w.jam.result === "trying" &&
-        Math.abs(w.jam.needle - w.jam.zone - JAM_RULES.width / 2) <
-          PRACTICE_RULES.jamTolerance
-      )
-        this.core.action(slot, STOP_JAM);
       return;
     }
     if (w.chamber === "loaded") {
