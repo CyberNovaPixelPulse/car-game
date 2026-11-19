@@ -58,8 +58,10 @@ export class LoaderRounds {
     hands: LoaderHands,
     canWork: boolean,
     jamTravel: number,
+    followReach = true,
   ) {
     hands.group.visible = false;
+    hands.leanToward();
     for (const [type, round] of this.rounds) {
       const inChamber = type === w.chamberShell;
       round.visible = !(inChamber && w.chamber === "loaded");
@@ -73,13 +75,16 @@ export class LoaderRounds {
       const push = phase(p, 0.62, 0.9);
       // Draw the weight in toward the torso before the lead hand guides it into the breech.
       const carry = swing * (1 - phase(p, 0.55, 0.82));
-      round.position.x = THREE.MathUtils.lerp(rack.x, 0, swing) + 0.95 * carry;
+      round.position.x = THREE.MathUtils.lerp(rack.x, 0, swing) + 0.62 * carry;
       round.position.y +=
-        0.67 * lift - 0.057 * swing + 0.12 * Math.sin(swing * Math.PI);
+        0.085 * carry +
+        0.67 * lift -
+        0.057 * swing +
+        0.12 * Math.sin(swing * Math.PI);
       round.position.z =
         THREE.MathUtils.lerp(rack.z[type], 0.6, phase(p, 0.34, 0.49)) -
         1.59 * push +
-        0.17 * carry;
+        0.1 * carry;
       round.rotation.x *= 1 - swing;
       round.position.x += jamTravel;
       // The second hand takes the weight once, then both wrists level the round.
@@ -89,59 +94,94 @@ export class LoaderRounds {
       if (!canWork) continue;
       hands.group.visible = true;
       round.updateMatrixWorld();
+      if (followReach) {
+        const lean = phase(p, 0, 0.18) * (1 - phase(p, 0.89, 1));
+        hands.leanToward(round.position, lean);
+      }
       this.grip(hands, round, p);
     }
   }
 
   private grip(hands: LoaderHands, round: THREE.Object3D, p: number) {
     const reach = phase(p, 0, 0.16);
-    const guideRelease = phase(p, 0.7, 0.82);
-    const baseRelease = phase(p, 0.9, 1);
-    // Each contact point and palm rotates with the carried round.
-    // Pick up above the retention strap, then slide to the carrying grip.
-    const slide = phase(p, 0.22, 0.35);
-    const guideContactZ = THREE.MathUtils.lerp(-0.38, -0.14, slide);
-    const guideRadius = THREE.MathUtils.lerp(0.125, 0.13, slide);
+    const guide = reach * (1 - phase(p, 0.7, 0.82));
+    // Measure from the wrist pivot to the loaded pad of the modelled glove.
+    // The contact point belongs to the shell, so wrapping the fingers cannot
+    // rotate the wrist through the brass when the shell tips out of its rack.
+    const palmLength = 0.047;
+    const padDepth = 0.034;
+    const lift = phase(p, 0.22, 0.36);
+    const cradle = phase(p, 0.29, 0.49);
+    const radialAngle = THREE.MathUtils.lerp(-0.57, -0.45, cradle);
+    const x = Math.cos(radialAngle);
+    const y = Math.sin(radialAngle);
+    const wrap = THREE.MathUtils.lerp(-0.7, -1.0, cradle);
+    const radius = THREE.MathUtils.lerp(0.089, 0.095, lift);
+    // The right hand takes the exposed nose above the strap. Once lifted it
+    // rolls underneath the front third, with the fingers reaching up the near side.
+    this.fingers.set(y * Math.sin(wrap), -x * Math.sin(wrap), -Math.cos(wrap));
+    this.palm.set(-x, -y, 0);
     this.wrist
-      .set(0.84 * guideRadius, -0.54 * guideRadius, guideContactZ)
-      .applyMatrix4(round.matrixWorld);
-    this.wrist.lerp(RIGHT_REST, 1 - reach * (1 - guideRelease));
-    // Fingers cross the casing while the thumb opposes them on the near side.
-    this.fingers.set(0.34, 0.53, -0.78).transformDirection(round.matrixWorld);
-    this.palm.set(-0.84, 0.54, 0).transformDirection(round.matrixWorld);
-    hands.right.place(
-      this.wrist,
-      this.fingers,
-      this.palm,
-      0.12 + 0.48 * reach * (1 - guideRelease),
-    );
+      .set(radius * x, radius * y, THREE.MathUtils.lerp(-0.407, -0.158, lift))
+      .addScaledVector(this.fingers, -palmLength)
+      .addScaledVector(this.palm, -padDepth - 0.003 * cradle)
+      .applyMatrix4(round.matrixWorld)
+      .lerp(RIGHT_REST, 1 - guide)
+      .addScaledVector(hands.lean, 1 - guide);
+    this.fingers.transformDirection(round.matrixWorld);
+    this.palm.transformDirection(round.matrixWorld);
+    hands.right.place(this.wrist, this.fingers, this.palm, 0.12 + 0.19 * guide);
 
-    // Slide to the rim first. Rotating diagonally through this corner would
-    // carry the wrist through solid brass when moving from the side to the base.
-    const toRim = phase(p, 0.48, 0.59);
-    const heel = phase(p, 0.585, 0.7);
-    const angle = (heel * Math.PI) / 2;
-    const rimClearance = 0.028 + 0.008 * toRim * (1 - phase(heel, 0.1, 0.45));
+    const catchUp = phase(p, 0.312, 0.397);
+    const seated = phase(p, 0.38, 0.44);
+    const support = catchUp * (1 - phase(p, 0.9, 1));
+    const slide = phase(p, 0.425, 0.53);
+    const heel = phase(p, 0.505, 0.6);
+    const turn = heel * Math.PI * 0.5;
+    const sine = Math.sin(turn);
+    const cosine = Math.cos(turn);
+    // From the opposite side, the left palm catches the heavy rear half. It
+    // slides along the case, clears the raised rim and flattens on the base.
+    // Roll outwards around the heel. During the regrip the fingers point
+    // forward along the case, then sweep upwards across the exposed base.
+    const turnFingers = THREE.MathUtils.lerp(
+      -1.12 * phase(p, 0.397, 0.47),
+      -4.0,
+      heel,
+    );
+    const across = Math.cos(turnFingers);
+    const inward = Math.sin(turnFingers);
+    this.fingers.set(
+      0.8 * across + 0.6 * sine * inward,
+      -0.6 * across + 0.8 * sine * inward,
+      cosine * inward,
+    );
+    this.palm.set(0.6 * cosine, 0.8 * cosine, -sine);
+    // Reach the far side around the projecting base before settling against it.
+    const baseRadius =
+      THREE.MathUtils.lerp(0.095, 0.109, phase(slide, 0.41, 0.95)) *
+        (1 - 0.56 * phase(heel, 0.18, 1) - 0.44 * phase(p, 0.6, 0.74)) +
+      0.18 * (1 - seated);
+    const clearLip = phase(heel, 0.23, 0.5) * (1 - phase(heel, 0.7, 1));
+    const baseZ =
+      THREE.MathUtils.lerp(0.167, 0.313, slide) +
+      0.205 * (1 - seated) +
+      0.009 * Math.sin(Math.PI * heel) +
+      0.025 * clearLip;
     this.wrist
-      .set(
-        0.108 + rimClearance * Math.cos(angle) - 0.108 * phase(heel, 0.6, 1),
-        -0.02,
-        0.17 + 0.145 * toRim + 0.034 * Math.sin(angle),
-      )
-      .applyMatrix4(round.matrixWorld);
-    // The free hand comes underneath after the round clears the fixed strap.
-    const support = phase(p, 0.24, 0.39);
-    this.wrist.lerp(LEFT_REST, 1 - support * (1 - baseRelease));
-    this.fingers.set(0, 1, 0).transformDirection(round.matrixWorld);
-    this.palm
-      .set(-Math.cos(angle), 0, -Math.sin(angle))
-      .transformDirection(round.matrixWorld);
-    // The heel of the hand flattens for the final push into the breech.
+      .set(-0.6 * baseRadius, -0.8 * baseRadius, baseZ)
+      .addScaledVector(this.fingers, -palmLength)
+      .addScaledVector(this.palm, -padDepth)
+      .applyMatrix4(round.matrixWorld)
+      .lerp(LEFT_REST, 1 - support)
+      .addScaledVector(hands.lean, 1 - support);
+    this.fingers.transformDirection(round.matrixWorld);
+    this.palm.transformDirection(round.matrixWorld);
     hands.left.place(
       this.wrist,
       this.fingers,
       this.palm,
-      0.1 + 0.58 * support * (1 - heel) * (1 - baseRelease),
+      0.03 + 0.27 * seated * support * (1 - heel),
     );
   }
 }

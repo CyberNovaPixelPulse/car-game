@@ -6,6 +6,7 @@ export const INTERIOR_VIEW = {
   eyeZ: 1.55,
   targetX: -0.05,
   targetZ: -0.7,
+  standingTargetY: 1.16,
 } as const;
 
 /** Keep the authored horizontal workspace in frame as the HUD columns draw

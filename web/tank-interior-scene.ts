@@ -58,7 +58,7 @@ export class TankInteriorScene {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
     this.scene.background = new THREE.Color(0x171e1c);
-    this.scene.add(new THREE.HemisphereLight(0xe1e4d9, 0x363a32, 1.15));
+    this.scene.add(new THREE.HemisphereLight(0xe1e4d9, 0x66675c, 1.15));
     const lamp = new THREE.SpotLight(0xffe6c6, 22, 9, Math.PI / 3, 0.68, 2);
     lamp.target.position.set(0, 1.2, -0.6);
     this.scene.add(lamp.target);
@@ -352,6 +352,7 @@ export class TankInteriorScene {
     this.camera.aspect = w / h;
     this.framing = interiorFraming(this.camera.aspect);
     this.camera.zoom = this.framing.zoom;
+    this.hands.frameTorso(this.framing.zoom);
     this.camera.updateProjectionMatrix();
   }
   async prepare(state: TankState) {
@@ -419,7 +420,7 @@ export class TankInteriorScene {
         w.chamber === "ejecting" ? 0.22 * (1 - eject) : 0;
       this.breech.slide.position.y = w.chamber === "loaded" ? 0 : -0.53;
     }
-    this.rounds.present(w, this.hands, loading, jamTravel);
+    this.rounds.present(w, this.hands, loading, jamTravel, !this.reducedMotion);
     this.repair?.present(state, resultAge);
     this.case.visible =
       w.chamber === "ejecting" ||
@@ -440,9 +441,10 @@ export class TankInteriorScene {
     );
     this.camera.lookAt(
       INTERIOR_VIEW.targetX,
-      w.crouching ? 1.12 : 1.35,
+      w.crouching ? 1.12 : INTERIOR_VIEW.standingTargetY,
       INTERIOR_VIEW.targetZ,
     );
+    this.camera.position.add(this.hands.lean);
     this.camera.rotation.z = tilt;
     const workYaw =
       w.mode === "repair" ? this.framing.repairYaw : this.framing.loadingYaw;
