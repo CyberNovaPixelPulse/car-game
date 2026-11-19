@@ -212,3 +212,34 @@ test("a skipped return stroke never plays a click on the following downstroke", 
   }
   assert.deepEqual(starts, []);
 });
+
+test("an accepted gunner shot survives a long foreground frame without replay on restore", () => {
+  const state = new TankCore(() => "gunner").view();
+  const audio = new TankMechanicalAudio();
+  const { context, starts } = recordingOutput();
+  const present = () => audio.present(state, context, true, "gunner");
+  const fire = () => {
+    state.weapon.chamber = "loaded";
+    state.weapon.chamberShell = "ap";
+    fireWeapon(state.weapon, { x: 0, z: 0, yaw: 0, pitch: 0 }, state.time);
+  };
+  present();
+  fire();
+  state.time += 0.61;
+  present();
+  assert.ok(
+    starts.length > 0,
+    "a delayed frame can still present a new foreground shot",
+  );
+  const afterShot = starts.length;
+  present();
+  assert.equal(starts.length, afterShot);
+  audio.reset();
+  fire();
+  present();
+  assert.equal(
+    starts.length,
+    afterShot,
+    "a newly visible station seeds its first snapshot",
+  );
+});

@@ -4,7 +4,6 @@ import {
   RATCHET_REGRIP_SECONDS,
 } from "./tank-ratchet";
 import type { CrewRole } from "./crew";
-import { lastCannonFiredAt } from "./tank-weapons";
 import type { TankState } from "./tank-core";
 
 /** Short, original synthesized metal/transient sounds. Snapshot edges are cues, never rule clocks. */
@@ -43,8 +42,7 @@ export class TankMechanicalAudio {
       previousShots !== undefined &&
       w.shotsFired > previousShots &&
       enabled &&
-      audio?.state === "running" &&
-      state.time - lastCannonFiredAt(w) < 0.6
+      audio?.state === "running"
     ) {
       if (this.cannonBuffer?.sampleRate !== audio.sampleRate)
         this.cannonBuffer = cannonBlast(audio);
