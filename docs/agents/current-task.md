@@ -1,5 +1,15 @@
 # 目前任務
 
+## PR #76 同步 PR #65
+
+- 台北時間 2026-11-19 23:58 開始，2026-11-20 00:28 檢查點。
+- 範圍與交付：把更新後的 #65 合入 #76 分支，保留固定臂長的裝填與維修動畫並更新原草稿 PR。
+- 基底為 #65 的 `dd16f92`，含 [#65 的 main 同步紀錄](https://github.com/CyberNovaPixelPulse/car-game/blob/dd16f9253a11a80d14c26243b4a490dec0e2a6e0/docs/agents/current-task.md)。
+
+- 雙肩固定臂長、裝填握點、扳手／校準環資產與動作程式均沿用原 #76。卡彈保留停針操作及 AI 排除。駕駛窗結合 Blender 窗框、裝甲玻璃與擋泥板。我方砲口保留 #76 的火光與煙霧，敵方砲口、彈著、後座及全車音效接入 #65 基底。
+- `npm test`、`npm run build` 通過，快速檢查收集 46 檔共 153 個瀏覽器案例。紀錄在 `output/qa/1795104110228-2b0579d6/report.json`。另以固定種子確認 40% 卡彈會停住，停針成功後可續裝至閉鎖。
+- 內建瀏覽器單人驗證 58% 托彈及 85% 推入、續裝閉鎖、正常受損維修與校準環握姿，以及駕駛車體機槍與砲手主炮。這輪校準測到失敗回饋，成功及完美校準既有模型測試仍通過。三人三裝置、實際聲道及完整瀏覽器回歸仍待驗。
+
 [草稿 PR #76](https://github.com/CyberNovaPixelPulse/car-game/pull/76) 整合 [Spec #66](https://github.com/CyberNovaPixelPulse/car-game/issues/66) 的主炮火星、車內反光、裝填手環視、第一人稱裝填與維修。整合分支為 `codex/loader-workstations`，基準為鏡頭 PR #65 的 `e3455e1`，含指定的 Blender 近景資產 `460c95a`。
 
 ## 試玩

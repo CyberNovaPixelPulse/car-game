@@ -40,7 +40,7 @@ if (mode === "status") {
     pid: process.pid,
     scope:
       mode === "fast"
-        ? "typecheck + policy and arm pose checks + test collection; no browsers/gameplay"
+        ? "typecheck + policy, game, arm pose and audio tests + relay health + browser test collection"
         : "requested bounded E2E; resource guard may reject before browser launch",
     status: "running",
     startedAt: new Date().toISOString(),
@@ -92,6 +92,9 @@ if (mode === "status") {
               "tools/validation-policy.test.ts",
               "tools/loader-arm-poses.test.ts",
               "tools/tank-mechanical-audio.test.ts",
+              "tools/tank-core.test.ts",
+              "tools/room-rules.test.ts",
+              "tools/peer-server.test.ts",
             ],
           ],
           ["npm", ["run", "check"]],
