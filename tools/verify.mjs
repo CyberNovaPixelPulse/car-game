@@ -91,6 +91,7 @@ if (mode === "status") {
               "--test",
               "tools/validation-policy.test.ts",
               "tools/loader-arm-poses.test.ts",
+              "tools/tank-mechanical-audio.test.ts",
             ],
           ],
           ["npm", ["run", "check"]],
