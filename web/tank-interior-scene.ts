@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { INTERIOR_VIEW } from "./tank-battle-view";
+import { interiorFraming, INTERIOR_VIEW } from "./tank-battle-view";
 import { STILL_HEAD } from "./tank-camera-motion";
 import { cabinFlashIntensity, cannonShotAge } from "./tank-cannon-blast";
 import { applyHeadOffset, headStamp } from "./tank-head-camera";
@@ -22,6 +22,7 @@ export class TankInteriorScene {
   private disposed = false;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(58, 1, 0.05, 16);
+  private framing = interiorFraming(16 / 9);
   private observer?: ResizeObserver;
   private breech?: { recoil: THREE.Object3D; slide: THREE.Object3D };
   private hands = new LoaderHands();
@@ -339,6 +340,8 @@ export class TankInteriorScene {
       scenePixelRatio(w, h, this.quality),
     );
     this.camera.aspect = w / h;
+    this.framing = interiorFraming(this.camera.aspect);
+    this.camera.zoom = this.framing.zoom;
     this.camera.updateProjectionMatrix();
   }
   async prepare(state: TankState) {
@@ -431,7 +434,9 @@ export class TankInteriorScene {
       INTERIOR_VIEW.targetZ,
     );
     this.camera.rotation.z = tilt;
-    this.camera.rotateOnWorldAxis(CABIN_UP, lookYaw);
+    const workYaw =
+      w.mode === "repair" ? this.framing.repairYaw : this.framing.loadingYaw;
+    this.camera.rotateOnWorldAxis(CABIN_UP, workYaw + lookYaw);
     applyHeadOffset(this.camera, offset);
     this.renderer.shadowMap.needsUpdate = this.modelStamp !== modelStamp;
     this.modelStamp = modelStamp;
