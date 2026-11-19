@@ -63,6 +63,8 @@ export interface EnemyTarget {
   fireAt: number;
   flashUntil: number;
 }
+export const SHELL_IMPACT_SECONDS = 0.6;
+
 export interface BowGun {
   heat: number;
   coolUntil: number;
@@ -446,7 +448,7 @@ export function stepWeapon(
         x: point[0],
         y: point[1],
         z: point[2],
-        until: now + 0.6,
+        until: now + SHELL_IMPACT_SECONDS,
       });
       return false;
     }

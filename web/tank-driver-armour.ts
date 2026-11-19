@@ -9,7 +9,7 @@ import { weather } from "./tank-weathering";
  * and below. The clear opening keeps DRIVER_VIEW's angles exactly, because
  * scouting uses the same restriction.
  */
-export function buildDriverArmour(camera: THREE.PerspectiveCamera) {
+export function buildDriverArmour(mount: THREE.Object3D) {
   const far = DRIVER_VIEW.openingDistance;
   const near = far - DRIVER_VIEW.armourDepth;
   const x = far * Math.tan(DRIVER_VIEW.horizontalFov / 2);
@@ -96,7 +96,7 @@ export function buildDriverArmour(camera: THREE.PerspectiveCamera) {
   const workLight = new THREE.PointLight(0x9fb2c8, 0.25, 2, 2);
   workLight.position.set(-0.18, 0.3, -0.1);
   armour.add(workLight);
-  camera.add(armour);
+  mount.add(armour);
 }
 
 /**

@@ -1,4 +1,7 @@
 import * as THREE from "three";
+import { INTERIOR_VIEW } from "./tank-battle-view";
+import { STILL_HEAD } from "./tank-camera-motion";
+import { applyHeadOffset, headStamp } from "./tank-head-camera";
 import { disposeArt } from "./tank-art-materials";
 import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import type { TankState } from "./tank-core";
@@ -26,6 +29,7 @@ export class TankInteriorScene {
   private visualStamp = "";
   private width = 0;
   private height = 0;
+  private modelStamp = "";
   private reducedMotion = matchMedia("(prefers-reduced-motion: reduce)")
     .matches;
   constructor(
@@ -346,7 +350,7 @@ export class TankInteriorScene {
     this.render(state);
     await finishPreparation(this.renderer, () => this.disposed);
   }
-  render(state: TankState) {
+  render(state: TankState, offset = STILL_HEAD, stunGain = 1) {
     const w = state.weapon;
     // An enclosed, motionless workplace does not need to redraw the world at
     // every host/UI tick. All authority clocks still advance outside this view.
@@ -356,13 +360,14 @@ export class TankInteriorScene {
       state.time < w.ejectAt + 0.25;
     const motion = w.chamber === "ejecting" || tail;
     const stunned = state.time < w.stunnedUntil;
-    const stamp = [
+    const modelStamp = [
       w.chamber,
       Math.floor(w.loadProgress * 90),
       w.crouching,
       stunned,
       motion || w.jam.active ? Math.floor(state.time * 30) : "still",
     ].join(":");
+    const stamp = [modelStamp, stunGain, headStamp(offset)].join(":");
     if (!this.dirty && stamp === this.visualStamp) return;
     this.dirty = false;
     this.visualStamp = stamp;
@@ -373,9 +378,17 @@ export class TankInteriorScene {
     const recovery = state.time - w.ejectAt;
     this.recoil.position.z = w.chamber === "ejecting" ? 0.22 * (1 - eject) : 0;
     this.block.position.y = w.chamber === "loaded" ? 0 : -0.5;
-    const tilt = stunned && !this.reducedMotion ? 0.025 : 0;
-    this.camera.position.set(1.35, w.crouching ? 0.74 : 1.9, 1.55);
-    this.camera.lookAt(-0.05, w.crouching ? 1.12 : 1.35, -0.7);
+    const tilt = stunned && !this.reducedMotion ? 0.025 * stunGain : 0;
+    this.camera.position.set(
+      INTERIOR_VIEW.eyeX,
+      w.crouching ? 0.74 : 1.9,
+      INTERIOR_VIEW.eyeZ,
+    );
+    this.camera.lookAt(
+      INTERIOR_VIEW.targetX,
+      w.crouching ? 1.12 : 1.35,
+      INTERIOR_VIEW.targetZ,
+    );
     this.camera.rotation.z = tilt;
     this.round.visible = w.chamber === "loading";
     if (this.round.visible)
@@ -399,7 +412,9 @@ export class TankInteriorScene {
       -0.45 + flight * 2.0,
     );
     this.case.rotation.z = flight * 0.7;
-    this.renderer.shadowMap.needsUpdate = true;
+    applyHeadOffset(this.camera, offset);
+    this.renderer.shadowMap.needsUpdate = this.modelStamp !== modelStamp;
+    this.modelStamp = modelStamp;
     this.renderer.render(this.scene, this.camera);
   }
   dispose() {
@@ -407,6 +422,7 @@ export class TankInteriorScene {
     this.disposed = true;
     this.assets.cancel();
     this.observer?.disconnect();
+    this.hands.group.removeFromParent();
     this.hands.dispose();
     disposeArt(this.scene, {
       materials: this.materials,

@@ -5,7 +5,7 @@ import type { SceneQuality } from "./tank-scene-quality";
 /**
  * Presentation-only battle effects in the spirit of arcade tank games:
  * muzzle blasts, glowing tracers, HE fireballs with dirt fountains, AP spark
- * showers, burning wrecks, barrel recoil, hull rock and camera shake.
+ * showers, burning wrecks, barrel recoil and hull rock.
  * Everything is triggered by snapshot edges and aged by the snapshot clock, so
  * a paused battle freezes its effects and nothing feeds back into the rules.
  */
@@ -263,7 +263,6 @@ class Particles {
 export interface EffectAnchors {
   playerMuzzle: THREE.Object3D;
   enemyMuzzle(id: number): THREE.Object3D | undefined;
-  view: "gunner" | "machine-gun" | "driver";
   /** The loader's own M2, present only in the machine-gun view. */
   mg?: { muzzle: THREE.Object3D; eject: THREE.Object3D };
 }
@@ -287,7 +286,6 @@ export class BattleEffects {
   private mgShots = 0;
   private firedAt = -100;
   private hitAt = -100;
-  private shake = { until: -100, strength: 0, length: 1 };
   private enemyFlash = new Map<number, number>();
   private enemyHp = new Map<number, number>();
   private impacts = new Set<number>();
@@ -322,7 +320,6 @@ export class BattleEffects {
     { x: number; z: number; speed: number; dust: number; smoke: number }
   >();
   private turretOffset = new Map<number, THREE.Vector3>();
-  private listener = new THREE.Vector3();
   private scratch = new THREE.Vector3();
   private forward = new THREE.Vector3();
 
@@ -430,7 +427,6 @@ export class BattleEffects {
       this.embers.length > 0 ||
       this.decals.length > 0 ||
       this.time - this.firedAt < 1.4 ||
-      this.time < this.shake.until ||
       this.delayed.length > 0
     );
   }
@@ -441,7 +437,6 @@ export class BattleEffects {
     const dt = Math.min(0.1, Math.max(0, now - this.time));
     this.time = now;
     const w = state.weapon;
-    this.listener.set(state.tank.x, 1.5, state.tank.z);
     if (!this.primed) {
       this.primed = true;
       this.shots = w.shotsFired;
@@ -458,10 +453,6 @@ export class BattleEffects {
     if (w.shotsFired > this.shots) {
       this.firedAt = now;
       this.muzzleBlast(anchors.playerMuzzle, 1);
-      this.kick(
-        anchors.view === "driver" ? 0.35 : anchors.view === "gunner" ? 1 : 0.7,
-        0.45,
-      );
     }
     this.shots = w.shotsFired;
 
@@ -575,7 +566,6 @@ export class BattleEffects {
       const at = new THREE.Vector3(hit.x, Math.max(0.1, hit.y), hit.z);
       if (hit.shell === "he") {
         this.explosion(at, 1.5);
-        this.kickFrom(at, 1.2);
       } else if (hit.shell === "ap") {
         this.sparks(at, 1.4);
         this.rings.spawn({
@@ -586,7 +576,6 @@ export class BattleEffects {
           from: [1, 0.95, 0.8, 0.9],
           to: [1, 0.6, 0.2, 0],
         });
-        this.kickFrom(at, 0.5);
       } else this.smokePop(at);
     }
     if (this.impacts.size > 64)
@@ -603,7 +592,6 @@ export class BattleEffects {
         ),
         1.3,
       );
-      this.kick(1.4, 0.6);
     }
     this.hitAt = state.battle.lastHitAt;
 
@@ -742,19 +730,6 @@ export class BattleEffects {
     root.rotation.z = rock * Math.sin(turretYaw);
   }
 
-  /** Shake and kick the view; returns nothing, mutates the camera in place. */
-  shakeCamera(camera: THREE.PerspectiveCamera) {
-    const left = this.shake.until - this.time;
-    if (left <= 0) return;
-    const k = (left / this.shake.length) ** 2 * this.shake.strength;
-    camera.position.x += random(-1, 1) * 0.06 * k;
-    camera.position.y += random(-1, 1) * 0.05 * k;
-    camera.position.z += random(-1, 1) * 0.06 * k;
-    // The sight jumps up with the shot and settles back.
-    camera.rotateX(0.02 * k + random(-1, 1) * 0.004 * k);
-    camera.rotateY(random(-1, 1) * 0.004 * k);
-  }
-
   /**
    * Arcade-style "turret pop": a destroyed tank throws its turret into the
    * air, spinning, and it crashes back down askew. Call after posing aim.
@@ -785,12 +760,6 @@ export class BattleEffects {
     this.turretOffset.set(id, offset);
   }
 
-  /** Shake strength falls off with the blast's distance from our tank. */
-  private kickFrom(at: THREE.Vector3, strength: number) {
-    const near = 1 - Math.min(1, at.distanceTo(this.listener) / 50);
-    if (near > 0.08) this.kick(strength * (0.25 + 0.75 * near), 0.55);
-  }
-
   private decal(
     at: THREE.Vector3,
     kind: "shock" | "scorch",
@@ -813,11 +782,6 @@ export class BattleEffects {
     mesh.material.opacity = kind === "scorch" ? 0.85 : 0.9;
     mesh.visible = true;
     this.decals.push({ mesh, born: this.time, life, radius, kind });
-  }
-
-  private kick(strength: number, length: number) {
-    if (this.time < this.shake.until && this.shake.strength > strength) return;
-    this.shake = { until: this.time + length, strength, length };
   }
 
   private flash(
@@ -1172,7 +1136,6 @@ export class BattleEffects {
   private destroyed(x: number, z: number) {
     const at = new THREE.Vector3(x, 1.6, z);
     this.explosion(at, 2.2);
-    this.kickFrom(at, 1.6);
     for (let k = 0; k < 4; k++)
       this.delayed.push({
         at: this.time + 0.35 + k * random(0.25, 0.5),
@@ -1317,7 +1280,6 @@ export class BattleEffects {
     this.turretOffset.clear();
     this.primed = false;
     this.firedAt = -100;
-    this.shake.until = -100;
     this.delayed = [];
     this.flashes = [];
     for (const light of this.lights) light.intensity = 0;

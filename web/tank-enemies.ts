@@ -23,6 +23,59 @@ interface Vehicle {
   z: number;
   hp: number;
 }
+type EnemyShellEvent = { id: number; at: number } & (
+  | { kind: "hull-hit"; heading: number; damage: number }
+  | { kind: "muzzle" | "cover"; x: number; z: number }
+);
+const MAX_SHELL_EVENTS = 24;
+const SHELL_EVENT_RETENTION = 0.8;
+
+export function validEnemyShellEvents(
+  events: EnemyShellEvent[],
+  now: number,
+  shots: number,
+) {
+  if (!Array.isArray(events) || events.length > MAX_SHELL_EVENTS) return false;
+  const seen = new Set<string>();
+  for (const event of events) {
+    if (
+      !event ||
+      !Number.isSafeInteger(event.id) ||
+      event.id <= 0 ||
+      event.id > shots ||
+      !Number.isFinite(event.at) ||
+      event.at < 0 ||
+      event.at > now ||
+      now - event.at >= SHELL_EVENT_RETENTION
+    )
+      return false;
+    if (event.kind === "hull-hit") {
+      if (
+        !Number.isFinite(event.heading) ||
+        !Number.isFinite(event.damage) ||
+        event.damage <= 0
+      )
+        return false;
+    } else if (
+      (event.kind !== "muzzle" && event.kind !== "cover") ||
+      !Number.isFinite(event.x) ||
+      !Number.isFinite(event.z)
+    )
+      return false;
+    // A single projectile can have one muzzle and at most one terminal event.
+    const key = event.id + (event.kind === "muzzle" ? "-shot" : "-impact");
+    if (seen.has(key)) return false;
+    seen.add(key);
+  }
+  return true;
+}
+
+function recordShellEvent(battle: EnemyBattle, event: EnemyShellEvent) {
+  if (battle.shellEvents.length === MAX_SHELL_EVENTS)
+    battle.shellEvents.shift();
+  battle.shellEvents.push(event);
+}
+
 export interface EnemyBattle {
   wave: number;
   won: boolean;
@@ -37,6 +90,7 @@ export interface EnemyBattle {
     age: number;
   }[];
   shots: number;
+  shellEvents: EnemyShellEvent[];
   lastHitAt: number;
   lastDamage: number;
   failed: boolean;
@@ -46,6 +100,7 @@ export const createEnemyBattle = (): EnemyBattle => ({
   won: false,
   projectiles: [],
   shots: 0,
+  shellEvents: [],
   lastHitAt: -100,
   lastDamage: 0,
   failed: false,
@@ -122,6 +177,11 @@ export function stepEnemies(
   smoke: readonly SmokeCloud[],
 ) {
   if (b.failed || b.won) return;
+  while (
+    b.shellEvents.length &&
+    now - b.shellEvents[0].at >= SHELL_EVENT_RETENTION
+  )
+    b.shellEvents.shift();
   for (const e of enemies) {
     if (e.hp <= 0) continue;
     const hiddenBySmoke = smokeBlocks(
@@ -209,6 +269,13 @@ export function stepEnemies(
         damage: ENEMY_RULES.damage[e.kind],
         age: 0,
       });
+      recordShellEvent(b, {
+        kind: "muzzle",
+        id: b.shots,
+        at: now,
+        x: e.x,
+        z: e.z,
+      });
       e.readyAt =
         now +
         ENEMY_RULES.cooldown[e.kind] *
@@ -243,6 +310,21 @@ export function stepEnemies(
         tank.hp = Math.max(0, tank.hp - p.damage);
         b.lastHitAt = now;
         b.lastDamage = p.damage;
+        recordShellEvent(b, {
+          kind: "hull-hit",
+          id: p.id,
+          at: now,
+          heading: Math.atan2(p.vx, -p.vz),
+          damage: p.damage,
+        });
+      } else {
+        recordShellEvent(b, {
+          kind: "cover",
+          id: p.id,
+          at: now,
+          x: from[0] + (to[0] - from[0]) * nearest,
+          z: from[2] + (to[2] - from[2]) * nearest,
+        });
       }
       return false;
     }
