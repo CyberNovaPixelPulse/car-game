@@ -1,5 +1,6 @@
 import { RECONNECT_GRACE_MS, TRANSPORT } from "./tank-settings";
 import { isCrewRole, type CrewRole } from "./crew";
+import { canStartBattle, updateLobbyCrew } from "./room-rules";
 import Peer, { type DataConnection, type PeerOptions } from "peerjs";
 import { validViewAspect } from "./tank-battle-view";
 
@@ -608,42 +609,18 @@ export class Session {
     if (this.room?.phase !== "lobby") return;
     const member = this.members.get(slot);
     if (!member?.connected) return;
-    const notice = (message: string) => {
-      if (slot === 0) this.onError(message);
-      else member.link?.send({ type: "notice", message });
-    };
-    if (isCrewRole(role)) {
-      if (
-        [...this.members.values()].some(
-          (m) => m.slot !== slot && m.role === role,
-        )
-      ) {
-        notice("這個職位已有人擔任，請選擇其他職位。");
-        return;
-      }
-      if (member.role !== role) {
-        member.role = role;
-        member.ready = false;
-      }
-    }
-    if (typeof ready === "boolean") {
-      if (!member.role) {
-        notice("請先選擇職位再準備。");
-        return;
-      }
-      member.ready = ready;
+    const notice = updateLobbyCrew(member, this.members.values(), role, ready);
+    if (notice) {
+      if (slot === 0) this.onError(notice);
+      else member.link?.send({ type: "notice", message: notice });
+      return;
     }
     this.publishRoom();
   }
   start() {
     if (
-      !this.isHost ||
       !this.room ||
-      this.room.phase !== "lobby" ||
-      this.members.size !== 3 ||
-      [...this.members.values()].some(
-        (m) => !m.connected || !m.role || !m.ready,
-      )
+      !canStartBattle(this.isHost, this.room.phase, [...this.members.values()])
     )
       return;
     for (const [slot, member] of this.members)
