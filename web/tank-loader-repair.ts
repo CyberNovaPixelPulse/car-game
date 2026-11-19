@@ -235,9 +235,12 @@ export class LoaderRepair {
     const scale = this.hands.right.glove.scale.x;
     // Roll about the planted heel. The knuckles rise just enough for the
     // flexing fingertips to keep their pads against the face of the panel.
+    // A very early confirmation can stop the needle while this release is
+    // still in progress. Finish it on the same clock as the hand transfer.
+    const timeOffHandle = c.elapsed + (reacting ? resultAge : 0);
     const handLoad =
       pressure * ratcheting +
-      (onRing ? this.parkedPressure * (1 - smooth(c.elapsed, 0, 0.16)) : 0);
+      (onRing ? this.parkedPressure * (1 - smooth(timeOffHandle, 0, 0.16)) : 0);
     this.braceRotation.slerpQuaternions(braceTurn, loadedBrace, handLoad);
     this.left.match(this.brace, faceAtBrace, heel, this.braceRotation, scale);
     this.right.match(this.tool, handle, gripCentre, handleTurn, scale);
