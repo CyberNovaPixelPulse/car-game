@@ -7,6 +7,8 @@ import { TankCore } from "../web/tank-core.ts";
 import { LoaderHands } from "../web/tank-loader-hands.ts";
 import { LoaderRepair } from "../web/tank-loader-repair.ts";
 import { LoaderRounds } from "../web/tank-loader-rounds.ts";
+import { stepRepair, stopRepairCalibration } from "../web/tank-repair.ts";
+import { REPAIR_RULES } from "../web/tank-settings.ts";
 import { createWeaponState } from "../web/tank-weapons.ts";
 
 async function loadModel(filename: string) {
@@ -194,47 +196,342 @@ test("the loader carries and pushes every shell with fixed arm lengths and shoul
   }
 });
 
-test("entering repair after loading keeps cuffs joined and the wrench on the fastener", async () => {
-  const hands = await dressedHands();
-  const scene = new THREE.Scene();
-  scene.add(hands.group);
-  const rounds = new LoaderRounds(scene, () => new THREE.Group());
-  const state = new TankCore(() => "loader").view();
-  state.weapon.chamber = "loading";
-  state.weapon.loadProgress = 0.85;
-  rounds.present(state.weapon, hands, true, 0);
-  const panel = await loadModel("repair-panel");
-  const repair = LoaderRepair.bind(panel, scene, hands);
-  assert.ok(repair);
-  const tool = hands.right.glove.getObjectByName("SocketWrench");
-  const fastener = panel.getObjectByName("Fastener");
-  assert.ok(tool && fastener);
-  const wrists = hands.group.getObjectsByProperty("name", "Wrist");
-  const gloves = [hands.left.glove, hands.right.glove];
-  state.weapon.mode = "repair";
-  state.repair.status = "repairing";
-  for (const result of ["idle", "active"] as const) {
-    state.repair.calibration.result = result;
-    for (let step = 0; step <= 60; step++) {
-      state.repair.activeSeconds = state.repair.calibration.elapsed = step / 60;
-      repair.present(state, Infinity);
-      scene.updateMatrixWorld(true);
-      for (const [side, wrist] of wrists.entries()) {
-        const cuff = gloves[side].localToWorld(new THREE.Vector3(0, -0.044, 0));
-        assert.ok(
-          wrist.getWorldPosition(new THREE.Vector3()).distanceTo(cuff) < 1e-6,
-          "repair cuff separates after loading",
-        );
-      }
-      assert.equal(tool.visible, result === "idle");
-      if (tool.visible) {
-        const socket = tool.getWorldPosition(new THREE.Vector3());
-        assert.ok(
-          socket.distanceTo(fastener.getWorldPosition(new THREE.Vector3())) <
-            1e-6,
-          "wrench misses the fastener",
-        );
-      }
+// Locate an authored point on the relaxed leather, then sample that same vertex
+// after the Grip and Pinch targets deform it. Exporter vertex ordering may vary.
+function leatherPoint(glove: THREE.Object3D, relaxed: THREE.Vector3) {
+  const sewn = glove.getObjectByName("SewnWorkGlove");
+  assert.ok(sewn);
+  let closest:
+    { mesh: THREE.Mesh; vertex: number; distance: number } | undefined;
+  const point = new THREE.Vector3();
+  for (const child of sewn.children) {
+    if (!(child instanceof THREE.Mesh)) continue;
+    const positions = child.geometry.getAttribute("position");
+    for (let vertex = 0; vertex < positions.count; vertex++) {
+      const distance = point
+        .fromBufferAttribute(positions, vertex)
+        .distanceTo(relaxed);
+      if (!closest || distance < closest.distance)
+        closest = { mesh: child, vertex, distance };
     }
   }
-});
+  assert.ok(
+    closest && closest.distance < 0.006,
+    "leather landmark missing from the exported glove",
+  );
+  const { mesh, vertex } = closest;
+  return () =>
+    mesh.localToWorld(mesh.getVertexPosition(vertex, new THREE.Vector3()));
+}
+
+function distanceToSurface(part: THREE.Object3D) {
+  part.updateWorldMatrix(true, true);
+  const inverse = part.matrixWorld.clone().invert();
+  const triangles: THREE.Triangle[] = [];
+  part.traverse((node) => {
+    if (!(node instanceof THREE.Mesh)) return;
+    const matrix = inverse.clone().multiply(node.matrixWorld);
+    const positions = node.geometry.getAttribute("position");
+    const vertices = Array.from({ length: positions.count }, (_, i) =>
+      new THREE.Vector3()
+        .fromBufferAttribute(positions, i)
+        .applyMatrix4(matrix),
+    );
+    const indices = node.geometry.getIndex();
+    assert.ok(indices);
+    for (let i = 0; i < indices.count; i += 3)
+      triangles.push(
+        new THREE.Triangle(
+          vertices[indices.getX(i)],
+          vertices[indices.getX(i + 1)],
+          vertices[indices.getX(i + 2)],
+        ),
+      );
+  });
+  assert.ok(triangles.length);
+  const nearest = new THREE.Vector3();
+  return (worldPoint: THREE.Vector3) => {
+    const local = part.worldToLocal(worldPoint.clone());
+    let closest = Infinity;
+    for (const triangle of triangles)
+      closest = Math.min(
+        closest,
+        triangle.closestPointToPoint(local, nearest).distanceToSquared(local),
+      );
+    return Math.sqrt(closest);
+  };
+}
+
+for (const expected of ["success", "failed"] as const) {
+  test(`the loader turns the ring and returns to the wrench after calibration ${expected}`, async () => {
+    const hands = await dressedHands();
+    const scene = new THREE.Scene();
+    scene.add(hands.group);
+    const rounds = new LoaderRounds(scene, () => new THREE.Group());
+    const state = new TankCore(() => "loader").view();
+    state.weapon.chamber = "loading";
+    state.weapon.chamberShell = "he";
+    state.weapon.loadProgress = 0.85;
+    rounds.present(state.weapon, hands, true, 0);
+    scene.updateMatrixWorld(true);
+    const gloves = [hands.left.glove, hands.right.glove];
+    const loadingPose = gloves.map((glove) =>
+      glove.getWorldPosition(new THREE.Vector3()),
+    );
+    const kit = await loadModel("repair-panel");
+    const tool = kit.getObjectByName("SocketWrench");
+    const panel = kit.getObjectByName("RepairPanel");
+    const fastener = kit.getObjectByName("Fastener");
+    const ring = kit.getObjectByName("AdjustmentRing");
+    const casting = kit.getObjectByName("PanelCasting");
+    assert.ok(tool && panel && fastener && ring && casting);
+    const repair = LoaderRepair.bind(kit, scene, hands);
+    assert.ok(repair);
+    const ringDistance = distanceToSurface(ring);
+    const castingDistance = distanceToSurface(casting);
+    const toolDistance = distanceToSurface(tool);
+    const rightPalm = leatherPoint(
+      hands.right.glove,
+      new THREE.Vector3(0, 0.054, -0.02),
+    );
+    const ringFinger = leatherPoint(
+      hands.right.glove,
+      new THREE.Vector3(0.012, 0.139, -0.017),
+    );
+    const fingertips = [
+      leatherPoint(hands.right.glove, new THREE.Vector3(-0.069, 0.077, -0.019)),
+      leatherPoint(hands.right.glove, new THREE.Vector3(-0.041, 0.147, -0.015)),
+    ];
+    // The thenar pad sits on the thumb side of the relaxed glove.
+    const bracePad = leatherPoint(
+      hands.left.glove,
+      new THREE.Vector3(-0.025, 0.021, -0.028),
+    );
+    const wrists = hands.group.getObjectsByProperty("name", "Wrist");
+    const elbows = hands.group.getObjectsByProperty("name", "Forearm");
+    const shoulders = hands.group.getObjectsByProperty("name", "UpperArm");
+    const c = state.repair.calibration;
+    state.time = 10;
+    state.tank.hp = 20;
+    state.weapon.mode = "repair";
+    let settledAt: number | undefined;
+    let stoppedWork: number | undefined;
+    let firstRingAngle: number | undefined;
+    let lastRingAngle: number | undefined;
+    let confirmedAngle: number | undefined;
+    let confirmationTravel = 0;
+    let firstLocalTips: THREE.Vector3[] | undefined;
+    let recovery = false;
+    let braced = false;
+    let parkedTool: THREE.Quaternion | undefined;
+    let withdrew = false;
+    let reachedForHandle = false;
+    let firstHandle: THREE.Vector3 | undefined;
+    let wrenchSweep = 0;
+    const dt = 1 / 60;
+    for (let frame = 0; frame < 15 * 60; frame++) {
+      state.time += dt;
+      stepRepair(state, true, dt);
+      // Stop just inside the success region, outside the narrower perfect region.
+      if (
+        expected === "success" &&
+        c.result === "active" &&
+        c.elapsed / REPAIR_RULES.calibrationDuration >=
+          c.target + REPAIR_RULES.calibrationWidth - 0.035
+      )
+        stopRepairCalibration(state);
+      const resultAge = repair.resultAge(state);
+      rounds.present(state.weapon, hands, false, 0);
+      repair.present(state, resultAge);
+      scene.updateMatrixWorld(true);
+      if (c.result === expected) {
+        settledAt ??= state.time;
+        if (expected === "failed") stoppedWork ??= state.repair.activeSeconds;
+        if (expected === "success" && Number.isFinite(resultAge)) {
+          confirmedAngle ??= ring.rotation.z;
+          confirmationTravel = Math.max(
+            confirmationTravel,
+            ring.rotation.z - confirmedAngle,
+          );
+        }
+      }
+      if (!hands.group.visible) continue;
+      const onRing = c.result === "active" || Number.isFinite(resultAge);
+      const returnedWork =
+        stoppedWork === undefined
+          ? Infinity
+          : state.repair.activeSeconds - stoppedWork;
+      const working = !onRing && state.repair.status === "repairing";
+      if (working && returnedWork < 0.07 && toolDistance(rightPalm()) > 0.03)
+        reachedForHandle = true;
+      const ratcheting = working && returnedWork >= 0.4;
+      const origins = shoulders.map((joint) =>
+        joint.getWorldPosition(new THREE.Vector3()),
+      );
+      assert.ok(
+        Math.abs(origins[0].distanceTo(origins[1]) - 0.42) < 1e-6,
+        "repair shoulders separate",
+      );
+      for (const [side, glove] of gloves.entries()) {
+        const elbow = elbows[side].getWorldPosition(new THREE.Vector3());
+        const wrist = wrists[side].getWorldPosition(new THREE.Vector3());
+        const lower = wrist.clone().sub(elbow);
+        const upper = elbow.sub(origins[side]);
+        assert.ok(
+          Math.abs(upper.length() - 0.4608) < 1e-6,
+          "repair upper arm stretches",
+        );
+        assert.ok(
+          Math.abs(lower.length() - 0.4096) < 1e-6,
+          "repair forearm stretches",
+        );
+        const flex = THREE.MathUtils.radToDeg(upper.angleTo(lower));
+        assert.ok(
+          flex >= 20 - 1e-6 && flex < 145,
+          `repair elbow folds ${flex.toFixed(1)}°`,
+        );
+        const cuff = glove.localToWorld(new THREE.Vector3(0, -0.044, 0));
+        assert.ok(wrist.distanceTo(cuff) < 1e-6, "sleeve separates in repair");
+        if (ratcheting || c.result === "active") {
+          const palm = new THREE.Vector3(0, 1, 0).transformDirection(
+            glove.matrixWorld,
+          );
+          const bend = THREE.MathUtils.radToDeg(palm.angleTo(lower));
+          assert.ok(
+            bend < 75,
+            `${side === 0 ? "bracing" : "working"} wrist bends ${bend.toFixed(1)}°`,
+          );
+        }
+      }
+
+      assert.ok(tool.visible, "wrench disappears during work or hand transfer");
+      const socket = fastener.worldToLocal(
+        tool.getWorldPosition(new THREE.Vector3()),
+      );
+      assert.ok(
+        Math.hypot(socket.x, socket.y) < 1e-5 &&
+          socket.z < -0.005 &&
+          socket.z > -0.015,
+        "socket must enclose the bolt head",
+      );
+      const outward = new THREE.Vector3(0, 0, 1).transformDirection(
+        panel.matrixWorld,
+      );
+      const socketAxis = new THREE.Vector3(0, 0, 1).transformDirection(
+        tool.matrixWorld,
+      );
+      assert.ok(
+        outward.dot(socketAxis) > 0.999,
+        "socket points across the bolt",
+      );
+      if (ratcheting) {
+        const handle = new THREE.Vector3(1, 0, 0).transformDirection(
+          tool.matrixWorld,
+        );
+        firstHandle ??= handle.clone();
+        wrenchSweep = Math.max(wrenchSweep, firstHandle.angleTo(handle));
+        if (frame % 30 === 0 || settledAt !== undefined) {
+          assert.ok(
+            castingDistance(bracePad()) < 0.008,
+            "left palm floats off the casting",
+          );
+          for (const pad of [rightPalm(), ringFinger()]) {
+            const local = tool.worldToLocal(pad.clone());
+            assert.ok(
+              local.x > 0.173 && local.x < 0.279 && toolDistance(pad) < 0.007,
+              "hand misses the textured handle",
+            );
+          }
+          braced = true;
+        }
+        if (settledAt !== undefined) {
+          recovery = true;
+          break;
+        }
+      }
+      if (c.result === "active") {
+        const orientation = tool.getWorldQuaternion(new THREE.Quaternion());
+        parkedTool ??= orientation.clone();
+        assert.ok(
+          orientation.angleTo(parkedTool) < 1e-5,
+          "unattended ratchet turns during calibration",
+        );
+      }
+      if (
+        c.result === "failed" &&
+        resultAge > 0.48 &&
+        Number.isFinite(resultAge)
+      ) {
+        assert.ok(
+          ringDistance(fingertips[0]()) > 0.03,
+          "failed grip never releases the ring",
+        );
+        withdrew = true;
+      }
+      if (c.result === "active" && c.elapsed > 0.35 && frame % 8 === 0) {
+        assert.ok(
+          toolDistance(rightPalm()) > 0.04,
+          "right palm remains on the handle while pinching the ring",
+        );
+        firstRingAngle ??= ring.rotation.z;
+        lastRingAngle = ring.rotation.z;
+        const tips = fingertips.map((tip) => tip());
+        const local = tips.map((tip) => ring.worldToLocal(tip.clone()));
+        firstLocalTips ??= local.map((tip) => tip.clone());
+        const radii = local.map((point) => Math.hypot(point.x, point.y));
+        assert.ok(
+          radii[0] - radii[1] > 0.02,
+          "thumb and forefinger must oppose each other across the rim",
+        );
+        for (const [digit, tip] of tips.entries()) {
+          assert.ok(
+            ringDistance(tip) < 0.01,
+            `${digit === 0 ? "thumb" : "index finger"} misses the ring`,
+          );
+          assert.ok(
+            local[digit].distanceTo(firstLocalTips[digit]) < 0.012,
+            "fingertip slips while turning the ring",
+          );
+        }
+      }
+    }
+    assert.ok(
+      braced && wrenchSweep > 0.4,
+      "ratchet never completed a working stroke",
+    );
+    assert.ok(
+      firstRingAngle !== undefined &&
+        lastRingAngle !== undefined &&
+        Math.abs(lastRingAngle - firstRingAngle) > 0.1,
+      "ring did not turn between the fingertips",
+    );
+    assert.ok(
+      settledAt !== undefined && recovery,
+      `wrench did not return after ${expected}`,
+    );
+    if (expected === "failed")
+      assert.ok(
+        withdrew && reachedForHandle,
+        "failed calibration must withdraw and reach for the handle again",
+      );
+    else
+      assert.ok(
+        confirmationTravel > 0.08,
+        "the confirmation never presses the ring",
+      );
+    state.weapon.mode = "loading";
+    rounds.present(state.weapon, hands, true, 0);
+    repair.present(state, repair.resultAge(state));
+    scene.updateMatrixWorld(true);
+    assert.equal(panel.visible, false);
+    assert.equal(tool.visible, false);
+    assert.ok(hands.group.visible);
+    for (const [side, glove] of gloves.entries())
+      assert.ok(
+        glove
+          .getWorldPosition(new THREE.Vector3())
+          .distanceTo(loadingPose[side]) < 1e-6,
+        "loading grip changed after repair",
+      );
+  });
+}

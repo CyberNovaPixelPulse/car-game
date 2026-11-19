@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import rack from "./tank-loader-rack.json";
-import { LoaderBody, LOADER_ARM_SCALE } from "./tank-loader-body";
+import { LoaderBody } from "./tank-loader-body";
 import { LoaderHands } from "./tank-loader-hands";
 import type { ShellType, WeaponState } from "./tank-weapons";
 
@@ -201,8 +201,8 @@ export class LoaderRounds {
       hands.left.place(left.wrist, left.fingers, left.palm, rearGrip);
       hands.right.place(right.wrist, right.fingers, right.palm, leadGrip);
     } else {
-      hands.left.poseLoading(this.body.left, rearGrip, LOADER_ARM_SCALE);
-      hands.right.poseLoading(this.body.right, leadGrip, LOADER_ARM_SCALE);
+      hands.left.poseWork(this.body.left, rearGrip);
+      hands.right.poseWork(this.body.right, leadGrip);
     }
   }
 }

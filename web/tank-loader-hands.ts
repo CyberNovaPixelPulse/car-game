@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
+import { LOADER_ARM_SCALE } from "./tank-loader-body";
 import { INTERIOR_VIEW } from "./tank-battle-view";
 
 // Pose in the loader's neutral standing frame. Looking around the station must
@@ -123,8 +124,9 @@ class GlovedArm {
     this.poseSleeve();
   }
 
-  poseLoading(arm: BodyArm, grip: number, scale: number) {
-    this.poseGlove(arm.wrist, arm.fingers, arm.palm, grip, 0);
+  poseWork(arm: BodyArm, grip: number, pinch = 0) {
+    this.poseGlove(arm.wrist, arm.fingers, arm.palm, grip, pinch);
+    const scale = LOADER_ARM_SCALE;
     this.shoulder.copy(arm.shoulder);
     this.elbow.copy(arm.elbow);
     this.cuff.copy(arm.cuff);
@@ -145,7 +147,7 @@ class GlovedArm {
     this.upper.matrix.compose(this.origin, this.bend, unit);
     const flex = this.upperAxis.angleTo(this.foreAxis);
     // The cuff and elbow are the original bind offsets. Flexion is a rotation
-    // about the elbow's hinge; no bone in the loading chain ever scales.
+    // about the elbow's hinge, at the lengths authored in the Blender armature.
     this.cuffTurn.setFromAxisAngle(hingeAxis, flex);
     this.fore.matrix.compose(upperOffset, this.cuffTurn, unit);
     this.bend.multiply(this.cuffTurn);

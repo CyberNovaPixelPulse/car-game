@@ -29,6 +29,8 @@ const homeYaw = Math.atan2(
 );
 const neckOffset = new THREE.Vector3(0, 0.118, -0.008);
 const eyeOffset = new THREE.Vector3(0, 0.267, -0.084);
+// At the bench the shoulders reach forward while the head stays upright.
+const benchEyeOffset = new THREE.Vector3(0, 0.355, 0);
 const homeChest = homeEye
   .clone()
   .sub(eyeOffset.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), homeYaw));
@@ -206,13 +208,44 @@ export class LoaderBody {
       this.anchor.y = clamp(this.anchor.y + 0.36, 1.36, 1.79) - 0.33 * push;
       this.origin.lerp(this.anchor, weight);
     }
+    this.solveArms(left, right, wl, wr, true);
+    this.poseHead();
+  }
+
+  // Both hands work at the same bench. Plant the shoulders relative to the
+  // panel once, so the head stays still through the ratchet and dial strokes.
+  setRepairStation(panel: THREE.Object3D) {
+    panel.localToWorld(this.origin.set(0, 0.09, 0.77));
+    panel.getWorldQuaternion(this.rotation);
+    this.rotation.multiply(
+      new THREE.Quaternion().setFromEuler(this.angles.set(-0.12, 0, 0)),
+    );
+    this.forward.set(0, 0, -1).applyQuaternion(this.rotation);
+    this.up.set(0, 1, 0).applyQuaternion(this.rotation);
+    this.poseHead(benchEyeOffset);
+  }
+
+  solveRepair(left: LoaderHandTarget, right: LoaderHandTarget) {
+    this.solveArms(left, right, left.contact, right.contact, false);
+  }
+
+  private solveArms(
+    left: LoaderHandTarget,
+    right: LoaderHandTarget,
+    wl: number,
+    wr: number,
+    moveToReach: boolean,
+  ) {
     this.left.prepare(left, wl, this.rotation);
     this.right.prepare(right, wr, this.rotation);
-    this.fitChest();
+    if (moveToReach) this.fitChest();
     this.left.articulate(this.origin, this.rotation, left, wl);
     this.right.articulate(this.origin, this.rotation, right, wr);
+  }
+
+  private poseHead(offset = eyeOffset) {
     this.neck.copy(neckOffset).applyQuaternion(this.rotation).add(this.origin);
-    this.eye.copy(eyeOffset).applyQuaternion(this.rotation).add(this.origin);
+    this.eye.copy(offset).applyQuaternion(this.rotation).add(this.origin);
   }
 
   // Closest point to the desired chest inside both reach spheres. When moving

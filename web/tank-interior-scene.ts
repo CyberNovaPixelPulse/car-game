@@ -452,6 +452,8 @@ export class TankInteriorScene {
     );
     const camera = this.camera;
     let lens = 58;
+    let stationYaw =
+      w.mode === "repair" ? this.framing.repairYaw : this.framing.loadingYaw;
     if (this.rounds.activePose && !this.reducedMotion) {
       // The head follows the shared torso. Keep the turret-relative horizontal
       // bearing so the player's look keys and directional alerts stay aligned.
@@ -474,6 +476,15 @@ export class TankInteriorScene {
       camera.lookAt(sight.add(camera.position));
       lens += 20 * working;
       camera.rotation.z *= working;
+    } else if (w.mode === "repair" && this.repair && !w.crouching) {
+      camera.position.copy(this.repair.body.eye);
+      this.sightLine.copy(WORK_FORWARD);
+      this.sightLine.y = -0.62;
+      camera.lookAt(this.sightLine.add(camera.position));
+      if (tilt) camera.rotateZ(tilt);
+      // Leave space to the right of the dial for the wrist and ratchet arc.
+      stationYaw = -0.23 * this.framing.zoom;
+      lens = 79;
     } else {
       camera.rotation.z = tilt;
     }
@@ -482,9 +493,7 @@ export class TankInteriorScene {
       camera.updateProjectionMatrix();
     }
 
-    const workYaw =
-      w.mode === "repair" ? this.framing.repairYaw : this.framing.loadingYaw;
-    this.camera.rotateOnWorldAxis(CABIN_UP, workYaw + lookYaw);
+    this.camera.rotateOnWorldAxis(CABIN_UP, stationYaw + lookYaw);
     applyHeadOffset(this.camera, offset);
     this.renderer.shadowMap.needsUpdate = this.modelStamp !== modelStamp;
     this.modelStamp = modelStamp;

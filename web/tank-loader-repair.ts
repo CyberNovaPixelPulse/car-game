@@ -1,23 +1,94 @@
 import * as THREE from "three";
 import { disposeArt } from "./tank-art-materials";
 import type { TankState } from "./tank-core";
+import { LoaderBody, type LoaderHandTarget } from "./tank-loader-body";
 import type { LoaderHands } from "./tank-loader-hands";
 import { REPAIR_RULES } from "./tank-settings";
 
 const smooth = THREE.MathUtils.smoothstep;
-const RIGHT_REST = new THREE.Vector3(1.33, 1.03, 1.32);
-const LEFT_REST = new THREE.Vector3(0.92, 0.99, 1.38);
+// Each pair matches one point on the fixture with its contact on the modeled glove.
+// Glove coordinates are unscaled, with the left-hand mirror already applied.
+const heel = new THREE.Vector3(0.0192, 0.0181, -0.0305);
+const faceAtBrace = new THREE.Vector3(0.027, 0.035, -0.029);
+const braceTurn = new THREE.Quaternion().setFromEuler(
+  new THREE.Euler(-0.046, -0.14, 0.15, "ZXY"),
+);
+const handle = new THREE.Vector3(0.226, 0, 0.032);
+const gripCentre = new THREE.Vector3(0, 0.058, -0.032);
+// Roll the hand around the grip axis so the knuckles lead into each stroke.
+const handleTurn = new THREE.Quaternion().setFromAxisAngle(
+  new THREE.Vector3(1, 0, 0),
+  -0.48,
+);
+const thumbPad = new THREE.Vector3(-0.0482, 0.089, -0.0446);
+// At 80% Pinch the index pad is 32 mm from the thumb. Seat the thumb on
+// the outer knurl and the index just inside the opposite beveled lip.
+const outerLip = new THREE.Vector3(0.07766, -0.05189, 0.032);
+const ringFingers = new THREE.Vector3(-0.94976, 0.30048, 0.08678).normalize();
+const ringBack = new THREE.Vector3(-0.03578, -0.38002, 0.92421).normalize();
+const ringTurn = new THREE.Quaternion().setFromRotationMatrix(
+  new THREE.Matrix4().makeBasis(
+    new THREE.Vector3().crossVectors(ringFingers, ringBack).normalize(),
+    ringFingers,
+    ringBack,
+  ),
+);
+const rimStep = (Math.PI * 2) / 16; // spacing between the modeled knurls
+const ringAxis = new THREE.Vector3(0, 0, 1);
+const wrenchGrip = 0.86;
+const ringPinch = 0.8;
+
+class HandTarget implements LoaderHandTarget {
+  readonly wrist = new THREE.Vector3();
+  readonly fingers = new THREE.Vector3();
+  readonly palm = new THREE.Vector3();
+  readonly rotation = new THREE.Quaternion();
+  contact = 1;
+
+  match(
+    fixture: THREE.Object3D,
+    fixturePoint: THREE.Vector3,
+    handPoint: THREE.Vector3,
+    localRotation: THREE.Quaternion,
+    gloveScale: number,
+  ) {
+    fixture.getWorldQuaternion(this.rotation).multiply(localRotation);
+    fixture.localToWorld(this.wrist.copy(fixturePoint));
+    this.wrist.sub(
+      this.palm
+        .copy(handPoint)
+        .multiplyScalar(gloveScale)
+        .applyQuaternion(this.rotation),
+    );
+  }
+
+  orient() {
+    this.fingers.set(0, 1, 0).applyQuaternion(this.rotation);
+    this.palm.set(0, 0, -1).applyQuaternion(this.rotation);
+  }
+}
+
+function stroke(seconds: number) {
+  return (
+    -0.18 + 0.52 * Math.sin(seconds * 7.1) + 0.12 * Math.sin(seconds * 12.3)
+  );
+}
 
 /** Contact points are children of the exported panel, shared with the artist's model. */
 export class LoaderRepair {
-  private readonly wrist = new THREE.Vector3();
-  private readonly toolWrist = new THREE.Vector3();
-  private readonly toolFingers = new THREE.Vector3();
+  readonly body = new LoaderBody();
+  private readonly left = new HandTarget();
+  private readonly right = new HandTarget();
+  private readonly pinch = new HandTarget();
+  private readonly front = new THREE.Vector3();
   private observedAttempt?: number;
   private resultAt?: number;
-  private readonly tangent = new THREE.Vector3();
-  private readonly fingers = new THREE.Vector3();
-  private readonly palm = new THREE.Vector3();
+  private parkedAttempt?: number;
+  private parkedAngle = 0;
+  private workAtFailure?: number;
+  private ringStart = 0;
+  private readonly rimPoint = new THREE.Vector3();
+  private readonly rimTurn = new THREE.Quaternion();
 
   static bind(asset: THREE.Group, scene: THREE.Scene, hands: LoaderHands) {
     const panel = asset.getObjectByName("RepairPanel");
@@ -38,21 +109,23 @@ export class LoaderRepair {
     panel.rotation.y = 0.55;
     panel.visible = false;
     panel.updateWorldMatrix(true, true);
-    // The tool's origin is the open socket. The handle passes between palm and curled fingers.
-    hands.right.glove.add(tool);
-    tool.position.set(-0.162, 0.056, -0.066);
+    // Leave the socket seated over the hex while the hand changes grips.
+    fastener.add(tool);
+    tool.position.set(0, 0, -0.01);
+    ring.rotation.z = -0.48;
     tool.visible = false;
-    return new LoaderRepair(panel, brace, fastener, ring, tool, hands);
+    return new LoaderRepair(panel, brace, ring, tool, hands);
   }
 
   private constructor(
     private readonly panel: THREE.Object3D,
     private readonly brace: THREE.Object3D,
-    private readonly fastener: THREE.Object3D,
     private readonly ring: THREE.Object3D,
     private readonly tool: THREE.Object3D,
     private readonly hands: LoaderHands,
-  ) {}
+  ) {
+    this.body.setRepairStation(panel);
+  }
 
   /** A mounted view may show the current attempt, but never replay a result it missed. */
   resultAge(state: TankState) {
@@ -85,88 +158,122 @@ export class LoaderRepair {
   }
 
   present(state: TankState, resultAge: number) {
-    const { repair } = state;
+    const { repair, weapon } = state;
     const c = repair.calibration;
+    this.panel.visible = weapon.mode === "repair";
     const reacting = Number.isFinite(resultAge);
     const calibrating =
       c.result === "active" &&
-      !state.weapon.crouching &&
-      state.time >= state.weapon.stunnedUntil &&
+      !weapon.crouching &&
+      state.time >= weapon.stunnedUntil &&
       !state.battle.failed &&
       !state.battle.won;
     const onRing = calibrating || reacting;
     const working = repair.status === "repairing";
-    this.panel.visible = state.weapon.mode === "repair";
-    this.tool.visible = this.panel.visible && working && !onRing;
+    const failed = c.result === "failed";
+    if (reacting && failed) this.workAtFailure = repair.activeSeconds;
+    const workSinceFailure =
+      failed && this.parkedAttempt === c.id && this.workAtFailure !== undefined
+        ? repair.activeSeconds - this.workAtFailure
+        : Infinity;
+    const waitingForGrip =
+      workSinceFailure < 0.4 &&
+      (repair.status === "waiting" || repair.status === "ready");
+    this.tool.visible =
+      this.panel.visible && (working || onRing || waitingForGrip);
     if (!this.panel.visible || (!working && !onRing)) return;
 
-    const failed = c.result === "failed";
-    const withdraw = reacting
-      ? smooth(resultAge, failed ? 0.26 : 0.08, failed ? 0.56 : 0.25)
-      : 0;
-    this.hands.group.visible = true;
-    this.brace.getWorldPosition(this.wrist);
-    this.wrist.addScaledVector(
-      this.palm.set(0, 0, 1).transformDirection(this.panel.matrixWorld),
-      0.033,
-    );
-    if (!working) this.wrist.lerp(LEFT_REST, withdraw);
-    this.palm.negate();
-    this.fingers.set(0, 1, 0);
-    this.hands.left.place(this.wrist, this.fingers, this.palm, 0.08);
+    const returnToTool = reacting && working;
+    const returning = returnToTool ? smooth(resultAge, 0.11, 0.34) : 0;
+    const released =
+      reacting && !working
+        ? smooth(resultAge, failed ? 0.22 : 0.1, failed ? 0.56 : 0.4)
+        : 0;
 
-    this.wrenchGrip(repair.activeSeconds);
+    // Only credited work moves the ratchet. It stays seated at the last
+    // stroke while the fingers operate the adjacent ring.
+    const movingAngle = stroke(repair.activeSeconds);
+    if (onRing && this.parkedAttempt !== c.id) {
+      this.parkedAttempt = c.id;
+      if (calibrating) this.workAtFailure = undefined;
+      this.parkedAngle = stroke(Math.max(0, repair.activeSeconds - c.elapsed));
+      this.ringStart = this.ring.rotation.z;
+      // Regrasp at the upper right, clear of the parked handle. Whole knurl
+      // spacings retain the same two contact surfaces on a partly turned dial.
+      const offset =
+        (2 - Math.round((this.ringStart + 0.48) / rimStep)) * rimStep;
+      this.rimTurn.setFromAxisAngle(ringAxis, offset);
+      this.rimPoint.copy(outerLip).applyQuaternion(this.rimTurn);
+      this.rimTurn.multiply(ringTurn);
+    }
+    const ratcheting = onRing
+      ? returnToTool
+        ? smooth(resultAge, 0.34, 0.43)
+        : 0
+      : smooth(workSinceFailure, 0.24, 0.4);
+    this.tool.rotation.z = THREE.MathUtils.lerp(
+      this.parkedAngle,
+      movingAngle,
+      ratcheting,
+    );
+
+    const scale = this.hands.right.glove.scale.x;
+    this.left.match(this.brace, faceAtBrace, heel, braceTurn, scale);
+    this.right.match(this.tool, handle, gripCentre, handleTurn, scale);
+    // After a failed adjustment both arms start below the bench. Replant the
+    // brace and take up the handle before resuming the ratchet stroke.
+    const reaching = onRing ? 1 : smooth(workSinceFailure, 0, 0.22);
+    let grip = wrenchGrip * (onRing ? 1 : smooth(workSinceFailure, 0.15, 0.24));
     let pinch = 0;
     if (onRing) {
-      this.toolWrist.copy(this.wrist);
-      this.toolFingers.copy(this.fingers);
       const confirmed =
         c.confirmedAt !== undefined ||
         c.result === "success" ||
         c.result === "perfect";
+      const elapsed = c.elapsed + (reacting && confirmed ? resultAge : 0);
+      const fingerClosure = smooth(elapsed, 0.18, 0.26);
       const press =
         reacting && confirmed
-          ? Math.sin(Math.PI * Math.min(resultAge / 0.13, 1))
+          ? Math.sin(Math.PI * Math.min(resultAge / 0.14, 1))
           : 0;
       this.ring.rotation.z =
-        -0.48 +
-        0.88 * Math.min(c.elapsed / REPAIR_RULES.calibrationDuration, 1) +
-        0.14 * press;
-      this.wrist.set(0.094, -0.07, 0.096 - 0.034 * press);
-      this.ring.localToWorld(this.wrist);
-      this.fingers.set(-0.24, 1, 0).transformDirection(this.ring.matrixWorld);
-      const reach = smooth(c.elapsed + (reacting ? resultAge * 2 : 0), 0, 0.2);
-      pinch = reach * (1 - withdraw);
-      this.fingers.lerp(this.toolFingers, 1 - pinch).normalize();
-      this.wrist.lerp(this.toolWrist, 1 - reach).lerp(RIGHT_REST, withdraw);
-      if (reacting && working)
-        this.wrist.lerp(this.toolWrist, smooth(resultAge, 0.25, 0.43));
+        this.ringStart +
+        0.88 *
+          THREE.MathUtils.clamp(
+            (c.elapsed - 0.26) / (REPAIR_RULES.calibrationDuration - 0.26),
+            0,
+            1,
+          ) +
+        0.14 * press * fingerClosure;
+      this.pinch.match(this.ring, this.rimPoint, thumbPad, this.rimTurn, scale);
+      // Open the fingers before leaving the handle, arc above the casting,
+      // then close around the rim. Reverse the transfer after a success.
+      const outbound = smooth(elapsed, 0.04, 0.25);
+      const travel = outbound * (1 - returning);
+      this.front.set(0, 0, 1).transformDirection(this.panel.matrixWorld);
+      this.right.wrist
+        .lerp(this.pinch.wrist, travel)
+        .addScaledVector(this.front, 0.06 * Math.sin(Math.PI * travel));
+      this.right.rotation.slerp(this.pinch.rotation, travel);
+      grip *= Math.max(
+        1 - smooth(elapsed, 0, 0.09),
+        returnToTool ? smooth(resultAge, 0.29, 0.36) : 0,
+      );
+      pinch =
+        ringPinch *
+        fingerClosure *
+        (returnToTool ? 1 - smooth(resultAge, 0.08, 0.17) : 1);
     }
-    this.hands.right.place(
-      this.wrist,
-      this.fingers,
-      this.palm,
-      (1 - pinch) * (working ? 0.96 : 0.12),
-      pinch,
+    this.left.orient();
+    this.right.orient();
+    this.left.contact = this.right.contact = (1 - released) * reaching;
+    this.body.solveRepair(this.left, this.right);
+    this.hands.group.visible = true;
+    this.hands.left.poseWork(this.body.left, 0);
+    this.hands.right.poseWork(
+      this.body.right,
+      grip * (1 - released),
+      pinch * (1 - released),
     );
-  }
-
-  private wrenchGrip(seconds: number) {
-    // Ratchet about the fastener. Only work credited to the shared tank advances the stroke.
-    const swing =
-      -0.18 + 0.52 * Math.sin(seconds * 7.1) + 0.12 * Math.sin(seconds * 12.3);
-    this.tangent
-      .set(Math.cos(swing), Math.sin(swing), 0)
-      .transformDirection(this.panel.matrixWorld);
-    this.fingers
-      .set(-Math.sin(swing), Math.cos(swing), 0)
-      .transformDirection(this.panel.matrixWorld);
-    this.fastener.getWorldPosition(this.wrist);
-    const grip = this.tool.position;
-    const scale = this.hands.right.glove.scale.x;
-    this.wrist
-      .addScaledVector(this.tangent, -grip.x * scale)
-      .addScaledVector(this.fingers, -grip.y * scale)
-      .addScaledVector(this.palm, grip.z * scale);
   }
 }
