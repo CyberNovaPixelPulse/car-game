@@ -1,20 +1,14 @@
 import type { TankState } from "./tank-core";
 
-/** Short, original synthesized metal/transient sounds. Snapshot edges are cues, never rule clocks. */
+/** Loader-only synthesized work cues (jam, machine gun, mode, calibration). Snapshot edges are cues, never rule clocks. */
 export class TankMechanicalAudio {
-  private chamber = "empty";
   private jam = false;
-  private progressStep = 0;
-  private shots = 0;
   private cooling = false;
   private mode = "loading";
   private calibrationId = 0;
   private calibrationResult = "idle";
   reset() {
-    this.chamber = "empty";
     this.jam = false;
-    this.progressStep = 0;
-    this.shots = 0;
     this.cooling = false;
     this.mode = "loading";
     this.calibrationId = 0;
@@ -37,28 +31,16 @@ export class TankMechanicalAudio {
     }
     this.calibrationId = calibration.id;
     this.calibrationResult = calibration.result;
-    const step = Math.floor(w.loadProgress * 6);
     const cooling = state.time < w.mg.coolUntil;
     const play = (kind: "slide" | "latch" | "case" | "shot" | "jam") => {
       if (enabled && audio?.state === "running") this.strike(audio, kind);
     };
-    if (w.chamber !== this.chamber)
-      play(
-        w.chamber === "loaded"
-          ? "latch"
-          : w.chamber === "ejecting"
-            ? "case"
-            : "slide",
-      );
-    else if (w.chamber === "loading" && step > this.progressStep) play("slide");
+    // Main-gun rack, ram, breech and case sounds live in TankVehicleAudio so
+    // every crew member hears them; this module keeps loader-only work cues.
     if (w.jam.active && !this.jam) play("jam");
-    if (w.mg.shots > this.shots) play("shot");
     if (cooling && !this.cooling) play("jam");
     if (w.mode !== this.mode) play("latch");
-    this.chamber = w.chamber;
     this.jam = w.jam.active;
-    this.progressStep = step;
-    this.shots = w.mg.shots;
     this.cooling = cooling;
     this.mode = w.mode;
   }

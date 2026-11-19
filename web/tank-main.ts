@@ -1,5 +1,5 @@
 import { RECONNECT_GRACE_MS } from "./tank-settings";
-import { MG_FIRE } from "./tank-machine-gun";
+import { MG_FIRE, BOW_FIRE } from "./tank-machine-gun";
 import { Session, type Room } from "./network";
 import { CREW_ROLES, ROLE_LABELS, ROLE_TASKS, type CrewRole } from "./crew";
 import { GameRuntime } from "./game-runtime";
@@ -7,6 +7,7 @@ import { DRIVE, AIM, type TankState } from "./tank-core";
 import { TankRoleViews } from "./tank-role-views";
 import type { SceneQuality } from "./tank-scene-quality";
 import { TankMechanicalAudio } from "./tank-mechanical-audio";
+import { TankVehicleAudio } from "./tank-vehicle-audio";
 import {
   LOAD,
   MODE,
@@ -42,6 +43,7 @@ const core = runtime.presentation;
 const views = new TankRoleViews();
 let activeStation: ReturnType<typeof mountStation> | undefined;
 function clearStation() {
+  vehicleAudio.reset();
   activeStation?.dispose();
   activeStation = undefined;
 }
@@ -95,6 +97,7 @@ let held = 0;
 let warningAudio: AudioContext | undefined;
 let soundEnabled = true;
 const mechanicalAudio = new TankMechanicalAudio();
+const vehicleAudio = new TankVehicleAudio();
 let soundedShot = 0;
 let soundedStun = 0;
 let soundedDamage = -100;
@@ -107,6 +110,8 @@ window.addEventListener("keydown", unlockWarningAudio);
 function warningTone(hit: boolean) {
   const audio = warningAudio;
   if (!soundEnabled || !audio || audio.state !== "running") return;
+  // The armour-hit sound itself must stay loud; only plain beeps duck the tank.
+  if (!hit) vehicleAudio.duck(0.5);
   for (const offset of hit ? [0] : [0, 0.18]) {
     const oscillator = audio.createOscillator();
     const gain = audio.createGain();
@@ -427,6 +432,11 @@ function presentBattleAudio(state: TankState, role: CrewRole) {
     warningTone(true);
     soundedDamage = state.battle.lastHitAt;
   }
+  vehicleAudio.present(state, warningAudio, {
+    role,
+    enabled: soundEnabled,
+    active: !runtime.paused,
+  });
   if (role !== "loader") return;
   mechanicalAudio.present(state, warningAudio, soundEnabled);
   const { weapon, time } = state;
@@ -530,6 +540,13 @@ window.addEventListener("keydown", (event) => {
     runtime.setInput(held);
     return;
   }
+  if (activeStation?.role === "driver" && event.code === "Space") {
+    event.preventDefault();
+    if (event.repeat) return;
+    held |= BOW_FIRE;
+    runtime.setInput(held);
+    return;
+  }
   if (activeStation?.role !== "driver" && activeStation?.role !== "loader")
     return;
   const key =
@@ -551,7 +568,9 @@ window.addEventListener("keyup", (event) => {
     activeStation?.role === "gunner"
       ? aimKeys[event.code]
       : event.code === "Space"
-        ? MG_FIRE
+        ? activeStation?.role === "driver"
+          ? BOW_FIRE
+          : MG_FIRE
         : event.key.toLowerCase() === "r"
           ? LOAD
           : event.key.toLowerCase() === "c"

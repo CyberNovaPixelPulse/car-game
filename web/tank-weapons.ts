@@ -63,6 +63,52 @@ export interface EnemyTarget {
   fireAt: number;
   flashUntil: number;
 }
+export interface BowGun {
+  heat: number;
+  coolUntil: number;
+  nextShot: number;
+  flashUntil: number;
+  shots: number;
+  tracers: {
+    id: number;
+    x: number;
+    y: number;
+    z: number;
+    endX: number;
+    endY: number;
+    endZ: number;
+    until: number;
+    /** The burst struck a hostile tank (a harmless ricochet). */
+    hit: boolean;
+  }[];
+}
+export function createBowGun(): BowGun {
+  return {
+    heat: 0,
+    coolUntil: 0,
+    nextShot: 0,
+    flashUntil: 0,
+    shots: 0,
+    tracers: [],
+  };
+}
+export function validBowGun(b: BowGun) {
+  return (
+    !!b &&
+    [b.heat, b.coolUntil, b.nextShot, b.flashUntil, b.shots].every(
+      Number.isFinite,
+    ) &&
+    b.heat >= 0 &&
+    b.heat <= 1 &&
+    Array.isArray(b.tracers) &&
+    b.tracers.every(
+      (t) =>
+        [t.id, t.x, t.y, t.z, t.endX, t.endY, t.endZ, t.until].every(
+          Number.isFinite,
+        ) && typeof t.hit === "boolean",
+    )
+  );
+}
 export interface WeaponState {
   mode: "loading" | "machine-gun" | "repair";
   mg: {
@@ -84,6 +130,8 @@ export interface WeaponState {
       until: number;
     }[];
   };
+  /** Driver's bow gun. Optional for snapshots that predate it. */
+  bow?: BowGun;
   selectedShell: ShellType;
   chamberShell: ShellType | null;
   chamber: "empty" | "loading" | "loaded" | "ejecting";
@@ -201,6 +249,7 @@ export function createWeaponState(seed = 1): WeaponState {
       shots: 0,
       tracers: [],
     },
+    bow: createBowGun(),
     selectedShell: "he",
     chamberShell: null,
     chamber: "empty",
@@ -237,15 +286,16 @@ export function fireWeapon(w: WeaponState, pose: GunPose, now: number) {
   const dz = -Math.cos(pose.yaw) * Math.cos(pose.pitch);
   w.shotsFired++;
   w.flashUntil = now + FIRING_FEEDBACK.cannon;
+  const speed = BALLISTICS.speed[w.chamberShell!];
   w.projectiles.push({
     shell: w.chamberShell!,
     id: w.shotsFired,
     x: pose.x + dx * 4.8,
     y: 2.48 + dy * 4.8,
     z: pose.z + dz * 4.8,
-    vx: dx * BALLISTICS.speed,
-    vy: dy * BALLISTICS.speed,
-    vz: dz * BALLISTICS.speed,
+    vx: dx * speed,
+    vy: dy * speed,
+    vz: dz * speed,
     age: 0,
   });
   w.chamberShell = null;
@@ -259,23 +309,11 @@ function random(w: WeaponState) {
   w.randomState = (Math.imul(w.randomState, 1664525) + 1013904223) >>> 0;
   return w.randomState / 4294967296;
 }
-export function stopJam(w: WeaponState, now: number) {
-  const j = w.jam;
-  if (
-    w.mode !== "loading" ||
-    !loaderCanWork(w, now) ||
-    !j.active ||
-    j.result !== "trying"
-  )
-    return;
-  if (j.needle >= j.zone && j.needle <= j.zone + JAM_RULES.width) {
-    j.active = false;
-    j.result = "cleared";
-  } else {
-    j.result = "failed";
-    j.retryAt = now + JAM_RULES.retry;
-  }
-}
+/**
+ * Kept for the ordered action path: a jam now clears itself while the
+ * loader works it (no needle mini-game), so a stop request does nothing.
+ */
+export function stopJam(_w: WeaponState, _now: number) {}
 export function loaderCanWork(w: WeaponState, now: number) {
   return !w.crouching && now >= w.stunnedUntil;
 }
@@ -315,18 +353,12 @@ export function stepWeapon(
     if (!w.crouching) w.stunnedUntil = w.ejectAt + LOADER_STUN_SECONDS;
   }
   const j = w.jam;
+  // A jammed round is worked free by hand: the needle is the clearing progress.
   if (j.active && w.mode === "loading" && loaderCanWork(w, now)) {
-    if (j.result === "failed" && now >= j.retryAt) j.result = "trying";
-    if (j.result === "trying") {
-      j.needle += j.direction * dt * JAM_RULES.speed;
-      if (j.needle > 1) {
-        j.needle = 2 - j.needle;
-        j.direction = -1;
-      }
-      if (j.needle < 0) {
-        j.needle = -j.needle;
-        j.direction = 1;
-      }
+    j.needle = Math.min(1, j.needle + dt / JAM_RULES.clear);
+    if (j.needle >= 1) {
+      j.active = false;
+      j.result = "cleared";
     }
   }
   if (
@@ -425,6 +457,7 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
   return (
     !!w &&
     ["loading", "machine-gun", "repair"].includes(w.mode) &&
+    (w.bow === undefined || validBowGun(w.bow)) &&
     !!w.mg &&
     [
       w.mg.yaw,
