@@ -1,4 +1,8 @@
-import { ratchetAngle, RATCHET_REGRIP_SECONDS } from "./tank-ratchet";
+import {
+  ratchetAngle,
+  ratchetVelocity,
+  RATCHET_REGRIP_SECONDS,
+} from "./tank-ratchet";
 import type { CrewRole } from "./crew";
 import { lastCannonFiredAt } from "./tank-weapons";
 import type { TankState } from "./tank-core";
@@ -91,7 +95,8 @@ export class TankMechanicalAudio {
       audible &&
       tooth !== undefined &&
       this.lastTooth !== undefined &&
-      tooth > this.lastTooth
+      tooth > this.lastTooth &&
+      ratchetVelocity(activeSeconds) > 0
     ) {
       if (this.ratchetBuffer?.sampleRate !== audio.sampleRate)
         this.ratchetBuffer = ratchetClick(audio);

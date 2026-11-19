@@ -107,7 +107,7 @@ test("the gunner hears a fresh accepted cannon shot once, including after mounti
   );
 });
 
-test("the mechanic hears clicks on the return stroke and silence while pushing, releasing, or turning the dial", () => {
+test("the loader hears clicks on the return stroke and silence while pushing, releasing, or turning the dial", () => {
   const state = new TankCore(() => "loader").view();
   state.weapon.mode = "repair";
   state.repair.status = "repairing";
@@ -196,4 +196,19 @@ test("releasing R after a successful calibration lets the return animation finis
     starts.length > afterResult,
     "the first return stroke after the player resumes can sound",
   );
+});
+
+test("a skipped return stroke never plays a click on the following downstroke", () => {
+  const state = new TankCore(() => "loader").view();
+  state.weapon.mode = "repair";
+  state.repair.status = "repairing";
+  const audio = new TankMechanicalAudio();
+  const { context, starts } = recordingOutput();
+  // These two visible frames straddle the peak; the handle is higher on the
+  // second frame than the first, but it has already started moving down.
+  for (const at of [1, 1.2]) {
+    state.time = state.repair.activeSeconds = at;
+    audio.present(state, context, true, "loader");
+  }
+  assert.deepEqual(starts, []);
 });
