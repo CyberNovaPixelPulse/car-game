@@ -30,6 +30,7 @@ export function canStartBattle(
   members: readonly Member[],
 ) {
   return (
+    isHost &&
     phase === "lobby" &&
     members.length === 3 &&
     members.every((member) => member.connected && member.role && member.ready)
