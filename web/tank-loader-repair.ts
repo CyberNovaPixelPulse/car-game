@@ -33,7 +33,7 @@ export class LoaderRepair {
         part.castShadow = part.receiveShadow = true;
     });
     scene.add(asset);
-    panel.position.set(0.8, 1.49, 0.38);
+    panel.position.set(0.73, 1.49, 0.39);
     panel.rotation.y = 0.55;
     panel.visible = false;
     panel.updateWorldMatrix(true, true);
