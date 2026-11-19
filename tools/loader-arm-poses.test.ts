@@ -16,10 +16,12 @@ async function loadModel(filename: string) {
     new URL(`../public/assets/closeups/${filename}.glb`, import.meta.url),
   );
   // Keep the authored mesh, skin and bind pose without decoding images in Node.
-  const loader = new GLTFLoader().register(() => ({
-    name: "GeometryOnly",
-    loadMaterial: async () => new THREE.MeshStandardMaterial(),
-  }));
+  const loader = new GLTFLoader();
+  if (filename === "loader-gloves")
+    loader.register(() => ({
+      name: "GeometryOnly",
+      loadMaterial: async () => new THREE.MeshStandardMaterial(),
+    }));
   const model = await loader.parseAsync(
     bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
     "",
@@ -261,6 +263,107 @@ function distanceToSurface(part: THREE.Object3D) {
     return Math.sqrt(closest);
   };
 }
+
+test("the support hand takes the wrench load without lifting its palm off the panel", async () => {
+  const scene = new THREE.Scene();
+  const hands = await dressedHands();
+  scene.add(hands.group);
+  const kit = await loadModel("repair-panel");
+  const repair = LoaderRepair.bind(kit, scene, hands);
+  const tool = kit.getObjectByName("SocketWrench");
+  const panel = kit.getObjectByName("RepairPanel");
+  const cuff = hands.group.getObjectsByProperty("name", "Wrist")[0];
+  assert.ok(repair && tool && panel && cuff);
+  const palm = leatherPoint(
+    hands.left.glove,
+    new THREE.Vector3(-0.025, 0.021, -0.028),
+  );
+  const index = leatherPoint(
+    hands.left.glove,
+    new THREE.Vector3(-0.041, 0.147, -0.015),
+  );
+  const state = new TankCore(() => "loader").view();
+  state.weapon.mode = "repair";
+  state.tank.hp = 20;
+  let previousAngle: number | undefined;
+  const strokes = [];
+  for (let frame = 0; frame < 120; frame++) {
+    state.time += 1 / 60;
+    stepRepair(state, true, 1 / 60);
+    repair.present(state, repair.resultAge(state));
+    scene.updateMatrixWorld(true);
+    const angle = tool.rotation.z;
+    if (previousAngle !== undefined && hands.group.visible)
+      strokes.push({
+        velocity: (angle - previousAngle) * 60,
+        heel: palm(),
+        tip: index(),
+        cuff: cuff.getWorldPosition(new THREE.Vector3()),
+      });
+    previousAngle = angle;
+  }
+  strokes.sort((a, b) => a.velocity - b.velocity);
+  const loaded = strokes[0],
+    relaxed = strokes.at(-1);
+  assert.ok(loaded && relaxed && loaded.velocity < -2 && relaxed.velocity > 2);
+  assert.ok(
+    relaxed.tip.distanceTo(relaxed.heel) - loaded.tip.distanceTo(loaded.heel) >
+      0.005,
+    "fingers must curl slightly toward the heel on the downstroke",
+  );
+  assert.ok(
+    loaded.heel.distanceTo(relaxed.heel) < 0.002,
+    "the supporting palm slides",
+  );
+  assert.ok(
+    loaded.cuff.distanceTo(relaxed.cuff) > 0.003,
+    "the sleeve never bears on the wrist",
+  );
+});
+
+test("the painted index moves past the stationary panel mark during calibration", async () => {
+  const kit = await loadModel("repair-panel");
+  const scene = new THREE.Scene();
+  const hands = await dressedHands();
+  scene.add(hands.group);
+  const repair = LoaderRepair.bind(kit, scene, hands);
+  const casting = kit.getObjectByName("PanelCasting");
+  const ring = kit.getObjectByName("AdjustmentRing");
+  assert.ok(repair && casting && ring);
+  function paintedMark(part: THREE.Object3D) {
+    const mesh = part
+      .getObjectsByProperty("type", "Mesh")
+      .find(
+        (node) =>
+          node instanceof THREE.Mesh && node.material.name === "IndexEnamel",
+      );
+    assert.ok(
+      mesh instanceof THREE.Mesh,
+      "casting and ring each need a visible paint mark",
+    );
+    mesh.geometry.computeBoundingBox();
+    const local = mesh.geometry.boundingBox.getCenter(new THREE.Vector3());
+    return () => mesh.localToWorld(local.clone());
+  }
+  const fixed = paintedMark(casting),
+    rotating = paintedMark(ring);
+  const pointer = fixed();
+  const start = rotating();
+  const state = new TankCore(() => "loader").view();
+  state.tank.hp = 20;
+  state.weapon.mode = "repair";
+  for (let frame = 0; frame < 10 * 60; frame++) {
+    state.time += 1 / 60;
+    stepRepair(state, true, 1 / 60);
+    repair.present(state, repair.resultAge(state));
+    if (state.repair.calibration.elapsed > 1.4) break;
+  }
+  assert.ok(start.distanceTo(rotating()) > 0.042, "paint stripe barely moves");
+  assert.ok(
+    pointer.distanceTo(fixed()) < 1e-6,
+    "the reference turns with the dial",
+  );
+});
 
 for (const expected of ["success", "failed"] as const) {
   test(`the loader turns the ring and returns to the wrench after calibration ${expected}`, async () => {

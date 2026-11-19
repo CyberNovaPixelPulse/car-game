@@ -16,6 +16,7 @@ def main():
     C.reset_scene()
     metals = {name: material(name, *PALETTE[name]) for name in
               ("Paint", "Cast", "Recess", "Burnished", "Latch", "Machined")}
+    metals["IndexEnamel"] = material("IndexEnamel", 0xF2EEE0, 0.02, 0.76)
     k = C.Kit(metals)
     panel, ring, wrench = "PanelCasting", "RingGrip", "ToolSteel"
     # Front is Blender -Y, exported Three.js +Z. Narrow legs meet the cabin floor.
@@ -53,7 +54,24 @@ def main():
         k.box(ring, (0.010, 0.027, 0.010),
               (math.sin(a)*0.093, -0.022, math.cos(a)*0.093),
               rot=(0, a, 0), mat="Machined", bevel=0.003)
-    k.box(ring, (0.009, 0.004, 0.019), (0, -0.040, 0.077), mat="Burnished", bevel=0.001)
+    # White inlay in a dark cut on the brass face. Cant the mark to meet the
+    # casting pointer at the installed starting angle, away from the fingers.
+    mark = -0.48
+    x, z = math.sin(mark) * 0.075, math.cos(mark) * 0.075
+    k.box(ring, (0.021, 0.002, 0.027), (x, -0.0395, z),
+          rot=(0, mark, 0), mat="Recess", bevel=0.0008)
+    k.box(ring, (0.012, 0.001, 0.022), (x, -0.041, z),
+          rot=(0, mark, 0), mat="IndexEnamel", bevel=0.0005)
+
+    # A stationary triangular pointer on the casting just clears the knurls.
+    # Give it a dark base so both marks read in the work light at game scale.
+    for mat, half_width, tip, tail, front, back in (
+        ("Recess", 0.018, 0.102, 0.129, -0.101, -0.077),
+        ("IndexEnamel", 0.011, 0.108, 0.124, -0.103, -0.101),
+    ):
+        k.hull(panel, [(dial[0] + dx, y, dial[2] + dz)
+                       for dx, dz in ((-half_width, tail), (half_width, tail), (0, tip))
+                       for y in (back, front)], mat=mat, bevel=0.0005)
 
     # Tool origin is the socket face. +X runs from the fastener into the glove.
     k.lathe(wrench, [(0.020, 0), (0.030, 0), (0.032, 0.004), (0.032, 0.034),
