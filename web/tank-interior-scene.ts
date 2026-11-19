@@ -10,7 +10,10 @@ import type { TankState } from "./tank-core";
 import { LoaderHands } from "./tank-loader-hands";
 import { LoaderRepair } from "./tank-loader-repair";
 import { LoaderRounds } from "./tank-loader-rounds";
+import { loaderCanWork } from "./tank-weapons";
 import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
+
+const CABIN_UP = new THREE.Vector3(0, 1, 0);
 
 /** Enclosed loader workspace. Deliberately owns no battlefield geometry or rules. */
 export class TankInteriorScene {
@@ -350,7 +353,7 @@ export class TankInteriorScene {
     this.render(state);
     await finishPreparation(this.renderer, () => this.disposed);
   }
-  render(state: TankState, offset = STILL_HEAD, stunGain = 1) {
+  render(state: TankState, offset = STILL_HEAD, stunGain = 1, lookYaw = 0) {
     const w = state.weapon;
     // An enclosed, motionless workplace does not need to redraw the world at
     // every host/UI tick. All authority clocks still advance outside this view.
@@ -360,7 +363,10 @@ export class TankInteriorScene {
       state.time < w.ejectAt + 0.25;
     const motion = w.chamber === "ejecting" || tail;
     const stunned = state.time < w.stunnedUntil;
+    const loading = w.mode === "loading" && loaderCanWork(w, state.time);
+    const jamTravel = this.rounds.jamTravel(w, state.time, loading);
     const modelStamp = [
+      jamTravel,
       w.chamber,
       w.chamberShell,
       w.mode,
@@ -372,9 +378,13 @@ export class TankInteriorScene {
       motion ? Math.floor(state.time * 30) : "still",
     ].join(":");
     const reflection = cabinFlashIntensity(cannonShotAge(state));
-    const stamp = [modelStamp, stunGain, headStamp(offset), reflection].join(
-      ":",
-    );
+    const stamp = [
+      modelStamp,
+      stunGain,
+      lookYaw,
+      headStamp(offset),
+      reflection,
+    ].join(":");
     if (!this.dirty && stamp === this.visualStamp) return;
     this.dirty = false;
     this.visualStamp = stamp;
@@ -389,11 +399,7 @@ export class TankInteriorScene {
         w.chamber === "ejecting" ? 0.22 * (1 - eject) : 0;
       this.breech.slide.position.y = w.chamber === "loaded" ? 0 : -0.53;
     }
-    this.rounds.present(
-      w,
-      this.hands,
-      w.mode === "loading" && !w.crouching && !stunned,
-    );
+    this.rounds.present(w, this.hands, loading, jamTravel);
     this.repair?.present(state);
     this.case.visible =
       w.chamber === "ejecting" ||
@@ -418,6 +424,7 @@ export class TankInteriorScene {
       INTERIOR_VIEW.targetZ,
     );
     this.camera.rotation.z = tilt;
+    this.camera.rotateOnWorldAxis(CABIN_UP, lookYaw);
     applyHeadOffset(this.camera, offset);
     this.renderer.shadowMap.needsUpdate = this.modelStamp !== modelStamp;
     this.modelStamp = modelStamp;

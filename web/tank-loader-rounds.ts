@@ -18,6 +18,9 @@ export class LoaderRounds {
   private wrist = new THREE.Vector3();
   private fingers = new THREE.Vector3();
   private palm = new THREE.Vector3();
+  private previousShot = -1;
+  private previouslyJammed = false;
+  private jamChangedAt = -Infinity;
 
   constructor(
     parent: THREE.Object3D,
@@ -30,7 +33,35 @@ export class LoaderRounds {
     }
   }
 
-  present(w: WeaponState, hands: LoaderHands, canWork: boolean) {
+  /** Only a change observed on this round starts a gesture. A restored view
+   * immediately adopts the current pose, including an already stuck round. */
+  jamTravel(w: WeaponState, time: number, working: boolean) {
+    const active = w.jam.active;
+    if (!working || w.chamber !== "loading") {
+      this.previousShot = -1;
+      this.jamChangedAt = -Infinity;
+      return active ? 0.045 : 0;
+    }
+    if (this.previousShot !== w.shotsFired) this.jamChangedAt = -Infinity;
+    else if (active !== this.previouslyJammed) this.jamChangedAt = time;
+    this.previousShot = w.shotsFired;
+    this.previouslyJammed = active;
+
+    const t = THREE.MathUtils.clamp((time - this.jamChangedAt) / 0.28, 0, 1);
+    // A short drive into the obstruction, then a firm grip throughout retries.
+    if (active) return 0.045 * t + 0.095 * Math.sin(Math.PI * t);
+    // A successful stop pulls the same round free and settles back into position.
+    if (w.jam.result === "cleared")
+      return 0.045 * (1 - t) - 0.11 * Math.sin(Math.PI * t);
+    return 0;
+  }
+
+  present(
+    w: WeaponState,
+    hands: LoaderHands,
+    canWork: boolean,
+    jamTravel: number,
+  ) {
     hands.group.visible = false;
     for (const [type, round] of this.rounds) {
       const inChamber = type === w.chamberShell;
@@ -50,6 +81,8 @@ export class LoaderRounds {
         THREE.MathUtils.lerp(RACK[type].z, 0.6, phase(p, 0.34, 0.49)) -
         1.59 * push;
       round.rotation.x *= 1 - swing;
+      round.position.x += jamTravel;
+      round.rotation.z -= jamTravel * 0.8;
       if (!canWork) continue;
       hands.group.visible = true;
       round.updateMatrixWorld();

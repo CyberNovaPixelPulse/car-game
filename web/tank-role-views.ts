@@ -3,6 +3,7 @@ import type { CameraPreferences } from "./tank-motion-preferences";
 import type { CrewRole } from "./crew";
 import { validViewAspect } from "./tank-battle-view";
 import type { TankState } from "./tank-core";
+import { InteriorLook } from "./tank-interior-look";
 import { TankInteriorScene } from "./tank-interior-scene";
 import { TankScene } from "./tank-scene";
 import type { SceneQuality } from "./tank-scene-quality";
@@ -25,6 +26,7 @@ interface RoleViews {
   interior?: ViewCanvas<TankInteriorScene>;
   loader?: {
     mgViewport: HTMLElement;
+    look: InteriorLook;
   };
   onRestoreError?: (error: unknown) => void;
 }
@@ -121,6 +123,14 @@ export class TankRoleViews {
     }
   }
 
+  lookKey(code: string, down: boolean, repeat = false) {
+    return this.current?.loader?.look.key(code, down, repeat) ?? false;
+  }
+
+  releaseLook() {
+    this.current?.loader?.look.release();
+  }
+
   render(state: TankState, paused: boolean, preferences: CameraPreferences) {
     const views = this.current;
     if (views?.phase !== "mounted") return;
@@ -133,6 +143,10 @@ export class TankRoleViews {
       return;
     }
 
+    const lookYaw = loader.look.sample(
+      state.weapon.mode,
+      paused || state.battle.failed || state.battle.won,
+    );
     const machineGun = state.weapon.mode === "machine-gun";
     if (machineGun) {
       if (!views.exterior && views.onRestoreError) {
@@ -157,6 +171,7 @@ export class TankRoleViews {
         preferences.enabled && !state.battle.failed && !state.battle.won
           ? preferences.overall * preferences.impact
           : 0,
+        lookYaw,
       );
     }
   }
@@ -221,7 +236,7 @@ export class TankRoleViews {
       const mgWorkspace = station.querySelector<HTMLElement>(".mg-workspace")!;
       const mgViewport =
         mgWorkspace.querySelector<HTMLElement>(".battle-viewport")!;
-      views.loader = { mgViewport };
+      views.loader = { mgViewport, look: new InteriorLook() };
       interiorViewport.prepend(views.interior!.canvas);
     } else {
       station
