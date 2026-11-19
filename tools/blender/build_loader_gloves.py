@@ -83,12 +83,16 @@ def worn_dye(materials):
         attr = tree.nodes.new("ShaderNodeVertexColor")
         attr.layer_name = "HidePatina"
         attr.label = "Wear at knuckles and finger pads"
-        mix_node = tree.nodes.new("ShaderNodeMixRGB")
+        mix_node = tree.nodes.new("ShaderNodeMix")
+        mix_node.data_type = "RGBA"
         mix_node.blend_type = "MULTIPLY"
-        mix_node.inputs[0].default_value = 1.0
-        tree.links.new(dye, mix_node.inputs[1])
-        tree.links.new(attr.outputs["Color"], mix_node.inputs[2])
-        tree.links.new(mix_node.outputs["Color"], socket)
+        mix_node.inputs["Factor"].default_value = 1.0
+        # The modern Mix node has scalar, vector and color sockets named A/B.
+        sockets = {s.identifier: s for s in mix_node.inputs}
+        tree.links.new(dye, sockets["A_Color"])
+        tree.links.new(attr.outputs["Color"], sockets["B_Color"])
+        result = next(s for s in mix_node.outputs if s.identifier == "Result_Color")
+        tree.links.new(result, socket)
 
 
 class Pattern:
