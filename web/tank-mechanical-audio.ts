@@ -9,7 +9,7 @@ export class TankMechanicalAudio {
   private cannonBuffer?: AudioBuffer;
   private ratchetBuffer?: AudioBuffer;
   private lastTooth?: number;
-  private ratchetWorkAfter = 0;
+  private regripEndsAt = 0;
   private chamber = "empty";
   private jam = false;
   private progressStep = 0;
@@ -23,7 +23,7 @@ export class TankMechanicalAudio {
     this.calibrationId = undefined;
     this.cannonShots = undefined;
     this.lastTooth = undefined;
-    this.ratchetWorkAfter = 0;
+    this.regripEndsAt = 0;
   }
   present(
     state: TankState,
@@ -63,23 +63,27 @@ export class TankMechanicalAudio {
       )
         this.calibrationCue(audio, calibration.result);
     }
-    if (
-      this.calibrationId === calibration.id &&
+    const { activeSeconds } = state.repair;
+    const failed = calibration.result === "failed";
+    // Success returns the hand on the game clock even when R is released.
+    // After failure the hands reach again only as the host credits new work.
+    const gripClock = failed ? activeSeconds : state.time;
+    if (this.calibrationId !== calibration.id) this.regripEndsAt = 0;
+    else if (
       this.calibrationResult === "active" &&
       calibration.result !== "active"
     )
-      this.ratchetWorkAfter =
-        state.repair.activeSeconds +
-        (calibration.result === "failed"
-          ? RATCHET_REGRIP_SECONDS.failed
-          : RATCHET_REGRIP_SECONDS.success);
+      this.regripEndsAt = failed
+        ? activeSeconds + RATCHET_REGRIP_SECONDS.failed
+        : (calibration.confirmedAt ?? state.time) +
+          RATCHET_REGRIP_SECONDS.success;
     const ratcheting =
       w.mode === "repair" &&
       state.repair.status === "repairing" &&
       calibration.result !== "active" &&
-      state.repair.activeSeconds >= this.ratchetWorkAfter;
+      gripClock >= this.regripEndsAt;
     const tooth = ratcheting
-      ? Math.floor(ratchetAngle(state.repair.activeSeconds) / (Math.PI / 12))
+      ? Math.floor(ratchetAngle(activeSeconds) / (Math.PI / 12))
       : undefined;
     // A pawl clicks only on the upwards return. Seed the first tooth whenever
     // the hand takes up the tool, and never burst through missed network frames.

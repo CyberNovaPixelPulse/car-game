@@ -168,3 +168,32 @@ test("the mechanic hears clicks on the return stroke and silence while pushing, 
     "reconnect never catches up missed ratchet teeth",
   );
 });
+
+test("releasing R after a successful calibration lets the return animation finish without accruing work", () => {
+  const state = new TankCore(() => "loader").view();
+  const audio = new TankMechanicalAudio();
+  const { context, starts } = recordingOutput();
+  state.weapon.mode = "repair";
+  state.repair.calibration.id = 1;
+  state.repair.calibration.result = "active";
+  state.repair.status = "repairing";
+  const frame = () => audio.present(state, context, true, "loader");
+  frame();
+  state.repair.calibration.result = "success";
+  state.repair.calibration.confirmedAt = 0;
+  frame();
+  const afterResult = starts.length;
+  state.repair.status = "ready";
+  state.time = 1;
+  frame();
+  assert.equal(starts.length, afterResult);
+  state.repair.status = "repairing";
+  frame();
+  state.repair.activeSeconds = 0.1;
+  state.time += 0.1;
+  frame();
+  assert.ok(
+    starts.length > afterResult,
+    "the first return stroke after the player resumes can sound",
+  );
+});
