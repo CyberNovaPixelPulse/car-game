@@ -10,6 +10,9 @@ app.use(
   "/peer",
   ExpressPeerServer(server, { path: "/", allow_discovery: false }),
 );
-server.listen(Number(process.env.PORT || 4274), "0.0.0.0", () =>
-  console.log("PeerServer listening"),
-);
+server.listen(Number(process.env.PORT || 4274), "0.0.0.0", () => {
+  const address = server.address();
+  if (address && typeof address !== "string") {
+    console.log(`PeerServer listening on port ${address.port}`);
+  }
+});
