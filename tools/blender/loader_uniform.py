@@ -4,6 +4,7 @@ All texture fields wrap at their boundaries. Blender's bundled NumPy is used onl
 at authoring time; the exported game asset contains ordinary glTF PBR textures.
 """
 import math
+from bisect import bisect_right
 import struct
 import tempfile
 import zlib
@@ -234,44 +235,143 @@ def crease_radius(t, angle, folds):
     return delta
 
 
-def shell_point(forearm, angle, t, cuff=False):
-    if forearm:
-        radius = .080 - .042*t + .012 * math.sin(math.pi*t)
-        radius += .0035 * math.sin(4*angle+.5+2*t) * math.sin(math.pi*t)
-        if cuff:
-            # A doubled layer overlaps the gathered body. This shape also sets
-            # the button's attachment surface and the two hem stitch paths.
-            radius = .053 - .009 * (t-.78)/.22
-            radius += .0015 * math.cos(3*angle + 3*t)
-        else:
-            radius += crease_radius(t, angle, FORE_FOLDS)
-            radius += .005 * math.cos(7*angle + 3*t) * math.exp(-((t-.76)/.105)**2)
-    else:
-        radius = .103 - .028*t + .009 * math.sin(math.pi*t)
-        radius += crease_radius(t, angle, UPPER_FOLDS)
-        radius += .003 * math.sin(3*angle - t) * math.sin(math.pi*t)
-    if not cuff:
-        # Match both pieces at the elbow. The following shallow creases disguise
-        # the transition when the upper and forearm point in different directions.
-        distance_from_joint = t if forearm else 1-t
-        blend = min(1, distance_from_joint/.095)
-        blend = blend * blend * (3 - 2 * blend)
-        radius = .080*(1-blend) + radius*blend
-    # Front/back asymmetry follows the forearm, including a flatter inner face.
-    x = radius * (1.04 + .025*math.cos(angle)) * math.cos(angle)
-    y = radius * (.91 + .025*math.sin(angle)) * math.sin(angle)
-    return Vector((x, y, .4*(t-.5)))
+ELBOW = .36
+WRIST = .68
 
 
-def layer(mesh, forearm, count, steps, slot, cuff=False):
+def ease(x):
+    x = max(0., min(1., x))
+    return x * x * (3 - 2*x)
+
+
+def mound(x, center, width):
+    return math.exp(-((x - center) / width) ** 2)
+
+
+def tailored_width(z, knots):
+    # Hermite sections have one shared tangent at each landmark, preserving the
+    # long natural silhouette through deltoid and forearm without stepped rings.
+    def slope(i):
+        a, va = knots[max(0,i-1)]
+        b, vb = knots[min(len(knots)-1,i+1)]
+        return (vb-va)/(b-a)
+    idx = max(0,min(len(knots)-2,bisect_right(knots,(z,float("inf")))-1))
+    (a, va),(b,vb) = knots[idx:idx+2]
+    t = max(0., min(1.,(z-a)/(b-a)))
+    return ((1-t)**2*((1+2*t)*va + t*(b-a)*slope(idx))
+            + t*t*((3-2*t)*vb - (1-t)*(b-a)*slope(idx+1)))
+
+
+# Shoulder, biceps, supracondylar narrowing, proximal forearm and wrist.
+# Width and depth are fitted separately, rather than scaling a circular tube.
+WIDTH = [(-.059, .014), (-.046, .056), (-.017, .087), (.053, .104),
+         (.138, .090), (.213, .078), (.301, .060), (.349, .064),
+         (.386, .064), (.44, .072), (.485, .069), (.561, .054),
+         (.608, .048), (.643, .043), (WRIST, .038)]
+DEPTH = [(-.059, .014), (-.046, .053), (-.017, .083), (.055, .097),
+         (.144, .086), (.218, .082), (.297, .062), (.344, .060),
+         (.386, .062), (.444, .074), (.505, .064), (.578, .050),
+         (.611, .043), (.643, .039), (WRIST, .036)]
+
+
+def elbow_darts(z, angle):
+    """Three oblique cloth ridges across the antecubital hollow, each dying out at its side seam."""
+    inner = max(0., -math.sin(angle))
+    across = math.cos(angle)
+    pleat = 0.
+    for center, slope, width, depth in ((.326, .025, .010, .011), (.355, -.014, .008, .013),
+                                      (.394, .025, .011, .010)):
+        distance = (z - center - slope*across - .005*across**2)/width
+        pleat += depth * (math.exp(-distance**2) - .70*math.exp(-((distance-.97)/.78)**2))
+    return inner**1.25 * pleat
+
+
+def shell_point(angle, z, cuff=False):
+    side, facing = math.cos(angle), math.sin(angle)
+    if cuff:
+        t = (z - .612) / (WRIST - .612)
+        radius = .0515 - .0095*t + .0016 * math.cos(3*angle + t)
+        return Vector((1.04*radius*side, .94*radius*facing, z))
+    upper = (z + .059) / (ELBOW + .059)
+    fore = (z - ELBOW) / (WRIST - ELBOW)
+    # Straight sleeve still has some slack, but most compression appears only
+    # with elbow flexion. Keep the outside smooth enough to read through twill.
+    crease = (crease_radius(upper, angle, UPPER_FOLDS) * (1-ease((z-.275)/.07))
+              + crease_radius(fore, angle, FORE_FOLDS) * ease((z-.397)/.065))
+    crease *= ease((z+.044)/.065)
+    crease += .20 * elbow_darts(z, angle)
+    crease += .0045*math.cos(7*angle+.85+3*fore)*mound(z,.604,.029)
+    width, depth = tailored_width(z, WIDTH), tailored_width(z, DEPTH)
+    if z < .024:
+        dome = math.sqrt(max(.00055, 1-((z-.032)/.096)**2))
+        fade = ease((z+.021)/.045)
+        width = .104*dome*(1-fade) + width*fade
+        depth = .097*dome*(1-fade) + depth*fade
+    # Deltoid breadth sits to the lateral side. The upper-arm anterior belly,
+    # olecranon and radial extensors are at three distinct heights and angles.
+    dx = .009*mound(z,.051,.060) - .006*mound(z,.444,.062)
+    dy = -.008*mound(z,.162,.076) + .004*mound(z,.238,.060) - .005*mound(z,.450,.077)
+    olecranon = .020 * mound(z,.358,.029) * max(0.,facing)**3
+    epicondyle = .009 * mound(z,.348+.009*side,.027) * abs(side)**3
+    return Vector((dx + (width + crease + epicondyle)*side,
+                   dy + (depth + crease + olecranon)*facing, z))
+
+
+def forearm_weight(point):
+    outside = max(0., math.sin(math.atan2(point.y,point.x)))
+    span = .147-.042*outside
+    return ease((point.z - (ELBOW - span))/(2*span))
+
+
+def flex_offset(p):
+    """Corrective cloth allowance at the hinge; the game blends it with elbow flexion."""
+    x, y, z = p
+    angle = math.atan2(y, x)
+    s, c = math.sin(angle), math.cos(angle)
+    outer, inner = max(0., s), max(0., -s)
+    # Linear skinning draws the rear of the arm into the hinge. Retain the
+    # olecranon and wrap the stretching cloth over it, without a spherical pad.
+    back = .038 * outer**2 * mound(z, .358, .041)
+    side = .010 * abs(c)**3 * mound(z, .358, .045)
+    # Biceps and brachioradialis shorten and lift independently.
+    tension = inner * (.009*mound(z,.202,.066) + .007*mound(z,.443,.050))
+    pleats = elbow_darts(z, angle)
+    # Pull the loose inside of the cuff of the elbow slightly away from the
+    # hinge. This keeps the inner fold between the two limbs rather than crossing them.
+    hollow = -.014 * inner**2 * mound(z, .36, .040)
+    radial = back + side + tension + pleats + hollow
+    offset = Vector((c*radial, s*radial, .008*outer**2*mound(z,.358,.038)))
+    if inner:
+        # At deep flexion, cloth on the biceps can otherwise pass through cloth
+        # on the forearm. Ease the inner surface along the bisector of a 141°
+        # bend, retaining the folds perpendicular to it. Invert the local linear
+        # skin transform to store this allowance as one rest-space shape key.
+        target = math.radians(141)
+        sn, cs = math.sin(target/2), math.cos(target/2)
+        weight = forearm_weight(p)
+        a, b = 1-weight+weight*math.cos(target), weight*math.sin(target)
+        h = z-ELBOW
+        yy, zz = y+offset.y, h+offset.z
+        current = -sn*(a*yy-b*zz) + cs*(b*yy+a*zz)
+        side_of_joint = 2*ease((h+.32)/.64)-1
+        wanted = cs*h + sn*y*side_of_joint
+        distance = (wanted-current)*ease(inner*2.5)
+        dy, dz = -sn*distance, cs*distance
+        offset.y += (a*dy+b*dz)/(a*a+b*b)
+        offset.z += (a*dz-b*dy)/(a*a+b*b)
+    return offset
+
+
+def shell_layer(mesh, levels, slot, cuff=False):
+    count = 44
     previous = None
-    for i, t in enumerate(steps):
-        row = mesh.ring([shell_point(forearm, j*TAU/count, t, cuff) for j in range(count)])
+    for z in levels:
+        row = mesh.ring([shell_point(TAU*i/count, z, cuff) for i in range(count)])
         if previous is None:
             mesh.cap(row, slot, reverse=True)
         else:
-            mesh.join(previous, row, slot, steps[i-1], t)
-        previous = row
+            mesh.join(previous, row, slot, last_z/.40, z/.40)
+        previous, last_z = row, z
     mesh.cap(previous, slot)
 
 
@@ -280,15 +380,16 @@ def raised(point, amount):
 
 
 def cuff_button(mesh):
-    angle, t = -1.26, .837
-    anchor = shell_point(True, angle, t, cuff=True)
+    angle, z = -1.26, .630
+    anchor = shell_point(angle, z, cuff=True)
     normal = Vector((anchor.x, anchor.y, 0)).normalized()
     across = Vector((-normal.y, normal.x, 0))
     up = Vector((0, 0, 1))
     center = anchor + .0004*normal
+
     def local(u, v, lift):
         return center + u*across + v*up + lift*normal
-    # A raised rim around the dished button face catches light at gameplay size.
+
     last = None
     for radius, lift in ((.008, 0), (.010, .001), (.0105, .0028), (.0094, .0041), (.0075, .0040), (.0069, .0026)):
         row = mesh.ring([local(radius*math.cos(TAU*j/20), radius*math.sin(TAU*j/20), lift) for j in range(20)])
@@ -300,34 +401,69 @@ def cuff_button(mesh):
         mesh.thread([local(x, -.0029, .0026), local(x+.0003, 0, .0035), local(x, .0029, .0026)], .00065, 2)
 
 
-def sleeve(name, forearm, mats):
+def sleeve_mesh(mats):
     mesh = SleeveMesh()
-    steps = [i*.91/40 for i in range(41)] if forearm else [i/36 for i in range(37)]
-    layer(mesh, forearm, 40, steps, 0)
-    def inseam(t):
-        return (-1.64 if forearm else -2.10) + .46*t - .12*math.sin(math.pi*t)
-    end = .774 if forearm else 1.
+    # Single contiguous set of quads below the shoulder crown and across the
+    # elbow. Closely spaced joint rings carry the rolled cloth in the power grip.
+    levels = [-.064, -.063, -.0615, -.059, -.055, -.05] + list(np.linspace(-.045, .276, 34)) + list(np.linspace(.281,.439,39)) + list(np.linspace(.445,.655,26))
+    shell_layer(mesh, levels, 0)
     for offset in (-.041, .041):
-        path = [raised(shell_point(forearm, inseam(t)+offset, t), .00045) for t in np.linspace(0, end, 63)]
+        path = [raised(shell_point(-2.16+.83*z/.68-.12*math.sin(z*8)+offset, z), .0005)
+                for z in np.linspace(-.015, .615, 111)]
         mesh.thread(path, .00085, 0)
-        for i in range(1, len(path)-1, 2):
-            mesh.thread([raised(path[i-1].lerp(path[i], .35), .00088), raised(path[i], .0009)], .00064, 2)
+        for i in range(1,len(path)-1,2):
+            mesh.thread([raised(path[i-1].lerp(path[i],.35),.00088), raised(path[i],.0009)], .00064, 2)
+    shell_layer(mesh, [.612,.614,.617,.629,.652,.674,.678,WRIST], 1, True)
+    for hem in (.619, .674):
+        for j in range(54):
+            a = j*TAU/54
+            mesh.thread([raised(shell_point(ang, hem, True), .0006) for ang in (a,a+.037,a+.078)], .00067, 2)
+    placket = [raised(shell_point(-.94+.12*(z-.612)/.068,z,True),.0006)
+               for z in np.linspace(.614,.678,11)]
+    mesh.thread(placket, .00145, 0)
+    cuff_button(mesh)
+    obj = mesh.make_object("UniformSleeve", [mats["cloth"], mats["cuff"], mats["thread"], mats["button"]])
+    obj.shape_key_add(name="Straight")
+    flex = obj.shape_key_add(name="ElbowFlex")
+    for v in flex.data:
+        v.co += flex_offset(v.co)
+    return obj
 
-    if forearm:
-        layer(mesh, True, 40, [.777, .782, .792, .835, .90, .979, .985, 1.], 1, True)
-        # Catch stitched ends at both edges of the cuff, plus the overlap placket.
-        for hem in (.800, .975):
-            for j in range(54):
-                a = j*TAU/54
-                points = [raised(shell_point(True, ang, hem, True), .0006) for ang in (a, a+.037, a+.078)]
-                mesh.thread(points, .00067, 2)
-        placket = [raised(shell_point(True, -.94 + .12*(t-.78)/.22, t, True), .0006)
-                   for t in np.linspace(.78, .988, 11)]
-        mesh.thread(placket, .00145, 0)
-        cuff_button(mesh)
-    return mesh.make_object(name, [mats["cloth"], mats["cuff"], mats["thread"], mats["button"]])
 
-
-def build_sleeves(materials):
-    """Local Blender +Z goes from shoulder to wrist, both segments 0.40 m long."""
-    return sleeve("ForeSleeve", True, materials), sleeve("UpperSleeve", False, materials)
+def build_sleeved_arm(materials):
+    """Right-arm source. Blender +Z follows the bones; -Y faces the inner elbow."""
+    root = bpy.data.objects.new("SleevedArm", None)
+    root.empty_display_size = .045
+    bpy.context.collection.objects.link(root)
+    bones = bpy.data.armatures.new("SleeveBones")
+    rig = bpy.data.objects.new("SleeveSkeleton", bones)
+    bpy.context.collection.objects.link(rig)
+    rig.parent = root
+    bpy.context.view_layer.objects.active = rig
+    rig.select_set(True)
+    bpy.ops.object.mode_set(mode="EDIT")
+    parent = None
+    for name, start, end in (("UpperArm", 0., ELBOW), ("Forearm", ELBOW, WRIST), ("Wrist", WRIST, WRIST+.055)):
+        bone = bones.edit_bones.new(name)
+        bone.head, bone.tail = (0,0,start), (0,0,end)
+        if parent:
+            bone.parent = parent
+            bone.use_connect = True
+        parent = bone
+    bpy.ops.object.mode_set(mode="OBJECT")
+    rig.select_set(False)
+    sleeve = sleeve_mesh(materials)
+    sleeve.parent = rig
+    modifier = sleeve.modifiers.new("Cloth follows the arm", "ARMATURE")
+    modifier.object = rig
+    names = ("UpperArm", "Forearm", "Wrist")
+    upper, fore, wrist = [sleeve.vertex_groups.new(name=n) for n in names]
+    for v in sleeve.data.vertices:
+        # The cloth on the inside has more ease up the arm to gather into a
+        # tight bend. Twist gradually transfers to the cuff towards the wrist.
+        bend = forearm_weight(v.co)
+        twist = ease((v.co.z-.482)/(.663-.482))
+        for group, weight in ((upper,1-bend), (fore,bend*(1-twist)), (wrist,bend*twist)):
+            if weight > 0:
+                group.add([v.index], weight, "REPLACE")
+    return root

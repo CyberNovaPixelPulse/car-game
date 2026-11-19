@@ -17,7 +17,7 @@ sys.dont_write_bytecode = True
 SOURCE = Path(__file__).resolve().parent
 sys.path.insert(0, str(SOURCE))
 import common
-from loader_uniform import build_materials, build_sleeves
+from loader_uniform import build_materials, build_sleeved_arm
 
 PI = math.pi
 TAU = math.tau
@@ -811,22 +811,21 @@ def main():
     make_thumb(pattern, thumb)
     finish_panels(pattern)
     sewn = pattern.finish(mats, glove)
-    sleeves = build_sleeves(mats)
+    build_sleeved_arm(mats)
     root = SOURCE.parents[1]
-    # Separate parts on the modelling bench; reset object locations for the game export.
-    fore, upper = sleeves
-    fore.location.x = -0.20
-    upper.location.x = 0.20
+    # Show the glove seated in the open sleeve when an artist opens the Blend.
+    # Its independent wrist pivot remains at the origin in the game asset.
+    glove.location.z = .72
     bpy.context.view_layer.objects.active = sewn
     sewn.select_set(True)
     for area in bpy.context.screen.areas:
         if area.type == "VIEW_3D":
-            area.spaces.active.region_3d.view_distance = 0.40
-            area.spaces.active.region_3d.view_location = (0, 0, 0.025)
+            area.spaces.active.region_3d.view_distance = 1.08
+            area.spaces.active.region_3d.view_location = (0, 0, .38)
             area.spaces.active.shading.color_type = "MATERIAL"
     bpy.context.preferences.filepaths.save_version = 0
     bpy.ops.wm.save_as_mainfile(filepath=str(SOURCE / "loader-gloves.blend"), compress=True)
-    fore.location.x = upper.location.x = 0
+    glove.location.z = 0
     bpy.ops.export_scene.gltf(
         filepath=str(root / "public/assets/closeups/loader-gloves.glb"),
         export_format="GLB",
