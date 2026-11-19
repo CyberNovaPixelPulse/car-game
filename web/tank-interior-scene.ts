@@ -8,6 +8,7 @@ import { disposeArt } from "./tank-art-materials";
 import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import type { TankState } from "./tank-core";
 import { LoaderHands } from "./tank-loader-hands";
+import { LoaderRepair } from "./tank-loader-repair";
 import { LoaderRounds } from "./tank-loader-rounds";
 import { loaderCanWork } from "./tank-weapons";
 import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
@@ -25,6 +26,7 @@ export class TankInteriorScene {
   private breech?: { recoil: THREE.Object3D; slide: THREE.Object3D };
   private hands = new LoaderHands();
   private rounds!: LoaderRounds;
+  private repair?: LoaderRepair;
   private case = new THREE.Group();
   private readonly reflectedFlash = new THREE.PointLight(0xffce96, 0, 4);
   private textures: THREE.Texture[] = [];
@@ -252,6 +254,17 @@ export class TankInteriorScene {
       makeShell(round, false, paint);
       return round;
     });
+    new GLTFLoader(this.assets.manager).load(
+      "/assets/closeups/repair-panel.glb",
+      ({ scene }) => {
+        if (this.disposed) {
+          disposeArt(scene);
+          return;
+        }
+        this.repair = LoaderRepair.bind(scene, this.scene, this.hands);
+        this.invalidate();
+      },
+    );
     // Conduits and junction boxes follow the wall, avoiding the ejection path.
     const pipe = new THREE.CatmullRomCurve3([
       new THREE.Vector3(-2.1, 0.3, 0.1),
@@ -331,7 +344,8 @@ export class TankInteriorScene {
   async prepare(state: TankState) {
     await this.assets.wait();
     if (this.disposed) throw new Error("視野準備已取消。");
-    if (!this.breech) throw new Error("無法載入車內模型，請重試準備。");
+    if (!this.breech || !this.repair)
+      throw new Error("無法載入車內模型，請重試準備。");
     this.render(state);
     await this.renderer.compileAsync(this.scene, this.camera);
     if (this.disposed) throw new Error("視野準備已取消。");
@@ -359,6 +373,8 @@ export class TankInteriorScene {
       Math.floor(w.loadProgress * 90),
       w.crouching,
       stunned,
+      w.mode === "repair" && state.repair.status,
+      w.mode === "repair" && Math.floor(state.repair.activeSeconds * 30),
       motion ? Math.floor(state.time * 30) : "still",
     ].join(":");
     const reflection = cabinFlashIntensity(cannonShotAge(state));
@@ -384,6 +400,7 @@ export class TankInteriorScene {
       this.breech.slide.position.y = w.chamber === "loaded" ? 0 : -0.53;
     }
     this.rounds.present(w, this.hands, loading, jamTravel);
+    this.repair?.present(state);
     this.case.visible =
       w.chamber === "ejecting" ||
       (w.shotsFired > 0 && recovery >= 0 && recovery < 0.25);
