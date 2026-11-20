@@ -1,4 +1,4 @@
-"""Build the project-authored uniform, gloves and full-body skeleton for #85.
+"""Build the crew uniform, anatomical hands and full-body skeleton.
 
 Run Blender in background factory-startup mode with this script. Coordinates
 are metres: +Y forward, +Z up in Blender, exported as Three.js -Z forward.
@@ -14,6 +14,7 @@ import bpy
 from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from crew_hand import load_grip_hand
 from loader_uniform import build_materials, make_material
 
 
@@ -38,6 +39,7 @@ class Garment:
         self.uvs = []
         self.faces = []
         self.faces_material = []
+        self.face_uvs = {}
 
     def vertex(self, point, weights, uv):
         self.points.append(tuple(point))
@@ -45,7 +47,9 @@ class Garment:
         self.uvs.append(uv)
         return len(self.points) - 1
 
-    def face(self, vertices, material):
+    def face(self, vertices, material, uvs=None):
+        if uvs is not None:
+            self.face_uvs[len(self.faces)] = uvs
         self.faces.append(tuple(vertices))
         self.faces_material.append(material)
 
@@ -127,6 +131,14 @@ class Garment:
         for poly, material in zip(mesh.polygons, self.faces_material):
             poly.material_index = slots[material]
             poly.use_smooth = len(poly.vertices) < 8
+        uv = mesh.uv_layers.new(name="Fabric and anatomical skin")
+        for poly in mesh.polygons:
+            corners = self.face_uvs.get(poly.index)
+            for corner, index in enumerate(poly.loop_indices):
+                if corners is None:
+                    uv.uv[index].vector = self.uvs[mesh.loops[index].vertex_index]
+                else:
+                    uv.uv[index].vector = corners[corner]
         # The profile along a limb can face any direction. Give each closed
         # island coherent outside normals before generating tangents.
         normals = bmesh.new()
@@ -135,14 +147,10 @@ class Garment:
         bmesh.ops.triangulate(normals, faces=list(normals.faces))
         normals.to_mesh(mesh)
         normals.free()
-        uv = mesh.uv_layers.new(name="Uniform weave")
-        for poly in mesh.polygons:
-            for index in poly.loop_indices:
-                uv.data[index].uv = self.uvs[mesh.loops[index].vertex_index]
         return obj
 
 
-def sleeve(garment, side, label, shoulder, elbow, wrist):
+def sleeve(garment, grip, side, label, shoulder, elbow, wrist):
     upper, fore, hand = (f"{key}.{label}" for key in ("UpperArm", "Forearm", "Hand"))
     along = (elbow - shoulder).normalized()
     joint(upper, shoulder, elbow, "Chest")
@@ -170,54 +178,7 @@ def sleeve(garment, side, label, shoulder, elbow, wrist):
     ], "cuff", side=Vector((0, 1, 0)), steps=24)
     # Bones created without roll transmit Blender's local hand basis to glTF.
     basis = Vector((0, 1, 0)).rotation_difference(hand_axis)
-    glove(garment, side, label, wrist, basis)
-
-
-def glove(garment, side, label, wrist, basis):
-    hand = f"Hand.{label}"
-
-    def at(p):
-        return wrist + basis @ Vector(p)
-
-    def rings(values, material, steps=14):
-        garment.tube([(at(point), radius, depth, weights)
-                      for point, radius, depth, weights in values], material,
-                     side=basis @ RIGHT, steps=steps)
-
-    palm = [(hand, 1)]
-    rings([
-        ((0, -.009, 0), .040, .028, palm),
-        ((0, .016, 0), .037, .025, palm),
-        ((0, .045, .002), .041, .025, palm),
-        ((side * .001, .071, -.006), .046, .024, palm),
-        ((side * .006, .086, -.011), .044, .021, palm),
-        ((side * .009, .093, -.013), .038, .016, palm),
-    ], "leather", 24)
-    for index, (digit, length) in enumerate((("Index", 1.0), ("Middle", 1.03),
-                                            ("Ring", .94), ("Pinky", .77))):
-        x = side * (-.026 + index * .022)
-        base = (x, .079 - index * .002, -.004)
-        knuckle = (x, .112 * length, -.011)
-        bend = (x, .114 * length, -.036)
-        tip = (x - side * .002, .092 * length, -.053)
-        first, last = f"{digit}Base.{label}", f"{digit}Tip.{label}"
-        joint(first, at(base), at(knuckle), hand)
-        joint(last, at(knuckle), at(tip), first)
-        radius = .0117 - index * .0009
-        rings([
-            (base, radius, radius * .92, blend(hand, first, .36)),
-            (knuckle, radius, radius * .91, blend(first, last, .46)),
-            (bend, radius * .87, radius * .87, [(last, 1)]),
-            (tip, radius * .71, radius * .73, [(last, 1)]),
-        ], "leather", 12)
-    thumb = f"Thumb.{label}"
-    base = (-side * .031, .042, -.008)
-    bend = (-side * .050, .066, -.022)
-    tip = (-side * .033, .085, -.043)
-    joint(thumb, at(base), at(tip), hand)
-    rings([(base, .015, .016, blend(hand, thumb, .37)),
-           (bend, .016, .013, [(thumb, 1)]),
-           (tip, .012, .010, [(thumb, 1)])], "leather", 14)
+    grip.add_to(garment, joint, side, label, wrist, basis)
 
 
 def leg(garment, side, label):
@@ -277,8 +238,10 @@ def leg(garment, side, label):
 
 
 def build():
+    grip = load_grip_hand()
     materials = build_materials()
     materials.update({
+        "hand_skin": grip.material,
         "boot": make_material("Scuffed russet service leather", (76, 52, 35), .66),
         "sole": make_material("Black rubber outsole", (38, 34, 28), .87),
         "lace": make_material("Waxed boot lace", (111, 81, 51), .80),
@@ -317,7 +280,7 @@ def build():
         shoulder = Vector((side * .184, .001, .410))
         elbow = Vector((side * .402, .008, .259))
         wrist = Vector((side * .543, .024, .065))
-        sleeve(arms, side, label, shoulder, elbow, wrist)
+        sleeve(arms, grip, side, label, shoulder, elbow, wrist)
         leg(body, side, label)
         body.patch((side * .100, .111, .315), .058, .055, [("Chest", 1)], "cuff")
         body.patch((side * .100, .119, .354), .062, .015, [("Chest", 1)], "cloth")
@@ -350,7 +313,7 @@ def build():
     body.bind("CrewUniform", rig, materials)
     arms.bind("CrewArms", rig, materials)
     face.bind("CrewHeadMesh", rig, materials)
-    rig["source"] = "Project original, CC0-1.0"
+    rig["source"] = "Project uniform and rig, with CC0 Innerscene/MakeHuman hand anatomy"
     rig.show_in_front = True
     bpy.context.preferences.filepaths.save_version = 0
     bpy.ops.wm.save_as_mainfile(filepath=str(ROOT / "tools/blender/crew-body.blend"), compress=True)

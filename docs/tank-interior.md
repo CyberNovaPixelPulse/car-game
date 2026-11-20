@@ -34,7 +34,9 @@
 
 ## 駕駛席與共用乘員骨架
 
-駕駛席的制服、身體、頭盔、手套和軍靴使用原創全身骨架。可編輯來源為 `tools/blender/crew-body.blend`，從 `tools/blender/build_crew_body.py` 重新生成，遊戲載入 `public/assets/closeups/crew-body.glb`。此模型、骨架與隨模型匯出的織物和皮革貼圖為專案原創資產，以 [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) 提供。織物與皮革沿用專案既有的程序化生成方法。
+駕駛與瞄準席共用完整乘員骨架、制服與解剖手模型。可編輯來源為 `tools/blender/crew-body.blend`，由 `tools/blender/build_crew_body.py` 重新生成，遊戲載入 `public/assets/closeups/crew-body.glb`。原創制服、骨架與貼圖以 [CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/) 提供。
+
+手部以 [Innerscene 的 Posable Anatomical Right Hand](https://www.innerscene.com/tools/library/3d-parts/posable-anatomical-right-hand-f6098b4f) 為基礎。其作者由 MakeHuman／MPFB 基礎網格取出右手並以 CC0 發布，未修改的來源保存在 `tools/blender/sources/anatomical-right-hand.glb`。SHA-256 為 `4e9a6219f4147f80fbd29cd4c349e1ae1d59d436d81822a0da8247984cb2d4e9`。`tools/blender/crew_hand.py` 逐節調整握姿、鏡射左手及關節權重，並烘焙皮膚與指甲貼圖。
 
 骨架以骨盆為原點，採公尺、右方 +X、上方 +Y、前方 −Z。手腳的職位目標使用骨架局部座標，手與操縱桿的接觸位置由固定骨長求解。第一人稱職位可隱藏頭部幾何，手指關節可依工作用途調整。
 
