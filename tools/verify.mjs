@@ -93,6 +93,7 @@ if (mode === "status") {
               "tools/loader-arm-poses.test.ts",
               "tools/tank-mechanical-audio.test.ts",
               "tools/tank-core.test.ts",
+              "tools/tank-machine-gun.test.ts",
               "tools/room-rules.test.ts",
               "tools/peer-server.test.ts",
             ],

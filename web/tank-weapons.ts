@@ -5,6 +5,7 @@ import {
   BALLISTICS,
   ENEMY_RULES,
   FIRING_FEEDBACK,
+  MG_RULES,
 } from "./tank-settings";
 export { SHELL_DAMAGE } from "./tank-settings";
 import { SMOKE_RADIUS, SMOKE_SECONDS, type SmokeCloud } from "./tank-smoke";
@@ -121,6 +122,8 @@ export interface WeaponState {
     nextShot: number;
     flashUntil: number;
     shots: number;
+    /** Absent on snapshots sent before the roof gun supported belts. */
+    belt?: { rounds: number; reloadUntil: number };
     tracers: {
       id: number;
       x: number;
@@ -250,6 +253,7 @@ export function createWeaponState(seed = 1): WeaponState {
       nextShot: 0,
       flashUntil: 0,
       shots: 0,
+      belt: { rounds: MG_RULES.beltCapacity, reloadUntil: 0 },
       tracers: [],
     },
     bow: createBowGun(),
@@ -500,6 +504,14 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
     ].every(Number.isFinite) &&
     w.mg.heat >= 0 &&
     w.mg.heat <= 1 &&
+    (w.mg.belt === undefined ||
+      (!!w.mg.belt &&
+        Number.isInteger(w.mg.belt.rounds) &&
+        w.mg.belt.rounds >= 0 &&
+        w.mg.belt.rounds <= MG_RULES.beltCapacity &&
+        Number.isFinite(w.mg.belt.reloadUntil) &&
+        w.mg.belt.reloadUntil >= 0 &&
+        (w.mg.belt.reloadUntil === 0 || w.mg.belt.rounds === 0))) &&
     Array.isArray(w.mg.tracers) &&
     w.mg.tracers.every((t) =>
       [t.id, t.x, t.y, t.z, t.endX, t.endY, t.endZ, t.until].every(

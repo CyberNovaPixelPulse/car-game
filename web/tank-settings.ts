@@ -80,6 +80,8 @@ export const MG_RULES = {
   cooldown: 3,
   cooling: 0.3,
   interval: 0.147,
+  beltCapacity: 36,
+  reload: 1.35,
   damage: 1.45,
   range: 100,
 } as const;

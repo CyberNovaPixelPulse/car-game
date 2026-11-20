@@ -15,7 +15,7 @@ import {
 } from "./tank-motion-controls";
 import type { CameraPreferences } from "./tank-motion-preferences";
 import type { SceneQuality } from "./tank-scene-quality";
-import { REPAIR_RULES, TANK_RULES } from "./tank-settings";
+import { MG_RULES, REPAIR_RULES, TANK_RULES } from "./tank-settings";
 import { smokeSight } from "./tank-smoke";
 import {
   presentSpeedometerNeedle,
@@ -113,8 +113,8 @@ function stationMarkup(
             <p>機槍朝向 <strong data-testid="mg-heading">0.0°</strong> · 仰角 <strong data-testid="mg-pitch">0.0°</strong></p>
             <p>機槍熱度 <strong data-testid="mg-heat">0</strong>% · <span data-testid="mg-status">可以射擊</span> <strong data-testid="mg-cooldown"></strong></p>
             <progress aria-label="機槍熱度" max="100" value="0"></progress>
-            <p>機槍已射擊 <strong data-testid="mg-shot-count">0</strong> 發</p>
-            <p class="note">按住 WASD 瞄準，放開即停止。空白鍵按住連射，備彈無限。Tab 切換維修。</p>
+            <p>彈帶 <strong data-testid="mg-belt-remaining">${MG_RULES.beltCapacity}</strong>/${MG_RULES.beltCapacity} · 已射擊 <strong data-testid="mg-shot-count">0</strong> 發 <span data-testid="mg-reload"></span></p>
+            <p class="note">WASD 瞄準 · 按住空白鍵連射及自動換帶 · Tab 切換維修</p>
           </div>
         </div>
         <div class="loading-workspace">
@@ -485,6 +485,8 @@ function bindMachineGunHud(root: HTMLElement) {
   const heat = readout(root, "mg-heat");
   const status = readout(root, "mg-status");
   const cooldown = readout(root, "mg-cooldown");
+  const belt = readout(root, "mg-belt-remaining");
+  const reload = readout(root, "mg-reload");
   const shots = readout(root, "mg-shot-count");
   const targets = readout(root, "mg-target-status");
   const smoke = readout(root, "smoke-status");
@@ -492,6 +494,8 @@ function bindMachineGunHud(root: HTMLElement) {
   return (state: TankState, stunned: boolean) => {
     const { mg, crouching } = state.weapon;
     const overheated = state.time < mg.coolUntil;
+    const rounds = mg.belt?.rounds ?? MG_RULES.beltCapacity;
+    const reloadRemaining = (mg.belt?.reloadUntil ?? 0) - state.time;
     hud.toggleAttribute("data-overheated", overheated);
     heading.textContent = `${degrees((state.tank.yaw + mg.yaw) % (Math.PI * 2))}°`;
     pitch.textContent = `${degrees(mg.pitch)}°`;
@@ -503,10 +507,20 @@ function bindMachineGunHud(root: HTMLElement) {
         ? "蹲下・無法射擊"
         : overheated
           ? "過熱・強制冷卻"
-          : "可以射擊";
+          : reloadRemaining > 0
+            ? "換帶中"
+            : rounds === 0
+              ? "彈帶用盡"
+              : "可以射擊";
     cooldown.textContent = overheated
       ? `${(mg.coolUntil - state.time).toFixed(1)} 秒`
       : "";
+    belt.textContent = String(rounds);
+    const reloadLabel = overheated || stunned || crouching ? "換帶中 " : "";
+    reload.textContent =
+      reloadRemaining > 0
+        ? `· ${reloadLabel}${(Math.ceil(reloadRemaining * 10) / 10).toFixed(1)} 秒`
+        : "";
     shots.textContent = String(mg.shots);
     smoke.textContent = sightReadout(state, true);
     targets.textContent =

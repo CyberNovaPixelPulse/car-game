@@ -34,12 +34,22 @@ export function stepMachineGun(
   cover: readonly Cover[],
 ) {
   const mg = w.mg;
+  const belt = (mg.belt ??= { rounds: MG_RULES.beltCapacity, reloadUntil: 0 });
+  const wantsFire = held && w.mode === "machine-gun" && loaderCanWork(w, now);
   mg.tracers = mg.tracers.filter((t) => t.until > now);
+
+  // A committed reload and thermal cooldown both use the shared game clock.
+  if (belt.reloadUntil > 0 && now >= belt.reloadUntil) {
+    belt.rounds = MG_RULES.beltCapacity;
+    belt.reloadUntil = 0;
+  } else if (belt.rounds === 0 && belt.reloadUntil === 0 && wantsFire) {
+    belt.reloadUntil = now + MG_RULES.reload;
+  }
   if (now < mg.coolUntil) {
     mg.heat = Math.min(1, (mg.coolUntil - now) / MG_RULES.cooldown);
     return;
   }
-  if (!held || w.mode !== "machine-gun" || !loaderCanWork(w, now)) {
+  if (!wantsFire || belt.reloadUntil > 0) {
     mg.heat = Math.max(0, mg.heat - dt * MG_RULES.cooling);
     return;
   }
@@ -47,6 +57,8 @@ export function stepMachineGun(
   if (now >= mg.nextShot) {
     mg.nextShot = now + MG_RULES.interval;
     mg.shots++;
+    belt.rounds--;
+    if (belt.rounds === 0) belt.reloadUntil = now + MG_RULES.reload;
     mg.flashUntil = now + FIRING_FEEDBACK.machineGun;
     const from = [pose.x, 3.1, pose.z];
     const to = [

@@ -67,10 +67,11 @@ function practiceHint(state: TankState, role: CrewRole) {
     return "剛才站立時被退殼擊中，暈眩五秒。下次聽到開火提醒，按住 C 蹲下避殼。";
   if (w.chamber === "ejecting")
     return "彈殼即將退出！按住 C 蹲下；退殼結束後放開起身再工作。";
-  if (w.mode === "machine-gun")
-    return state.time < w.mg.coolUntil
-      ? "機槍過熱，等待三秒冷卻。切換工作不能跳過冷卻。"
-      : "按住 WASD 瞄準，空白鍵連射；持續射擊會過熱。Tab 切換維修。";
+  if (w.mode === "machine-gun") {
+    if (state.time < w.mg.coolUntil)
+      return "機槍過熱，等待冷卻。切換工作不能跳過冷卻。";
+    return "WASD 瞄準，按住空白鍵連射，彈帶用完自動換帶。Tab 切換維修。";
+  }
   if (w.mode === "repair")
     return state.repair.calibration.result === "active"
       ? "持續按住 R，指針到目標區時按空白鍵校準；放開、移動或受擊會中斷。"
