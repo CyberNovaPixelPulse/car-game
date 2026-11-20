@@ -23,6 +23,7 @@ import { BattleEffects } from "./tank-battle-effects";
 import { FIRING_FEEDBACK } from "./tank-settings";
 import { battleProjection, battleView } from "./tank-battle-view";
 import { buildDriverArmour } from "./tank-driver-armour";
+import { TankDriverControls } from "./tank-driver-controls";
 import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
 
 /** Metres from the eye within which an enemy tank keeps full detail. */
@@ -55,6 +56,8 @@ export class TankScene {
   private assets = new ArtPreparation();
   private environment = new AbortController();
   private driverArmour?: Promise<boolean>;
+  private driverControls?: TankDriverControls;
+  private driverControlsReady?: Promise<boolean>;
   private player!: VehicleModel;
   private width = 0;
   private height = 0;
@@ -139,6 +142,22 @@ export class TankScene {
         this.assets.manager,
         () => this.disposed,
       ).catch(() => false);
+      this.driverControlsReady = TankDriverControls.load(
+        this.assets.manager,
+        () => this.disposed,
+      )
+        .then((controls) => {
+          if (!controls) return false;
+          if (this.disposed) {
+            disposeArt(controls.root);
+            return false;
+          }
+          this.driverControls = controls;
+          this.mount.add(controls.root);
+          this.lastVisual = "";
+          return true;
+        })
+        .catch(() => false);
     }
     if (this.view === "machine-gun") {
       const steel = new THREE.MeshStandardMaterial({
@@ -202,9 +221,12 @@ export class TankScene {
   async prepare(state: TankState) {
     await this.assets.wait();
     const driverArmourReady = await this.driverArmour;
+    const driverControlsReady = await this.driverControlsReady;
     if (this.disposed) throw new Error("視野準備已取消。");
     if (driverArmourReady === false)
       throw new Error("無法載入駕駛觀察窗，請重試準備。");
+    if (driverControlsReady === false)
+      throw new Error("無法載入駕駛動作，請重試準備。");
     this.render(state); // Instantiate authority-provided vehicle art, without advancing any rules.
     await this.assets.wait();
     if (this.disposed) throw new Error("視野準備已取消。");
@@ -214,7 +236,7 @@ export class TankScene {
     this.render(state);
     await finishPreparation(this.renderer, () => this.disposed);
   }
-  render(state: TankState, offset = STILL_HEAD) {
+  render(state: TankState, offset = STILL_HEAD, held = 0) {
     const t = state.tank;
     // Render state is a local GPU concern. Simulation/network clocks keep running at full cadence.
     const pose = [
@@ -247,6 +269,7 @@ export class TankScene {
     const visual = [
       pose,
       headStamp(offset),
+      this.driverControls?.advance(state.time, held),
       aimState.yaw,
       aimState.pitch,
       state.weapon.targets.map((e) => e.phase).join(),
@@ -301,6 +324,7 @@ export class TankScene {
     this.mount.quaternion.copy(this.camera.quaternion);
     this.camera.getWorldDirection(this.sightDirection);
     applyHeadOffset(this.camera, offset, this.view === "driver");
+    this.driverControls?.pose(offset);
     if (this.view !== "driver") {
       this.sight ??=
         this.canvas.parentElement?.querySelector<HTMLElement>(".sight") ??

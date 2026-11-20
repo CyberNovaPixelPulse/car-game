@@ -131,7 +131,12 @@ export class TankRoleViews {
     this.current?.loader?.look.release();
   }
 
-  render(state: TankState, paused: boolean, preferences: CameraPreferences) {
+  render(
+    state: TankState,
+    paused: boolean,
+    preferences: CameraPreferences,
+    held = 0,
+  ) {
     const views = this.current;
     if (views?.phase !== "mounted") return;
     const station =
@@ -139,7 +144,7 @@ export class TankRoleViews {
     const offset = views.motion.sample(state, station, paused, preferences);
     const loader = views.loader;
     if (!loader) {
-      views.exterior!.scene.render(state, offset);
+      views.exterior!.scene.render(state, offset, paused ? 0 : held);
       return;
     }
 

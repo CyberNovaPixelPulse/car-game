@@ -512,6 +512,7 @@ core.present = (state) => {
     state,
     runtime.paused || runtime.awaitingFirstSnapshot,
     motionPreferences,
+    held,
   );
 };
 const driveKeys: Record<string, number> = {
