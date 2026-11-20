@@ -94,6 +94,7 @@ if (mode === "status") {
               "tools/loader-workstation.test.ts",
               "tools/crew-body.test.ts",
               "tools/gunner-crew-pose.test.ts",
+              "tools/hill192-art.test.ts",
               "tools/tank-mechanical-audio.test.ts",
               "tools/tank-core.test.ts",
               "tools/tank-hull-pose.test.ts",

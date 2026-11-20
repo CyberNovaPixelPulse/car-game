@@ -95,3 +95,37 @@ Models:
 - Weed Plant 02
 - Wooden Barrels 01
 - Wooden Crate 02
+
+## Hill 192
+
+The authority terrain, roads and cover are exported read-only from the game with
+`node --import tsx tools/export-hill192-art.ts /tmp/hill192-layout.json`. The
+survey is IGN RGE ALTI under Licence Ouverte 2.0. The field layout and sunken
+lanes are an interpretation of the bocage around Saint-Lô. [US Army Center of Military History](https://history.army.mil/portals/143/Images/Publications/catalog/100-13.pdf)
+
+`tools/blender/hill192-art.blend` holds the editable terrain, prototype library,
+assemblies, world lighting and three ground-level camera checkpoints plus a
+survey camera. The reusable oak comes from the Cambridge Oak growth preset in
+[Sapling Tree Gen 1.0.0](https://extensions.blender.org/add-ons/sapling-tree-gen/),
+with the editable tree retained in the source and the bark and leaf-tip clusters
+reduced for instancing. The sun vector is authored with
+[Sun Position 4.4.0](https://extensions.blender.org/add-ons/sun-position/) at
+49.1387° N, 0.9875° W, 15:30 UTC+2 on 11 July 1944. The add-ons are external
+authoring tools and their source code is not included in the project.
+The pre-existing Poly Haven photos and HDRI used here retain their CC0-1.0
+provenance listed above.
+
+Rebuild with Sapling in the selected Blender user extensions directory and an
+unpacked Sun Position extension in a temporary directory containing the
+`sun_position` package. Run Blender in background factory-startup mode with
+`--python tools/blender/build_hill192.py -- --layout /tmp/hill192-layout.json
+--sun-addon-root /path/to/scratch/extension-dir`. An optional `--render DIR`
+exports review stills from the road, ridge and survey cameras. No extensions
+are installed by the build.
+
+The exports under `hill192/` package a compact vegetation prototype library,
+world placements, field/lane/rut weights, and flint shoulder weights.
+The game uses the original terrain triangles, textured exact-cover boxes and
+56 m instancing cells. Scattered vegetation and the far horizon landform are
+visual scenery. The main approach stays open between the flanking bocage
+banks. The panorama remains fixed through the round.

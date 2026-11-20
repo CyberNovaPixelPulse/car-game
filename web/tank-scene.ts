@@ -9,7 +9,7 @@ import {
   preloadVehicles,
   noteRenderer,
 } from "./tank-vehicle-model";
-import { buildHill192 } from "./hill192-environment";
+import { buildHill192, HILL_192_LIGHT } from "./hill192-environment";
 import { buildNormandy } from "./tank-environment";
 import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import { disposeArt } from "./tank-art-materials";
@@ -62,6 +62,7 @@ export class TankScene {
   private environment = new AbortController();
   private fieldPrepared = false;
   private hill192 = false;
+  private hill192Art?: ReturnType<typeof buildHill192>;
   private sun!: THREE.DirectionalLight;
   private driverArmour?: Promise<boolean>;
   private driverControls?: TankDriverControls;
@@ -269,8 +270,18 @@ export class TankScene {
     this.fieldPrepared = true;
     this.hill192 = state.occupation?.levelId === "hill-192";
     if (this.hill192) {
-      buildHill192(this.scene);
-      this.scene.fog = new THREE.Fog(0xb9c7c7, 240, 710);
+      this.hill192Art = buildHill192(
+        this.scene,
+        this.environment.signal,
+        this.assets.manager,
+      );
+      this.scene.fog = new THREE.Fog(0xb9c2bf, 162, 715);
+      this.scene.backgroundRotation.y = HILL_192_LIGHT.skyYaw;
+      this.scene.environmentRotation.y = HILL_192_LIGHT.skyYaw;
+      this.sun.intensity = 1.24;
+      this.sun.color.setHex(0xffedce);
+      this.sun.shadow.normalBias = 0.025;
+      this.sun.shadow.radius = 2;
       this.camera.far = 740;
       this.camera.updateProjectionMatrix();
       this.scene.add(this.sun.target);
@@ -409,8 +420,14 @@ export class TankScene {
       view.z - Math.cos(view.yaw) * Math.cos(view.pitch) * 40,
     );
     if (this.hill192) {
-      this.sun.position.set(t.x - 25, height + 40, t.z + 15);
+      const [east, up, south] = HILL_192_LIGHT.sun;
+      this.sun.position.set(
+        t.x + east * 68,
+        height + up * 68,
+        t.z + south * 68,
+      );
       this.sun.target.position.set(t.x, height, t.z);
+      this.hill192Art?.update(t.x, t.z);
     }
     this.mount.position.copy(this.camera.position);
     this.mount.quaternion.copy(this.camera.quaternion);
