@@ -226,7 +226,7 @@ export class GameRuntime {
     this.localPaused = false;
     this.held = 0;
     this.viewAspect = undefined;
-    this.practiceCrew = new PracticeCrew(this.core, role);
+    this.practiceCrew = new PracticeCrew(this.core, role, !!occupation);
     this.core.start({
       participants: [0, 1, 2],
       seed,

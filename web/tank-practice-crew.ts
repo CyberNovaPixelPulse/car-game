@@ -27,12 +27,14 @@ export type PracticeCommand =
   | { type: "select-shell"; shell: ShellType }
   | { type: "start-round" };
 
+const gunnerAwaitingOrder = "待命・等候交戰指令";
+
 /** Local crew sends the same role-checked controls as a human. No state injection. */
 export class PracticeCrew {
   private shell: ShellType = "ap";
   private loaderStatus = "等待工作";
   private gunnerStatus = "等待交戰";
-  private firing = true;
+  private firing: boolean;
   private driverStopped = false;
   private driverStatus = "等待交戰";
   private escapeGoal?: { x: number; z: number };
@@ -41,7 +43,11 @@ export class PracticeCrew {
   constructor(
     private core: TankCore,
     private role: CrewRole,
-  ) {}
+    private readonly occupation = false,
+  ) {
+    this.firing = !occupation;
+    if (occupation) this.gunnerStatus = gunnerAwaitingOrder;
+  }
   get status() {
     return {
       round: this.core.practiceRound,
@@ -60,6 +66,10 @@ export class PracticeCrew {
         break;
       case "toggle-fire":
         this.firing = !this.firing;
+        if (this.occupation && !this.firing) {
+          this.fireAt = undefined;
+          this.gunnerStatus = gunnerAwaitingOrder;
+        }
         break;
       case "select-shell":
         this.shell = command.shell;
@@ -70,6 +80,19 @@ export class PracticeCrew {
     }
   }
   switchRole(role: CrewRole) {
+    const { speed, turnRate } = this.core.view().tank;
+    if (
+      this.occupation &&
+      this.role === "driver" &&
+      role !== "driver" &&
+      Math.abs(speed) <= REPAIR_RULES.stoppedSpeed &&
+      Math.abs(turnRate) <= REPAIR_RULES.stoppedTurnRate
+    ) {
+      this.driverStopped = true;
+      this.driverStatus = "依指令停車";
+    }
+    if (this.occupation && role !== this.role)
+      this.gunnerStatus = this.firing ? "等待交戰" : gunnerAwaitingOrder;
     this.role = role;
     this.escapeGoal = undefined;
     this.fireAt = undefined;
@@ -204,12 +227,14 @@ export class PracticeCrew {
     const state = this.core.view();
     // The AI has its own 16:9 optical view, independent of the player's canvas.
     this.core.input(slot, 0, PRACTICE_RULES.observerAspect);
+    const waitingForOrder = this.occupation && !this.firing;
     if (
+      waitingForOrder ||
       state.battle.failed ||
       !state.weapon.targets.some((target) => target.hp > 0)
     ) {
       this.fireAt = undefined;
-      this.gunnerStatus = "等待交戰";
+      this.gunnerStatus = waitingForOrder ? gunnerAwaitingOrder : "等待交戰";
       return;
     }
     const observation = { ...state, intel: createTeamIntel() };

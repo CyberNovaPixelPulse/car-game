@@ -488,14 +488,12 @@ function presentBattleAudio(state: TankState, role: CrewRole) {
 core.present = (state) => {
   const station = activeStation;
   if (!station) return;
+  const practice = runtime.practice;
   station.present(
     state,
-    runtime.practice && {
-      round: runtime.practice.round,
+    practice && {
+      ...practice,
       paused: runtime.paused,
-      driverStatus: runtime.practice.driverStatus,
-      gunnerStatus: runtime.practice.gunnerStatus,
-      loaderStatus: runtime.practice.loaderStatus,
     },
   );
   if (

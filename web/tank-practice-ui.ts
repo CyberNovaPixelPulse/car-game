@@ -24,6 +24,8 @@ export interface PracticeControls {
 export interface PracticeFrame {
   round: number;
   paused: boolean;
+  driverStopped: boolean;
+  firing: boolean;
   driverStatus: string;
   gunnerStatus: string;
   loaderStatus: string;
@@ -178,9 +180,17 @@ export function mountPracticeControls(
   );
 
   const driveLabel = (stopped: boolean) =>
-    stopped ? "恢復 AI 駕駛" : "AI 停車";
+    stopped
+      ? controls.occupation
+        ? "讓 AI 駕駛前進"
+        : "恢復 AI 駕駛"
+      : "AI 停車";
   const fireLabel = (firing: boolean) =>
-    firing ? "暫停 AI 開火" : "恢復 AI 開火";
+    firing
+      ? "暫停 AI 開火"
+      : controls.occupation
+        ? "允許 AI 開火"
+        : "恢復 AI 開火";
   hints.checked = controls.hints;
   hints.onchange = () => controls.onHints(hints.checked);
   if (drive) {
@@ -239,6 +249,12 @@ export function mountPracticeControls(
   return {
     showPause,
     present(state: TankState, frame: PracticeFrame) {
+      const nextDriveLabel = driveLabel(frame.driverStopped);
+      const nextFireLabel = fireLabel(frame.firing);
+      if (drive && drive.textContent !== nextDriveLabel)
+        drive.textContent = nextDriveLabel;
+      if (fire && fire.textContent !== nextFireLabel)
+        fire.textContent = nextFireLabel;
       hint.hidden = !hints.checked;
       hint.textContent = practiceHint(state, role);
       warning.textContent = frame.gunnerStatus.startsWith("即將開火")
