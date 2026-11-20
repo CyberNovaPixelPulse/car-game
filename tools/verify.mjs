@@ -94,6 +94,7 @@ if (mode === "status") {
               "tools/tank-mechanical-audio.test.ts",
               "tools/tank-core.test.ts",
               "tools/tank-machine-gun.test.ts",
+              "tools/tank-occupation.test.ts",
               "tools/room-rules.test.ts",
               "tools/peer-server.test.ts",
             ],

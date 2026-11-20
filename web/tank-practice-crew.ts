@@ -1,5 +1,5 @@
 import { CREW_ROLES, type CrewRole } from "./crew";
-import { TankCore, BATTLEFIELD, AIM, DRIVE } from "./tank-core";
+import { TankCore, AIM, DRIVE } from "./tank-core";
 import {
   JAM_RULES,
   BALLISTICS,
@@ -130,11 +130,11 @@ export class PracticeCrew {
       return stop("交戰停車");
     if (!target && distance < PRACTICE_RULES.searchArrival)
       this.searchPoint = (this.searchPoint + 1) % 4;
-    const size = BATTLEFIELD.tankRadius * Math.SQRT2;
+    const size = this.core.battlefield.tankRadius * Math.SQRT2;
     let [x, z] = nextCoverWaypoint(
       { ...tank, width: size, depth: size },
       goal,
-      BATTLEFIELD.cover,
+      this.core.battlefield.cover,
     );
     // A human can park legally inside the navigator's extra safety margin.
     // Retain an outward goal until clear, rather than steering toward a zero vector.
@@ -142,8 +142,8 @@ export class PracticeCrew {
       !this.escapeGoal &&
       (Math.hypot(x - tank.x, z - tank.z) < 0.1 || tank.blocked)
     ) {
-      const margin = BATTLEFIELD.tankRadius + 0.2;
-      const cover = BATTLEFIELD.cover.find(
+      const margin = this.core.battlefield.tankRadius + 0.2;
+      const cover = this.core.battlefield.cover.find(
         (c) =>
           Math.abs(tank.x - c.x) < c.width / 2 + margin &&
           Math.abs(tank.z - c.z) < c.depth / 2 + margin,
@@ -216,7 +216,7 @@ export class PracticeCrew {
     stepTeamIntel(
       observation,
       [{ role: "gunner", aspect: PRACTICE_RULES.observerAspect }],
-      BATTLEFIELD.cover,
+      this.core.battlefield.cover,
     );
     const target = observation.intel.contacts.find(
       (contact) => contact.visible && contact.hp > 0,

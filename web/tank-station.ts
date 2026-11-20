@@ -164,10 +164,15 @@ export function mountStation(
   const leave = element.querySelector<HTMLButtonElement>("#station-leave")!;
   const returnButton =
     element.querySelector<HTMLButtonElement>("#battle-return")!;
+  if (controls.practice?.occupation) {
+    leave.textContent = "離開占領戰";
+    returnButton.textContent = "重新開始占領戰";
+  }
   const pause = readout(element, "battle-pause");
   const presentHud = bindBattleHud(element, role, returnButton);
   const presentNavigation = mountBattleNavigation(
     element.querySelector<HTMLElement>(".battle-navigation")!,
+    controls.practice?.occupation,
   );
   const practice =
     controls.practice &&
@@ -268,8 +273,20 @@ function bindBattleHud(
         : undefined;
 
   return (state: TankState, practice: boolean) => {
-    const { tank, turret, battle } = state;
-    if (practice) wave.textContent = "單人練習・一位真人與兩位 AI";
+    const { tank, turret, battle, occupation } = state;
+    if (occupation) {
+      const phaseLabels = {
+        approach: "前往占領區",
+        capturing: "占領中",
+        contested: "爭奪中",
+        retreating: "撤出・進度倒退",
+        secured: "已占領",
+      };
+      wave.dataset.occupationPhase = occupation.phase;
+      const percent = Math.floor(occupation.progress * 100);
+      const status = battle.failed ? "占領失敗" : phaseLabels[occupation.phase];
+      wave.textContent = `192 高地・${status} ${percent}%`;
+    } else if (practice) wave.textContent = "單人練習・一位真人與兩位 AI";
     else {
       const living = state.intel.contacts.filter((enemy) => enemy.hp > 0);
       const visible = living.filter((enemy) => enemy.visible).length;

@@ -1415,6 +1415,12 @@ legend {
   stroke: #252a24;
   stroke-width: 0.6;
 }
+.navigation-occupation {
+  fill: #e1ce8d40;
+  stroke: #f1d785;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
 .navigation-hull {
   fill: #f5f1e4;
   stroke: #171e1c;

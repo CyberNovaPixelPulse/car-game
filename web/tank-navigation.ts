@@ -1,12 +1,17 @@
 import { BATTLEFIELD, type TankState } from "./tank-core";
+import type { OccupationLevel } from "./tank-occupation";
 import { TEAM_INTEL_SECONDS } from "./tank-settings";
 
 /** A north-up schematic of the playable square, independent of station/mode.
  * Terrain follows tools/blender/build_map.py; only BATTLEFIELD cover is solid.
  */
-export function mountBattleNavigation(navigation: HTMLElement) {
+export function mountBattleNavigation(
+  navigation: HTMLElement,
+  occupation?: OccupationLevel,
+) {
   navigation.setAttribute("aria-label", "共用戰場導航");
-  const limit = BATTLEFIELD.limit;
+  const { limit, cover } = occupation?.battlefield ?? BATTLEFIELD;
+  const zone = occupation?.zone;
   navigation.innerHTML = `<div class="navigation-heading"><strong>戰場導航</strong><span><svg aria-hidden="true" viewBox="0 0 10 14"><path d="M5 13V2M1 6l4-4 4 4"/></svg>北</span></div>
     <svg class="navigation-map" role="img" aria-label="北方固定朝上的戰場導航" viewBox="${-limit} ${-limit} ${limit * 2} ${limit * 2}">
       <g aria-label="地形示意">
@@ -16,18 +21,19 @@ export function mountBattleNavigation(navigation: HTMLElement) {
         <rect class="navigation-pasture" x="-39" y="14" width="26" height="20"/>
         <path class="navigation-lane" d="M0 46V2L5 -7L10 -15L10.5 -34L8 -46"/>
       </g>
-      <g class="navigation-cover" aria-label="固定掩體">${BATTLEFIELD.cover
+      <g class="navigation-cover" aria-label="固定掩體">${cover
         .map(
           (cover) =>
             `<rect x="${cover.x - cover.width / 2}" y="${cover.z - cover.depth / 2}" width="${cover.width}" height="${cover.depth}"/>`,
         )
         .join("")}</g>
+      ${zone ? `<circle class="navigation-occupation" cx="${zone.x}" cy="${zone.z}" r="${zone.radius}"><title>192 高地占領區</title></circle>` : ""}
       <g class="navigation-player" aria-label="己方位置" transform="translate(0 0)">
         <path class="navigation-hull" aria-label="己方車頭" d="M0 -3.8L2.7 3L0 1.7L-2.7 3Z" transform="rotate(0)"/>
         <path class="navigation-gun" aria-label="主炮方向" d="M0 0V-9" transform="rotate(0)"/>
       </g>
       <g class="navigation-contacts" aria-label="隊伍觀測敵車"></g>
-    </svg><p class="navigation-legend" aria-label="箭頭代表車頭，細線代表主炮；實心點為目前觀測，空心點為最後已知，舊情報約五秒淡出"><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><path class="navigation-hull" d="M0 -3L2.4 3L0 1.5L-2.4 3Z"/></svg>車頭</span><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><path class="navigation-gun" d="M0 3V-3"/></svg>主炮</span><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><rect class="navigation-enemy-key" x="-3.5" y="-1.5" width="3" height="3"/><rect class="navigation-stale-key" x="0.5" y="-1.5" width="3" height="3"/></svg>現／舊</span></p><p class="navigation-scale">地形示意 · 84 × 84 m</p>`;
+    </svg><p class="navigation-legend" aria-label="箭頭代表車頭，細線代表主炮；實心點為目前觀測，空心點為最後已知，舊情報約五秒淡出"><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><path class="navigation-hull" d="M0 -3L2.4 3L0 1.5L-2.4 3Z"/></svg>車頭</span><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><path class="navigation-gun" d="M0 3V-3"/></svg>主炮</span><span><svg aria-hidden="true" viewBox="-4 -4 8 8"><rect class="navigation-enemy-key" x="-3.5" y="-1.5" width="3" height="3"/><rect class="navigation-stale-key" x="0.5" y="-1.5" width="3" height="3"/></svg>現／舊</span></p><p class="navigation-scale">地形示意 · ${limit * 2} × ${limit * 2} m</p>`;
   const player = navigation.querySelector(".navigation-player")!;
   const hull = player.querySelector(".navigation-hull")!;
   const gun = player.querySelector(".navigation-gun")!;

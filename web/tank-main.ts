@@ -3,7 +3,7 @@ import { MG_FIRE, BOW_FIRE } from "./tank-machine-gun";
 import { Session, type Room } from "./network";
 import { CREW_ROLES, ROLE_LABELS, ROLE_TASKS, type CrewRole } from "./crew";
 import { GameRuntime } from "./game-runtime";
-import { DRIVE, AIM, type TankState } from "./tank-core";
+import { DRIVE, AIM, HILL_192_LEVEL, type TankState } from "./tank-core";
 import { TankRoleViews } from "./tank-role-views";
 import {
   readMotionPreferences,
@@ -180,7 +180,7 @@ function menu() {
   choosingRole = undefined;
   held = 0;
   views.clear();
-  content.innerHTML = `<div class="plate-layout"><div class="plate-figure">${hullPlate({ driver: "free", gunner: "free", loader: "free" })}<ol class="plate-legend">${CREW_ROLES.map((role) => `<li><strong>${ROLE_LABELS[role]}</strong>${ROLE_TASKS[role]}</li>`).join("")}</ol></div><div class="plate-panel"><h2>與隊友集合</h2><form id="crew-create"><label for="crew-name">乘員名稱</label><input id="crew-name" maxlength="16" autocomplete="nickname" required><button type="submit">建立房間</button></form><p class="plate-or">或加入隊友的房間</p><form id="crew-join"><label for="crew-code">房間代碼</label><div class="join-line"><input id="crew-code" maxlength="6" autocomplete="off" autocapitalize="characters" required><button type="submit" class="secondary">加入房間</button></div></form><p class="note">多人需要三位玩家、三台電腦與實體鍵盤。</p><hr><h2>自己熟悉操作</h2><p>一人上車，練習三個職位。</p><button id="practice-entry" type="button">單人練習</button></div></div>`;
+  content.innerHTML = `<div class="plate-layout"><div class="plate-figure">${hullPlate({ driver: "free", gunner: "free", loader: "free" })}<ol class="plate-legend">${CREW_ROLES.map((role) => `<li><strong>${ROLE_LABELS[role]}</strong>${ROLE_TASKS[role]}</li>`).join("")}</ol></div><div class="plate-panel"><h2>與隊友集合</h2><form id="crew-create"><label for="crew-name">乘員名稱</label><input id="crew-name" maxlength="16" autocomplete="nickname" required><button type="submit">建立房間</button></form><p class="plate-or">或加入隊友的房間</p><form id="crew-join"><label for="crew-code">房間代碼</label><div class="join-line"><input id="crew-code" maxlength="6" autocomplete="off" autocapitalize="characters" required><button type="submit" class="secondary">加入房間</button></div></form><p class="note">多人需要三位玩家、三台電腦與實體鍵盤。</p><hr><h2>自己熟悉操作</h2><p>一人上車，練習三個職位或挑戰占領戰。</p><button id="practice-entry" type="button">單人練習</button></div></div>`;
   window.scrollTo(0, 0);
   content.querySelector<HTMLButtonElement>("#practice-entry")!.onclick = () =>
     practiceMenu();
@@ -283,23 +283,35 @@ function lobby(room: Room) {
     message.textContent = "";
   };
 }
-function practiceMenu(selected: CrewRole = "driver") {
+function practiceMenu(selected: CrewRole = "driver", occupation = false) {
   session.leave();
   menu();
-  content.innerHTML = `<div class="plate-panel practice-select"><h2>單人練習</h2><p>選擇你的職位，其餘兩席由 AI 配合。使用實體鍵盤。</p><fieldset><legend>選擇你的職位</legend>${CREW_ROLES.map((role) => `<button type="button" data-practice-role="${role}" aria-pressed="${role === selected}">擔任${ROLE_LABELS[role]}</button>`).join("")}</fieldset><p>先自由熟悉操作，準備好再開始交戰。</p><button id="practice-begin" type="button">開始練習</button><button id="practice-back" class="secondary" type="button">返回首頁</button></div>`;
+  content.innerHTML = `<div class="plate-panel practice-select"><h2>單人練習</h2><p>選擇你的職位，其餘兩席由 AI 配合。使用實體鍵盤。</p>
+    <fieldset><legend>選擇關卡</legend><button id="practice-free" type="button" aria-pressed="${!occupation}">自由練習</button><button id="practice-occupation" type="button" aria-pressed="${occupation}">192 高地占領戰</button></fieldset>
+    <fieldset><legend>選擇你的職位</legend>${CREW_ROLES.map((role) => `<button type="button" data-practice-role="${role}" aria-pressed="${role === selected}">擔任${ROLE_LABELS[role]}</button>`).join("")}</fieldset>
+    <p>${occupation ? "前往小地圖上標記的占領區，守住高地直到進度完成。" : "先自由熟悉操作，準備好再開始交戰。"}</p>
+    <button id="practice-begin" type="button">${occupation ? "開始占領戰" : "開始練習"}</button><button id="practice-back" class="secondary" type="button">返回首頁</button></div>`;
+  content.querySelector<HTMLButtonElement>("#practice-free")!.onclick = () =>
+    practiceMenu(selected, false);
+  content.querySelector<HTMLButtonElement>("#practice-occupation")!.onclick = () =>
+    practiceMenu(selected, true);
   content
     .querySelectorAll<HTMLButtonElement>("[data-practice-role]")
     .forEach(
       (button) =>
         (button.onclick = () =>
-          practiceMenu(button.dataset.practiceRole as CrewRole)),
+          practiceMenu(button.dataset.practiceRole as CrewRole, occupation)),
     );
   content.querySelector<HTMLButtonElement>("#practice-begin")!.onclick = () =>
-    enterPractice(selected);
+    enterPractice(selected, false, occupation);
   content.querySelector<HTMLButtonElement>("#practice-back")!.onclick = menu;
 }
 
-function enterPractice(role: CrewRole, preserve = false) {
+function enterPractice(
+  role: CrewRole,
+  preserve = false,
+  occupation = core.view().occupation !== undefined,
+) {
   const previousRole = practiceRole;
   if (preserve) runtime.pausePractice(true);
   held = 0;
@@ -307,16 +319,20 @@ function enterPractice(role: CrewRole, preserve = false) {
   if (!preserve) {
     practiceMatch = Symbol();
     practiceRole = role;
-    runtime.startPractice(crypto.getRandomValues(new Uint32Array(1))[0], role);
+    runtime.startPractice(
+      crypto.getRandomValues(new Uint32Array(1))[0],
+      role,
+      occupation ? HILL_192_LEVEL : undefined,
+    );
     runtime.pausePractice(true);
   }
   const context = { match: practiceMatch!, role };
   document.documentElement.dataset.surface = "manual";
-  content.innerHTML = `<div class="plate-panel"><h2>單人練習</h2><p role="status">正在準備${ROLE_LABELS[role]}工作畫面…</p><button id="practice-cancel">取消準備</button></div>`;
+  content.innerHTML = `<div class="plate-panel"><h2>${occupation ? "192 高地占領戰" : "單人練習"}</h2><p role="status">正在準備${ROLE_LABELS[role]}工作畫面…</p><button id="practice-cancel">取消準備</button></div>`;
   content.querySelector<HTMLButtonElement>("#practice-cancel")!.onclick = () =>
     preserve && previousRole
       ? enterPractice(previousRole, true)
-      : practiceMenu(role);
+      : practiceMenu(role, occupation);
   void views.prepare(context, core.view(), {
     onReady: () => {
       const surface = station(role);
@@ -339,8 +355,8 @@ function enterPractice(role: CrewRole, preserve = false) {
           "#practice-exit-error",
         )!.onclick = menu;
       } else {
-        practiceMenu(role);
-        message.textContent = `${e instanceof Error ? e.message : e} 請重新開始練習以重試。`;
+        practiceMenu(role, occupation);
+        message.textContent = `${e instanceof Error ? e.message : e} 請重新開始以重試。`;
       }
     },
   });
@@ -351,6 +367,7 @@ function practiceControls(
 ): PracticeControls {
   return {
     hints: practiceHints,
+    occupation: core.view().occupation ? HILL_192_LEVEL : undefined,
     driverStopped: crew.driverStopped,
     firing: crew.firing,
     shell: crew.shell,
