@@ -168,13 +168,13 @@ def sleeve(garment, grip, side, label, shoulder, elbow, wrist):
         (elbow.lerp(wrist, .15), .061, .055, blend(upper, fore, .89)),
         (elbow.lerp(wrist, .4), .052, .050, [(fore, 1)]),
         (elbow.lerp(wrist, .72), .048, .042, [(fore, 1)]),
-        (wrist, .043, .036, blend(fore, hand, .65)),
+        (wrist - hand_axis * .017, .039, .034, blend(fore, hand, .65)),
     ], "cloth", side=Vector((0, 1, 0)), steps=24, folds=.0036)
     garment.tube([
-        (elbow.lerp(wrist, .81), .052, .046, [(fore, 1)]),
-        (elbow.lerp(wrist, .83), .052, .046, [(fore, 1)]),
-        (elbow.lerp(wrist, .97), .046, .041, blend(fore, hand, .57)),
-        (wrist + hand_axis * .008, .043, .039, blend(fore, hand, .72)),
+        (elbow.lerp(wrist, .78), .052, .045, [(fore, 1)]),
+        (elbow.lerp(wrist, .80), .052, .045, [(fore, 1)]),
+        (elbow.lerp(wrist, .92), .042, .036, blend(fore, hand, .55)),
+        (wrist - hand_axis * .013, .038, .033, blend(fore, hand, .74)),
     ], "cuff", side=Vector((0, 1, 0)), steps=24)
     # Bones created without roll transmit Blender's local hand basis to glTF.
     basis = Vector((0, 1, 0)).rotation_difference(hand_axis)

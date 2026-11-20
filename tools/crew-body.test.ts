@@ -21,9 +21,12 @@ async function loadRig() {
   const loader = new GLTFLoader();
   // The actual skin, armature and vertices matter here. Image decoding is
   // performed by the game when it prepares the driver's view.
-  loader.register(() => ({
+  loader.register((parser) => ({
     name: "GeometryOnly",
-    loadMaterial: async () => new THREE.MeshStandardMaterial(),
+    loadMaterial: async (index: number) =>
+      new THREE.MeshStandardMaterial({
+        name: parser.json.materials[index].name,
+      }),
   }));
   const { scene } = await loader.parseAsync(
     bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
@@ -39,6 +42,60 @@ function getLever(driver: TankDriverControls, side: (typeof sides)[number]) {
   assert.ok(lever);
   return lever;
 }
+
+test("each exported hand is continuous and has all finger joints", async () => {
+  const rig = await loadRig();
+  const arms = rig.root.getObjectByName("CrewArms")!;
+  const skin = arms.children.find(
+    (part): part is THREE.SkinnedMesh =>
+      part instanceof THREE.SkinnedMesh &&
+      part.material instanceof THREE.Material &&
+      part.material.name === "Crew skin and natural nails",
+  );
+  assert.ok(skin);
+  const position = skin.geometry.attributes.position;
+  const index = skin.geometry.index!;
+  assert.ok(index);
+  const meshes = [0, 1].map(() => ({
+    edges: new Map<string, number>(),
+    vertices: new Set<string>(),
+    faces: 0,
+  }));
+  // glTF may duplicate a vertex at a UV seam. Weld its position for the
+  // topology check so these joins count as skin and not as holes.
+  const key = (i: number) =>
+    [position.getX(i), position.getY(i), position.getZ(i)]
+      .map((value) => Math.round(value * 1e6))
+      .join(",");
+  for (let i = 0; i < index.count; i += 3) {
+    const a = index.getX(i);
+    const face = [key(a), key(index.getX(i + 1)), key(index.getX(i + 2))];
+    const hand = meshes[position.getX(a) > 0 ? 1 : 0];
+    hand.faces++;
+    for (let j = 0; j < 3; j++) {
+      hand.vertices.add(face[j]);
+      const edge = [face[j], face[(j + 1) % 3]].sort().join("|");
+      hand.edges.set(edge, (hand.edges.get(edge) ?? 0) + 1);
+    }
+  }
+  for (const { edges, vertices, faces } of meshes) {
+    assert.equal(vertices.size - edges.size + faces, 2);
+    assert.ok([...edges.values()].every((n) => n === 2));
+  }
+  for (const side of sides) {
+    const suffix = side === "left" ? "L" : "R";
+    for (const finger of ["Thumb", "Index", "Middle", "Ring", "Pinky"]) {
+      let parent: THREE.Object3D = rig.bones[side].hand;
+      for (const joint of ["Base", "Middle", "Tip"]) {
+        const bone = parent.children.find(
+          (part) => part.name === finger + joint + suffix,
+        );
+        assert.ok(bone instanceof THREE.Bone);
+        parent = bone;
+      }
+    }
+  }
+});
 
 test("the exported crew rig drives each lever and keeps both palms attached", async () => {
   const rig = await loadRig();

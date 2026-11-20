@@ -148,7 +148,7 @@ export class TankDriverControls {
       // Orient each palm inward around its lever, with the forearms angled
       // slightly upward from the handles.
       this.xAxis.set(0, -sign * Math.cos(angle), -sign * Math.sin(angle));
-      this.yAxis.set(sign * 0.24, 0, -1);
+      this.yAxis.set(sign * 0.48, 0, -1);
       this.yAxis
         .addScaledVector(this.xAxis, -this.yAxis.dot(this.xAxis))
         .normalize();

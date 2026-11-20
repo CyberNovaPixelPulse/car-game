@@ -1,6 +1,6 @@
 """Retarget the CC0 anatomical hand to the crew grip and bake its skin maps."""
 from dataclasses import dataclass
-from math import cos, radians, sin
+from math import cos, exp, radians, sin
 from pathlib import Path
 import tempfile
 
@@ -67,15 +67,15 @@ def _pose_grip(arm, axes, tips):
     x, y, z = axes
     # Cumulative flexion from each proximal, middle and distal phalanx.
     flexion = {
-        "index": (32, 71, 126),
-        "middle": (27, 66, 124),
-        "ring": (27, 61, 114),
-        "pinky": (14, 39, 92),
+        "index": (25, 57, 119),
+        "middle": (24, 55, 105),
+        "ring": (15, 32, 74),
+        "pinky": (17, 26, 49),
     }
     thumb = (
         Vector((-.68, .41, -.42)),
-        Vector((-.13, .88, -.29)),
-        Vector((.48, .83, -.27)),
+        Vector((-.19, .73, -.58)),
+        Vector((.33, .51, -.79)),
     )
     for digit in DIGITS:
         for j in range(1, 4):
@@ -139,7 +139,7 @@ def _skin_maps(rest, normals, weights, faces, uv, joints, tips):
     point, normal, dominance = np.split(atlas[mask], (3, 6), axis=1)
     x, y, z = point.T
     dorsal = _smoothstep(-.55, .35, normal[:, 2])
-    color = np.array([190., 141., 118.]) + dorsal[:, None] * [-16, -13, -9]
+    color = np.array([177., 128., 103.]) + dorsal[:, None] * [-16, -12, -9]
     knuckle = np.zeros_like(x)
     crease = np.zeros_like(x)
     nail = np.zeros_like(x)
@@ -160,8 +160,9 @@ def _skin_maps(rest, normals, weights, faces, uv, joints, tips):
             rounded = np.exp(-.5 * ((longitudinal / .007) ** 2 + (cross / .010) ** 2))
             knuckle = np.maximum(knuckle, rounded * finger * dorsal)
             bend = longitudinal + 9 * cross * cross
-            wrinkle = .65 * np.exp(-((bend + .0013) / .00060) ** 2)
-            wrinkle += .35 * np.exp(-((bend - .0016) / .00065) ** 2)
+            wrinkle = .75 * np.exp(-((bend + .0018) / .00060) ** 2)
+            wrinkle += .53 * np.exp(-((bend - .0003) / .00052) ** 2)
+            wrinkle += .32 * np.exp(-((bend - .0028) / .00052) ** 2)
             crease = np.maximum(crease, wrinkle * rounded * finger * dorsal)
             if j != 3:
                 continue
@@ -181,19 +182,22 @@ def _skin_maps(rest, normals, weights, faces, uv, joints, tips):
 
     # Warm joint tissue, subtle blue-grey under the skin of the back, and a
     # restrained amount of fine mottling. Hands and cuffs use separate textures.
-    color += knuckle[:, None] * [12, -7, -5]
-    color -= crease[:, None] * [12, 11, 8]
-    vein_x = -.012 + .010 * np.sin(y * 43)
-    vein = dorsal * np.exp(-((x - vein_x) / .0024) ** 2) * np.exp(-((y - .057) / .024) ** 2)
-    color += vein[:, None] * [-8, 1, 3]
-    mottle = np.sin(312 * x + 185 * y - 248 * z) * np.sin(252 * y + 185 * z)
+    color += knuckle[:, None] * [14, -10, -7]
+    color -= crease[:, None] * [18, 15, 11]
+    vein_x = -.012 + .010 * np.sin(y * 43) + .0016 * np.sin(107 * y)
+    vein = dorsal * np.exp(-((x - vein_x) / .0022) ** 2) * np.exp(-((y - .057) / .022) ** 2)
+    branch_x = .016 * np.sin(y * 39 + 3.2) + .013
+    branch = dorsal * np.exp(-((x - branch_x) / .0028) ** 2) * np.exp(-((y - .049) / .019) ** 2)
+    color += (vein + .65 * branch)[:, None] * [-12, -1, 4]
+    mottle = (.61 * np.sin(173 * x + 116 * y - 162 * z) * np.sin(153 * y + 168 * z)
+              + .39 * np.sin(278 * y + 134 * z) * np.sin(209 * x - 286 * y + 122 * z))
     fleck = np.sin(1460 * x + 466 * y) * np.sin(1683 * y - 81 * z) * np.sin(1011 * z + 183 * x)
     pores = .48 * fleck + .42 * np.sin(2832 * x - 3313 * y + 1932 * z) * np.cos(3192 * y + 899 * z)
-    color += (3.4 * mottle + 2.9 * fleck - 1.6 * pores)[:, None]
-    color = color * (1 - nail[:, None]) + nail[:, None] * [192, 143, 133]
-    color += half_moon[:, None] * [17, 17, 13] + free_edge[:, None] * [27, 29, 24]
-    rough = .57 + .055 * mottle - .20 * nail + .075 * crease
-    relief = .19 * pores - .24 * crease + .12 * nail
+    color += (8.5 * mottle + 3.3 * fleck - 2.4 * pores)[:, None]
+    color = color * (1 - nail[:, None]) + nail[:, None] * [185, 131, 119]
+    color += half_moon[:, None] * [17, 15, 13] + free_edge[:, None] * [25, 26, 23]
+    rough = .59 + .055 * mottle - .22 * nail + .075 * crease
+    relief = .28 * pores - .43 * crease + .15 * nail
     maps = np.zeros((ATLAS_SIZE, ATLAS_SIZE, 5), np.float32)
     maps[mask] = np.column_stack((color, rough, relief))
     # Pad UV islands for both texture filtering and the derived tangent normal.
@@ -204,7 +208,7 @@ def _skin_maps(rest, normals, weights, faces, uv, joints, tips):
             maps[take] = np.roll(maps, step, axis=axis)[take]
             covered |= take
         mask = covered
-    maps[~mask] = (178, 131, 110, .58, 0)
+    maps[~mask] = (165, 119, 96, .59, 0)
     height = maps[:, :, 4]
     dx = .21 * (np.roll(height, -1, 1) - np.roll(height, 1, 1))
     dy = -.21 * (np.roll(height, -1, 0) - np.roll(height, 1, 0))
@@ -216,7 +220,22 @@ def _skin_maps(rest, normals, weights, faces, uv, joints, tips):
         base = packed_png("Crew-hand-skin", maps[:, :, :3], directory, "sRGB")
         normal_map = packed_png("Crew-hand-pore-detail", (tangent * .5 + .5) * 255, directory, "Non-Color")
         rough_map = packed_png("Crew-hand-surface", finish, directory, "Non-Color")
-    return make_material("Crew skin and natural nails", (178, 131, 110), .57, (base, normal_map, rough_map))
+    return make_material("Crew skin and natural nails", (165, 119, 96), .59, (base, normal_map, rough_map))
+
+
+def _wrist_and_tendons(point, normal, original, joints):
+    """Extend the wrist beneath the cuff and shape three extensor tendons."""
+    x, y, _ = original
+    # Fade the cuff overlap out well before the first joint.
+    point.y -= .016 * max(0, 1 - (y - .011) / .037) ** 2
+    relief = 0.0
+    for digit in ("index", "middle", "ring"):
+        joint = joints[digit_name(digit, 1)]
+        run = y / joint[1]
+        ridge = joint[0] * (.22 + .77 * run) + .0015 * sin(run * 3)
+        relief += exp(-((x - ridge) / .0036) ** 2) * exp(-((y - .066) / .031) ** 2)
+    # Only the back of the hand carries the visible cords.
+    point += normal * (.00145 * relief * max(.0, min(1., original[2] / .013 + .45)))
 
 
 def load_grip_hand():
@@ -280,7 +299,11 @@ def load_grip_hand():
             posed_joints[name] = fitted(bone.head), fitted(end), bone.parent.name
 
     skinned = obj.evaluated_get(bpy.context.evaluated_depsgraph_get()).data
-    points = [fitted(v.co) for v in skinned.vertices]
+    points = []
+    for vertex, original in zip(skinned.vertices, rest):
+        point = fitted(vertex.co)
+        _wrist_and_tendons(point, local(vertex.normal, Vector((0, 0, 0))), original, joints)
+        points.append(point)
     bpy.data.objects.remove(obj, do_unlink=True)
     bpy.data.objects.remove(arm, do_unlink=True)
     return GripHand(points, weights, faces, uvs, posed_joints, material)
