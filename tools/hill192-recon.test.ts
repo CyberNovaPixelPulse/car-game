@@ -142,3 +142,33 @@ test("solo players can capture without a charge, or pass the point and be defeat
   assert.equal(ending.battle.won, false);
   assert.ok(ending.battle.shots > 5);
 });
+
+test("the production southern approach lures a guard into a live capture and crew fire resumes it", () => {
+  const { runtime, step } = solo("driver");
+  runtime.setViewAspect(16 / 9);
+
+  runtime.setInput(DRIVE.forward);
+  step(33);
+  runtime.setInput(0);
+  assert.equal(step(2).occupation?.phase, "retreating");
+
+  runtime.setInput(DRIVE.reverse);
+  step(9);
+  runtime.setInput(0);
+  assert.equal(step(2).occupation?.phase, "capturing");
+  const contested = step(3);
+  assert.equal(contested.occupation?.phase, "contested");
+  const progress = contested.occupation!.progress;
+  assert.ok(progress > 0 && progress < 1);
+  const guard = contested.weapon.targets[0];
+  const { x, z, radius } = level.zone;
+  assert.ok(Math.hypot(guard.x - x, guard.z - z) <= radius);
+  assert.ok(guard.hp > 0);
+  assert.equal(step(0.75).occupation?.progress, progress);
+
+  runtime.commandPractice({ type: "toggle-fire" });
+  const secured = step(16);
+  assert.equal(guard.hp, 0);
+  assert.equal(secured.occupation?.progress, 1);
+  assert.equal(secured.battle.won, true);
+});
