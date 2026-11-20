@@ -4,6 +4,7 @@ import { boxHit, type EnemyTarget } from "./tank-weapons";
 import { smokeBlocks } from "./tank-smoke";
 import type { TankState } from "./tank-core";
 import type { CrewRole } from "./crew";
+import { terrainSegmentHit, type TerrainHeightGrid } from "./tank-terrain";
 import { TEAM_INTEL_SECONDS } from "./tank-settings";
 
 /** A copied observation, never a reference to hidden world/AI state. */
@@ -29,6 +30,8 @@ const phases = [
   "reloading",
   "blind-fire",
   "searching",
+  "guarding",
+  "patrolling",
 ];
 export function validTeamIntel(
   intel: TeamIntel,
@@ -77,7 +80,9 @@ export function stepTeamIntel(
     height: number;
     depth: number;
   }[],
+  terrain?: TerrainHeightGrid,
 ) {
+  const sightRange = terrain ? 260 : 180;
   const views = observers.flatMap(({ role, aspect }) => {
     if (role === "loader" && state.weapon.mode !== "machine-gun") return [];
     const view = role === "loader" ? "machine-gun" : role;
@@ -129,7 +134,7 @@ export function stepTeamIntel(
                 dy * Math.cos(view.pitch) - forwardward * Math.sin(view.pitch);
               if (
                 depth <= 0.1 ||
-                depth >= 180 ||
+                depth >= sightRange ||
                 Math.abs(rightward) >
                   depth * Math.tan(view.horizontalFov / 2) ||
                 Math.abs(upward) > depth * Math.tan(view.verticalFov / 2)
@@ -137,13 +142,19 @@ export function stepTeamIntel(
                 return false;
               return (
                 !smokeBlocks(state.weapon.smoke, eye, point, state.time) &&
+                (!terrain ||
+                  terrainSegmentHit(terrain, eye, point) === undefined) &&
                 !cover.some(
                   (c) =>
                     boxHit(
                       eye,
                       point,
                       [c.x - c.width / 2, c.y ?? 0, c.z - c.depth / 2],
-                      [c.x + c.width / 2, (c.y ?? 0) + c.height, c.z + c.depth / 2],
+                      [
+                        c.x + c.width / 2,
+                        (c.y ?? 0) + c.height,
+                        c.z + c.depth / 2,
+                      ],
                     ) !== undefined,
                 )
               );

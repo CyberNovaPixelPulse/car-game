@@ -243,6 +243,7 @@ export class PracticeCrew {
       observation,
       [{ role: "gunner", aspect: PRACTICE_RULES.observerAspect }],
       this.core.battlefield.cover,
+      this.core.battlefield.terrain,
     );
     const target = observation.intel.contacts.find(
       (contact) => contact.visible && contact.hp > 0,

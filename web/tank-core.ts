@@ -58,6 +58,7 @@ import {
   type TeamIntel,
 } from "./tank-intel";
 import {
+  FIRST_OCCUPATION_ENEMY_ID,
   stepOccupation,
   type OccupationLevel,
   type OccupationState,
@@ -167,13 +168,21 @@ export class TankCore implements GameCore<TankState> {
       this.state.weapon.targets = level.enemies.map((enemy, index) => {
         const target = createEnemyTarget(
           enemy.kind,
-          1000 + index,
+          FIRST_OCCUPATION_ENEMY_ID + index,
           enemy.x,
           enemy.z,
           enemy.readyAfter ?? ENEMY_RULES.spawnGrace,
         );
+        if (enemy.yaw !== undefined) target.yaw = target.turretYaw = enemy.yaw;
+        if (enemy.deployment)
+          target.phase =
+            enemy.deployment.mode === "guard" ? "guarding" : "patrolling";
         if (level.battlefield.terrain)
-          target.y = terrainHeightAt(level.battlefield.terrain, enemy.x, enemy.z);
+          target.y = terrainHeightAt(
+            level.battlefield.terrain,
+            enemy.x,
+            enemy.z,
+          );
         return target;
       });
     } else if (this.practice) this.state.weapon.targets = [];
@@ -365,6 +374,7 @@ export class TankCore implements GameCore<TankState> {
       dt,
       this.state.time,
       battlefield.cover,
+      battlefield.terrain,
     );
     let driverKeys = 0;
     for (const [participant, held] of this.controls)
@@ -376,6 +386,7 @@ export class TankCore implements GameCore<TankState> {
       dt,
       this.state.time,
       battlefield.cover,
+      battlefield.terrain,
     );
     stepEnemies(
       this.state.battle,
@@ -386,6 +397,7 @@ export class TankCore implements GameCore<TankState> {
       this.state.time,
       w.smoke,
       battlefield.terrain,
+      this.occupationLevel?.enemies,
     );
     // Resolve incoming damage first: zero HP always defeats the crew, even on
     // the step that destroys the last enemy. Weapon/MG/smoke work continues
@@ -542,6 +554,7 @@ export class TankCore implements GameCore<TankState> {
         return role ? [{ role, aspect: this.aspects.get(participant) }] : [];
       }),
       this.battlefield.cover,
+      this.battlefield.terrain,
     );
   }
   draw(participant: number) {
@@ -563,9 +576,13 @@ export class TankCore implements GameCore<TankState> {
           !Number.isFinite(next.occupation.progress) ||
           next.occupation.progress < 0 ||
           next.occupation.progress > 1 ||
-          !["approach", "capturing", "contested", "retreating", "secured"].includes(
-            next.occupation.phase,
-          )
+          ![
+            "approach",
+            "capturing",
+            "contested",
+            "retreating",
+            "secured",
+          ].includes(next.occupation.phase)
         : next.occupation !== undefined) ||
       !validTeamIntel(next.intel, next.time, next.weapon?.targets) ||
       !validRepair(next.repair, next.time) ||
@@ -584,10 +601,12 @@ export class TankCore implements GameCore<TankState> {
       ![next.battle.shots, next.battle.lastHitAt, next.battle.lastDamage].every(
         Number.isFinite,
       ) ||
-      !next.battle.projectiles.every((p) =>
-        [p.id, p.x, p.y, p.z, p.vx, p.vz, p.damage, p.age].every(
-          Number.isFinite,
-        ) && (p.vy === undefined || Number.isFinite(p.vy)),
+      !next.battle.projectiles.every(
+        (p) =>
+          [p.id, p.x, p.y, p.z, p.vx, p.vz, p.damage, p.age].every(
+            Number.isFinite,
+          ) &&
+          (p.vy === undefined || Number.isFinite(p.vy)),
       ) ||
       !next.tank ||
       !validHullImpact(next.tank.impact, next.time) ||

@@ -1,4 +1,8 @@
-import { terrainHeightAt, type TerrainHeightGrid } from "./tank-terrain";
+import {
+  terrainHeightAt,
+  terrainSegmentHit,
+  type TerrainHeightGrid,
+} from "./tank-terrain";
 import {
   JAM_RULES,
   WEAPON_TIMING,
@@ -58,7 +62,11 @@ export interface EnemyTarget {
     | "warning"
     | "reloading"
     | "blind-fire"
-    | "searching";
+    | "searching"
+    | "guarding"
+    | "patrolling";
+  patrolWaypoint?: number;
+  fireSlope?: number;
   lastSeenX: number;
   lastSeenZ: number;
   lastSeenAt: number;
@@ -232,7 +240,11 @@ export function nearestHostileHit(
     const hit = boxHit(
       from,
       to,
-      [candidate.x - candidate.width / 2, base, candidate.z - candidate.depth / 2],
+      [
+        candidate.x - candidate.width / 2,
+        base,
+        candidate.z - candidate.depth / 2,
+      ],
       [
         candidate.x + candidate.width / 2,
         base + candidate.height,
@@ -438,13 +450,7 @@ export function stepWeapon(
     p.vy -= BALLISTICS.gravity * dt;
     p.age += dt;
     const to = [p.x, p.y, p.z];
-    const fromAboveGround = from[1] - terrainHeightAt(terrain, from[0], from[2]);
-    const toAboveGround = p.y - terrainHeightAt(terrain, p.x, p.z);
-    const groundFraction = fromAboveGround <= 0
-      ? 0
-      : toAboveGround <= 0
-        ? fromAboveGround / (fromAboveGround - toAboveGround)
-        : Infinity;
+    const groundFraction = terrainSegmentHit(terrain, from, to) ?? Infinity;
     const { fraction: nearest, target } = nearestHostileHit(
       from,
       to,
@@ -455,6 +461,14 @@ export function stepWeapon(
     if (nearest <= 1) {
       const point = from.map((v, axis) => v + (to[axis] - v) * nearest);
       const damage = SHELL_DAMAGE[p.shell];
+      const splashOrigin = terrain
+        ? [
+            point[0],
+            Math.max(point[1], terrainHeightAt(terrain, point[0], point[2])) +
+              0.03,
+            point[2],
+          ]
+        : point;
       // Only hostile targets participate: the firing tank is never a damage recipient.
       for (const t of w.targets) {
         const targetHeight = (t.y ?? 0) + t.height / 2;
@@ -467,13 +481,23 @@ export function stepWeapon(
           t === target
             ? damage.direct
             : distance <= damage.radius &&
+                (!terrain ||
+                  terrainSegmentHit(terrain, splashOrigin, [
+                    t.x,
+                    targetHeight,
+                    t.z,
+                  ]) === undefined) &&
                 !cover.some(
                   (c) =>
                     boxHit(
                       point,
                       [t.x, targetHeight, t.z],
                       [c.x - c.width / 2, c.y ?? 0, c.z - c.depth / 2],
-                      [c.x + c.width / 2, (c.y ?? 0) + c.height, c.z + c.depth / 2],
+                      [
+                        c.x + c.width / 2,
+                        (c.y ?? 0) + c.height,
+                        c.z + c.depth / 2,
+                      ],
                     ) !== undefined,
                 )
               ? damage.splash
@@ -577,6 +601,9 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
     w.targets.every(
       (t) =>
         (t.y === undefined || Number.isFinite(t.y)) &&
+        (t.fireSlope === undefined || Number.isFinite(t.fireSlope)) &&
+        (t.patrolWaypoint === undefined ||
+          (Number.isInteger(t.patrolWaypoint) && t.patrolWaypoint >= 0)) &&
         [
           t.id,
           t.x,
@@ -602,6 +629,8 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
           "reloading",
           "blind-fire",
           "searching",
+          "guarding",
+          "patrolling",
         ].includes(t.phase),
     ) &&
     Array.isArray(w.impacts) &&

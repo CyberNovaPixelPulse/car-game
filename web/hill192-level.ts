@@ -173,5 +173,24 @@ export const HILL_192_LEVEL: OccupationLevel = {
   zone: { x: -110, z: 95, radius: 18 },
   captureSeconds: 12,
   decayPerSecond: 0.12,
-  enemies: [{ kind: "panzer", x: 70, z: 105 }],
+  enemies: [
+    { kind: "panzer", x: -110, z: 125, yaw: 0, deployment: { mode: "guard" } },
+    { kind: "tiger", x: -137, z: 149, yaw: 0, deployment: { mode: "guard" } },
+    { kind: "panzer", x: -83, z: 144, yaw: 0, deployment: { mode: "guard" } },
+    {
+      kind: "panzer",
+      x: 70,
+      z: 105,
+      yaw: Math.PI / 2,
+      deployment: {
+        mode: "patrol",
+        points: [
+          { x: 148, z: 118 },
+          { x: 120, z: 151 },
+          { x: 52, z: 145 },
+          { x: 70, z: 105 },
+        ],
+      },
+    },
+  ],
 };

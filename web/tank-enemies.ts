@@ -4,7 +4,15 @@ import {
   FIRING_FEEDBACK,
 } from "./tank-settings";
 import { smokeBlocks, type SmokeCloud } from "./tank-smoke";
-import { terrainHeightAt, type TerrainHeightGrid } from "./tank-terrain";
+import {
+  terrainHeightAt,
+  terrainSegmentHit,
+  type TerrainHeightGrid,
+} from "./tank-terrain";
+import {
+  FIRST_OCCUPATION_ENEMY_ID,
+  type OccupationEnemy,
+} from "./tank-occupation";
 import { boxHit, createEnemyTarget, type EnemyTarget } from "./tank-weapons";
 
 export { LAST_SEEN_SECONDS } from "./tank-settings";
@@ -115,7 +123,11 @@ function intersection(a: number[], b: number[], c: Box, margin = 0) {
     a,
     b,
     [c.x - c.width / 2 - margin, c.y ?? 0, c.z - c.depth / 2 - margin],
-    [c.x + c.width / 2 + margin, (c.y ?? 0) + c.height, c.z + c.depth / 2 + margin],
+    [
+      c.x + c.width / 2 + margin,
+      (c.y ?? 0) + c.height,
+      c.z + c.depth / 2 + margin,
+    ],
   );
 }
 /** Visibility graph around expanded cover corners: both crews can drive around solid cover. */
@@ -176,6 +188,55 @@ export function nextCoverWaypoint(
   while (previous[next] > 0) next = previous[next];
   return nodes[next];
 }
+function moveEnemy(
+  enemy: EnemyTarget,
+  goal: Pick<Vehicle, "x" | "z">,
+  cover: readonly Box[],
+  maxStep: number,
+  terrain?: TerrainHeightGrid,
+) {
+  const [x, z] = nextCoverWaypoint(enemy, goal, cover);
+  const dx = x - enemy.x;
+  const dz = z - enemy.z;
+  const distance = Math.hypot(dx, dz);
+  if (distance <= 0.05) return;
+  const step = Math.min(distance, maxStep);
+  enemy.x += (dx / distance) * step;
+  enemy.z += (dz / distance) * step;
+  if (terrain) enemy.y = terrainHeightAt(terrain, enemy.x, enemy.z);
+  enemy.yaw = Math.atan2(dx, -dz);
+}
+
+function stepDeployment(
+  enemy: EnemyTarget,
+  deployment: NonNullable<OccupationEnemy["deployment"]>,
+  cover: readonly Box[],
+  dt: number,
+  terrain?: TerrainHeightGrid,
+) {
+  if (deployment.mode === "guard") {
+    enemy.phase = "guarding";
+    return;
+  }
+  const points = deployment.points;
+  let index = (enemy.patrolWaypoint ?? 0) % points.length;
+  if (Math.hypot(points[index].x - enemy.x, points[index].z - enemy.z) <= 0.35)
+    index = (index + 1) % points.length;
+  enemy.patrolWaypoint = index;
+  moveEnemy(
+    enemy,
+    points[index],
+    cover,
+    ENEMY_RULES.speed[enemy.kind] * dt * 0.65,
+    terrain,
+  );
+  const swing = angle(enemy.yaw - enemy.turretYaw);
+  enemy.turretYaw +=
+    Math.sign(swing) *
+    Math.min(Math.abs(swing), dt * ENEMY_RULES.turn[enemy.kind]);
+  enemy.phase = "patrolling";
+}
+
 export function stepEnemies(
   b: EnemyBattle,
   enemies: EnemyTarget[],
@@ -185,6 +246,7 @@ export function stepEnemies(
   now: number,
   smoke: readonly SmokeCloud[],
   terrain?: TerrainHeightGrid,
+  deployments?: readonly OccupationEnemy[],
 ) {
   if (b.failed || b.won) return;
   while (
@@ -203,12 +265,23 @@ export function stepEnemies(
       [tank.x, (tank.y ?? 0) + 2.4, tank.z],
       now,
     );
-    const coverBlocked = (goal: Pick<Vehicle, "x" | "z">) =>
-      cover.some(
-        (c) =>
-          intersection(eye, [goal.x, aimHeight(goal), goal.z], c) !== undefined,
+    const blockedTo = (goal: Pick<Vehicle, "x" | "z">) => {
+      const sight = [goal.x, aimHeight(goal), goal.z];
+      return (
+        cover.some((c) => intersection(eye, sight, c) !== undefined) ||
+        (terrain !== undefined &&
+          terrainSegmentHit(terrain, eye, sight) !== undefined)
       );
-    if (!hiddenBySmoke && !coverBlocked(tank)) {
+    };
+    const playerBlocked = blockedTo(tank);
+    const deployment =
+      deployments?.[e.id - FIRST_OCCUPATION_ENEMY_ID]?.deployment;
+    const playerRange = Math.hypot(tank.x - e.x, tank.z - e.z);
+    if (
+      !hiddenBySmoke &&
+      !playerBlocked &&
+      (!deployment || playerRange < ENEMY_RULES.fireRange)
+    ) {
       e.lastSeenX = tank.x;
       e.lastSeenZ = tank.z;
       e.lastSeenAt = now;
@@ -218,6 +291,15 @@ export function stepEnemies(
     // Smoke instead removes the live player position from ALL aim/path decisions.
     const goal = hiddenBySmoke ? { x: e.lastSeenX, z: e.lastSeenZ } : tank;
     const distance = Math.hypot(goal.x - e.x, goal.z - e.z);
+    if (
+      deployment &&
+      e.phase !== "warning" &&
+      (distance >= ENEMY_RULES.fireRange ||
+        (hiddenBySmoke ? !remembered : playerBlocked))
+    ) {
+      stepDeployment(e, deployment, cover, dt, terrain);
+      continue;
+    }
     const desired = Math.atan2(goal.x - e.x, -(goal.z - e.z));
     const searching = hiddenBySmoke && !remembered;
     const scan = searching
@@ -231,7 +313,7 @@ export function stepEnemies(
       e.turretYaw +=
         Math.sign(delta) *
         Math.min(Math.abs(delta), dt * ENEMY_RULES.turn[e.kind]);
-    const blocked = coverBlocked(goal);
+    const blocked = hiddenBySmoke ? blockedTo(goal) : playerBlocked;
     if (e.phase !== "warning") {
       if (
         distance >
@@ -264,15 +346,15 @@ export function stepEnemies(
     ) {
       e.phase = "warning";
       e.fireAt = now + ENEMY_RULES.warning;
+      if (terrain)
+        e.fireSlope = (aimHeight(goal) - eye[1]) / Math.max(1, distance);
     }
     if (e.phase === "warning" && now >= e.fireAt) {
       // Commit to the announced heading. A moving crew can leave the shot line.
       const dx = Math.sin(e.turretYaw),
         dz = -Math.cos(e.turretYaw);
       const y = (e.y ?? 0) + 2.4;
-      const vy =
-        ((aimHeight(goal) - y) / Math.max(1, distance)) *
-        ENEMY_RULES.projectileSpeed;
+      const vy = (e.fireSlope ?? 0) * ENEMY_RULES.projectileSpeed;
       e.flashUntil = now + FIRING_FEEDBACK.cannon;
       b.projectiles.push({
         id: ++b.shots,

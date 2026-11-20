@@ -373,6 +373,8 @@ const enemyPhaseText = {
   reloading: "重新裝填",
   "blind-fire": "最後位置射擊",
   searching: "搜尋中",
+  guarding: "駐守",
+  patrolling: "巡邏",
 };
 
 function contactReadout(contact: EnemyContact, time: number, detail: boolean) {

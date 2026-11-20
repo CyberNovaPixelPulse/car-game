@@ -1,3 +1,4 @@
+import { terrainSegmentHit, type TerrainHeightGrid } from "./tank-terrain";
 import { MG_RULES, BOW_MG, FIRING_FEEDBACK } from "./tank-settings";
 import {
   nearestHostileHit,
@@ -33,6 +34,7 @@ export function stepMachineGun(
   dt: number,
   now: number,
   cover: readonly Cover[],
+  terrain?: TerrainHeightGrid,
 ) {
   const mg = w.mg;
   const belt = (mg.belt ??= { rounds: MG_RULES.beltCapacity, reloadUntil: 0 });
@@ -73,7 +75,7 @@ export function stepMachineGun(
       to,
       cover,
       w.targets,
-      to[1] <= 0 ? from[1] / (from[1] - to[1]) : 1,
+      terrainSegmentHit(terrain, from, to) ?? 1,
     );
     if (target) target.hp = Math.max(0, target.hp - MG_RULES.damage);
     mg.tracers.push({
@@ -101,6 +103,7 @@ export function stepBowGun(
   dt: number,
   now: number,
   cover: readonly Cover[],
+  terrain?: TerrainHeightGrid,
 ) {
   const bow = (w.bow ??= createBowGun());
   bow.tracers = bow.tracers.filter((t) => t.until > now);
@@ -138,7 +141,7 @@ export function stepBowGun(
       to,
       cover,
       w.targets,
-      to[1] <= 0 ? from[1] / (from[1] - to[1]) : 1,
+      terrainSegmentHit(terrain, from, to) ?? 1,
     );
     if (target) target.hp = Math.max(0, target.hp - BOW_MG.damage);
     bow.tracers.push({

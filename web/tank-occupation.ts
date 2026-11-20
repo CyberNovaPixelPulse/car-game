@@ -18,6 +18,19 @@ interface Position {
   readonly z: number;
 }
 
+export const FIRST_OCCUPATION_ENEMY_ID = 1000;
+export interface OccupationEnemy extends Position {
+  readonly kind: EnemyTarget["kind"];
+  readonly readyAfter?: number;
+  readonly yaw?: number;
+  readonly deployment?:
+    | { readonly mode: "guard" }
+    | {
+        readonly mode: "patrol";
+        readonly points: readonly [Position, ...Position[]];
+      };
+}
+
 export interface OccupationLevel {
   readonly id: "hill-192";
   readonly battlefield: TankBattlefield;
@@ -26,10 +39,7 @@ export interface OccupationLevel {
   readonly captureSeconds: number;
   /** Fraction of a full capture lost per second outside the zone. */
   readonly decayPerSecond: number;
-  readonly enemies: readonly (Position & {
-    readonly kind: EnemyTarget["kind"];
-    readonly readyAfter?: number;
-  })[];
+  readonly enemies: readonly OccupationEnemy[];
 }
 
 export interface OccupationState {
