@@ -8,16 +8,18 @@ the palm. The dorsal welts and lockstitches follow the same three fitted forms.
 import math
 from pathlib import Path
 import sys
+import tempfile
 
 import bpy
 import bmesh
+import numpy as np
 from mathutils import Vector
 
 sys.dont_write_bytecode = True
 SOURCE = Path(__file__).resolve().parent
 sys.path.insert(0, str(SOURCE))
 import common
-from loader_uniform import build_materials, build_sleeved_arm
+from loader_uniform import build_materials, build_sleeved_arm, make_material, packed_png
 
 PI = math.pi
 TAU = math.tau
@@ -27,6 +29,7 @@ EDGE = 4  # Rounded gussets turn from the palm to the back.
 RING = 2 * (WIDTH + EDGE + 1)
 MATERIALS = ("leather", "palm", "trim", "thread")
 FORM_NAMES = ("Relaxed", "Grip", "Pinch")
+HIDE_UV_SCALE = 6.0  # Texture repeats per metre of cut leather.
 
 
 def smooth(x):
@@ -67,11 +70,45 @@ def patina(point):
     grime += 0.49 * mound(x, -0.057, 0.020) * mound(y, 0.068, 0.030)
     grime += 0.43 * mound(x, -0.026, 0.032) * mound(y, 0.036, 0.020) * palm
     grime += 0.28 * mound(y, -0.027 + 0.003 * math.sin(x * 70), 0.009)
-    variation = 0.06 * math.sin(148 * x + 69 * y) * math.sin(139 * y - 37 * z) + 0.035 * math.cos(
-        211 * x - 173 * y
-    )
-    factor = max(0.28, min(0.99, 0.78 + variation + 0.17 * knuckles - 0.55 * grime))
-    return (factor, factor * (0.96 + 0.04 * grime), factor * (0.91 + 0.09 * grime), 1.0)
+    variation = 0.035 * math.sin(118 * x + 70 * y) * math.sin(110 * y - 37 * z)
+    factor = max(0.48, min(1.0, 0.88 + variation + 0.15 * knuckles - 0.42 * grime))
+    return (factor, factor * (0.99 - 0.02 * grime), factor * (0.97 - 0.04 * grime), 1.0)
+
+
+def scanned_hide(materials):
+    """Tint Rob Tuytel's CC0 Brown Leather scan for soft, worn work gloves."""
+    def read(channel, color_space):
+        path = SOURCE / "sources" / f"brown_leather_{channel}_1k.jpg"
+        if not path.is_file():
+            raise FileNotFoundError(f"{path.name} is missing. Run tools/blender/fetch_sources.sh.")
+        image = bpy.data.images.load(str(path))
+        image.colorspace_settings.name = color_space
+        width, height = image.size
+        pixels = np.empty(width * height * 4, dtype=np.float32)
+        image.pixels.foreach_get(pixels)
+        bpy.data.images.remove(image)
+        return pixels.reshape(height // 2, 2, width // 2, 2, 4).mean(axis=(1, 3))[::-1, :, :3]
+
+    dye = read("albedo", "sRGB")
+    dye = 255 * np.where(dye <= 0.0031308, 12.92 * dye, 1.055 * dye ** (1 / 2.4) - 0.055)
+    grain = read("nor_gl", "Non-Color")
+    flat = np.array((0.5, 0.5, 1.0))
+    grain = flat + (grain - flat) * 0.36
+    rough = 0.73 + read("rough", "Non-Color")[..., 0] * 0.22
+    orm = np.dstack((np.ones_like(rough), rough, np.zeros_like(rough)))
+    with tempfile.TemporaryDirectory() as scratch:
+        folder = Path(scratch)
+        grain_map = packed_png("Work-glove scanned grain", grain * 255, folder, "Non-Color")
+        finish_map = packed_png("Work-glove matte finish", orm * 255, folder, "Non-Color")
+        for slot, name, color in (
+            ("leather", "Brown work leather", (84, 59, 40)),
+            ("palm", "Oiled palm leather", (72, 49, 33)),
+        ):
+            tinted = np.array(color) + (dye - dye.mean(axis=(0, 1))) * 0.72
+            dye_map = packed_png(name + " dye", tinted, folder, "sRGB")
+            materials[slot] = make_material(name, color, .83, (dye_map, grain_map, finish_map))
+    materials["trim"] = make_material("Turned leather edges", (68, 47, 31), .82)
+    materials["glove-thread"] = make_material("Dusty glove stitches", (110, 89, 62), .92)
 
 
 def worn_dye(materials):
@@ -106,18 +143,24 @@ class Pattern:
         self.forms.append(form)
         return len(self.forms) - 1
 
-    def face(self, ids, uv, mat):
+    def face(self, ids, uv, mat, dorsal_cut=False):
+        if dorsal_cut and mat == "leather":
+            # One unbroken back piece runs from the cuff to the finger tips.
+            # Project its relaxed form onto the cut, including across the webs.
+            flat_points = [self.forms[index][0] for index in ids]
+            uv = [(0.48 + p.x * HIDE_UV_SCALE, 0.28 + p.y * HIDE_UV_SCALE) for p in flat_points]
         self.faces.append(ids)
         self.uv.append(uv)
         self.materials.append(MATERIALS.index(mat))
 
-    def strip(self, lower, upper, u, lo_v, hi_v, material):
+    def strip(self, lower, upper, u, lo_v, hi_v, material, dorsal_cut=False):
         for j in range(len(lower)):
             k = (j + 1) % len(lower)
             self.face(
                 [lower[j], lower[k], upper[k], upper[j]],
                 [(u[j], lo_v), (u[j + 1], lo_v), (u[j + 1], hi_v), (u[j], hi_v)],
                 material(j),
+                dorsal_cut,
             )
 
     def cord(self, forms, radius, material, sides=6):
@@ -168,7 +211,7 @@ class Pattern:
         mesh.from_pydata([blender(p[0]) for p in self.forms], [], self.faces)
         mesh.update()
         for key in MATERIALS:
-            mesh.materials.append(material_set[key])
+            mesh.materials.append(material_set["glove-thread" if key == "thread" else key])
         uv = mesh.uv_layers.new(name="CutPattern")
         for polygon, coords, material in zip(mesh.polygons, self.uv, self.materials):
             polygon.use_smooth = True
@@ -252,16 +295,18 @@ def palm_point(y, u, dorsal, pose):
     transition = smooth((y - 0.060) / 0.014)
     side = mix(side, 0.40 + 0.57 * arches, transition)
     if dorsal:
-        z = depth * side
-        z += (0.0014 * mound(y, 0.035, 0.035) + 0.0035 * mound(y, 0.066, 0.011)) * arches
+        # Leave the contact side full underneath. The back lies flatter along
+        # the metacarpals and only rises over the heads of the joints.
+        z = depth * side * (1.0 - 0.24 * smooth((y + 0.040) / 0.051))
+        z += (0.0006 * mound(y, 0.035, 0.035) + 0.0027 * mound(y, 0.066, 0.010)) * arches
         # Broken oblique compressions where the hand flexes out of the cuff.
-        for center, h, phase in [
-            (-0.032, 0.0029, 0.3),
-            (-0.020, 0.0033, 1.5),
-            (-0.004, 0.0020, 2.7),
+        for center, h, phase, start, spread in [
+            (-0.033, 0.00135, 0.3, 0.14, 0.73),
+            (-0.020, 0.0018, 1.5, -0.26, 0.68),
+            (-0.006, 0.00115, 2.7, 0.51, 0.55),
         ]:
-            shift = 0.0052 * math.sin(u * 2.8 + phase) + 0.005 * u
-            w = (0.74 + 0.24 * math.cos(2.2 * u + phase)) * (1 - 0.3 * abs(u))
+            shift = 0.0040 * math.sin(u * 2.7 + phase) + 0.005 * u
+            w = mound(u, start, spread) * (0.70 + 0.25 * math.cos(3.1 * u + phase))
             z += (
                 h
                 * w
@@ -270,28 +315,28 @@ def palm_point(y, u, dorsal, pose):
                     - 0.89 * mound(y, center + 0.0035 + shift, 0.0025)
                 )
             )
-        # Worn-in back points are raised folds in the hide, emerging from the
-        # wrist and fading at different heads. Their shoulders stay continuous.
+        # The extensor contours are low, broad ridges. Unequal starting points
+        # and different impact on the silhouette keep the back from looking ribbed.
         for lane, y0, y1, height in [
-            (-1, -0.010, 0.048, 0.0014),
-            (0, -0.014, 0.059, 0.0017),
-            (1, -0.005, 0.046, 0.0012),
+            (-1, 0.007, 0.064, 0.0010),
+            (0, -0.009, 0.055, 0.0011),
+            (1, 0.019, 0.049, 0.00055),
         ]:
             f = (y - y0) / (y1 - y0)
             if 0 < f < 1:
                 ridge = lane * (0.19 + 0.28 * f) + 0.059 * math.sin(PI * f + 0.26 * lane)
                 d = (u - ridge) * width
                 taper = smooth(f / 0.21) * smooth((1 - f) / 0.27)
-                z += height * taper * (mound(d, 0, 0.0015) - 0.48 * mound(d, 0.0026, 0.0012))
+                z += height * taper * (mound(d, 0, 0.0033) - 0.20 * mound(d, 0.0046, 0.0028))
         flex = (0.38, 1.0, 0.79)[pose]
         # Leather bunches behind each metacarpal head when the fingers close.
         fold_y = 0.052 + 0.009 * math.cos(PI * (u + 0.32)) - 0.007 * u + 0.002 * math.sin(u * 16)
         z += (
             flex
-            * (0.0027 * mound(y, fold_y, 0.0027) - 0.0018 * mound(y, fold_y - 0.003, 0.0023))
+            * (0.0017 * mound(y, fold_y, 0.0033) - 0.0010 * mound(y, fold_y - 0.003, 0.0029))
             * mound(u, -0.09, 0.72)
         )
-        z += 0.0007 * math.sin(56 * y + 2 * u) * math.sin(5.5 * u)
+        z += 0.00035 * math.sin(56 * y + 2 * u) * math.sin(5.5 * u)
     else:
         z = -depth * side
         # The thenar and hypothenar pads leave a cupped hollow between them.
@@ -345,6 +390,10 @@ def palm_ring(pat, y):
 
 def make_palm(pat):
     rows = [palm_ring(pat, y) for y in ROW_Y]
+    widest_row = rows[ROW_Y.index(0.026)]
+    cut = [0.0]
+    for a, b in zip(widest_row, widest_row[1:] + widest_row[:1]):
+        cut.append(cut[-1] + (pat.forms[b][0] - pat.forms[a][0]).length * HIDE_UV_SCALE)
     # A single opening spans both the edge seam and the thenar side of the palm.
     thumb_lo, thumb_hi = ROW_Y.index(-0.004), ROW_Y.index(0.055)
     opening = [*range(palmar_index(3), RING), 0, 1, 2]
@@ -357,12 +406,13 @@ def make_palm(pat):
             pat.face(
                 [a[j], a[k], b[k], b[j]],
                 [
-                    (j / RING * 2, ROW_Y[i] * 10),
-                    ((j + 1) / RING * 2, ROW_Y[i] * 10),
-                    ((j + 1) / RING * 2, ROW_Y[i + 1] * 10),
-                    (j / RING * 2, ROW_Y[i + 1] * 10),
+                    (cut[j], ROW_Y[i] * HIDE_UV_SCALE),
+                    (cut[j + 1], ROW_Y[i] * HIDE_UV_SCALE),
+                    (cut[j + 1], ROW_Y[i + 1] * HIDE_UV_SCALE),
+                    (cut[j], ROW_Y[i + 1] * HIDE_UV_SCALE),
                 ],
                 mat,
+                dorsal_cut=j < WIDTH,
             )
     loop = [rows[thumb_lo][j] for j in opening]
     loop.extend(rows[i][opening[-1]] for i in range(thumb_lo + 1, thumb_hi + 1))
@@ -381,31 +431,37 @@ def make_palm(pat):
 
 
 DIGITS = (
-    # length, half-width, neutral splay, grip angles (degrees), pinch angles
-    (0.073, 0.0107, -0.105, (47, 115, 158), (23, 73, 114)),
-    (0.080, 0.0112, -0.025, (58, 128, 175), (39, 93, 144)),
-    (0.074, 0.0102, 0.063, (69, 140, 180), (50, 114, 159)),
-    (0.057, 0.0087, 0.165, (76, 146, 186), (61, 128, 171)),
+    # Length, half-width, neutral splay, PIP/DIP stations, power and pinch angles.
+    # Joint stations follow the CC0 MakeHuman base's measured phalangeal ratios
+    # (Data Collection AB, Joel Palmius, Jonas Hauquier); no mesh is embedded.
+    (0.073, 0.0107, -0.105, (0.35, 0.67), (47, 115, 158), (23, 73, 114)),
+    (0.080, 0.0112, -0.025, (0.39, 0.70), (58, 128, 175), (39, 93, 144)),
+    (0.074, 0.0102, 0.063, (0.37, 0.68), (69, 140, 180), (50, 114, 159)),
+    (0.057, 0.0087, 0.165, (0.40, 0.66), (76, 146, 186), (61, 128, 171)),
 )
-
-
-def angle_at(t, vals):
-    a, b, c = vals
-    return math.radians(
-        a + (b - a) * smooth((t - 0.36) / 0.16) + (c - b) * smooth((t - 0.68) / 0.13)
-    )
 
 
 class Finger:
     def __init__(self, id, base):
         self.id = id
-        self.length, self.width, self.splay, self.grip, self.pinch = DIGITS[id]
+        self.length, self.width, self.splay, self.joints, self.grip, self.pinch = DIGITS[id]
         self.base = base
 
-    def angles(self, pose):
-        return ((5 + self.id * 1.8, 14 + self.id * 3.0, 25 + self.id * 3.5), self.grip, self.pinch)[
-            pose
-        ]
+    def angle(self, t, pose):
+        relaxed = (4 + self.id * 2.1, 12 + self.id * 3.7, 23 + self.id * 4.3)
+        base, middle, tip = (relaxed, self.grip, self.pinch)[pose]
+        pip, dip = self.joints
+        return math.radians(
+            base + (middle - base) * smooth((t - pip + 0.041) / 0.164)
+            + (tip - middle) * smooth((t - dip + 0.022) / 0.132)
+        )
+
+    def direction(self, t, pose):
+        angle = self.angle(t, pose)
+        splay = self.splay * (1.0 if pose == 0 else 0.35) * (1.0 - 0.36 * t)
+        if pose == 2 and self.id == 0:
+            splay -= 0.11 * t
+        return Vector((splay, math.cos(angle), -math.sin(angle))).normalized()
 
     def center(self, t, pose):
         # Integrate arc length, not linear tip positions, so that folded pads remain full.
@@ -413,58 +469,45 @@ class Finger:
         center = self.base[pose].copy()
         dt = t / n
         for i in range(n):
-            f = (i + 0.5) * dt
-            a = angle_at(f, self.angles(pose))
-            splay = self.splay * (1.0 if pose == 0 else 0.35) * (1.0 - 0.36 * f)
-            if pose == 2 and self.id == 0:
-                splay -= 0.11 * f
-            direction = Vector((splay, math.cos(a), -math.sin(a))).normalized()
-            center += direction * (self.length * dt)
+            center += self.direction((i + 0.5) * dt, pose) * (self.length * dt)
         return center
 
     def surface(self, t, theta, pose):
         center = self.center(t, pose)
-        a = angle_at(t, self.angles(pose))
-        back = Vector((0, math.sin(a), math.cos(a)))
-        # Both knuckles are wider than their shafts. Flexion compresses the palmar creases.
-        width = self.width * profile(
-            t,
-            [
-                (0, 1.0),
-                (0.17, 0.95),
-                (0.39, 0.91),
-                (0.46, 0.98),
-                (0.58, 0.84),
-                (0.72, 0.86),
-                (0.8, 0.78),
-                (0.9, 0.77),
-                (1, 0.72),
-            ],
+        angle = self.angle(t, pose)
+        back = Vector((0, math.sin(angle), math.cos(angle)))
+        cross = self.direction(t, pose).cross(back).normalized()
+        # The proximal segment tapers. The two knuckles make distinct low
+        # bulges, and the pad below the nail is fuller than its back.
+        pip, dip = self.joints
+        width = self.width * (
+            1 - 0.33 * t + 0.105 * mound(t, pip + 0.027, 0.062)
+            + 0.062 * mound(t, dip + 0.016, 0.049) + 0.035 * mound(t, 0.88, 0.08)
         )
-        round_tip = math.sqrt(max(0.0, 1 - ((max(0.0, t - 0.87)) / 0.13) ** 2))
+        round_tip = math.sqrt(max(0.0, 1 - ((max(0.0, t - 0.835)) / 0.165) ** 2))
         radial = math.cos(theta)
         dorsal = math.sin(theta)
-        thickness = width * (0.84 + 0.07 * max(-dorsal, 0.0))
+        pad = max(-dorsal, 0)
+        thickness = width * (0.76 + 0.10 * pad + 0.15 * pad * mound(t, 0.86, 0.14))
+        # Folds follow compression on the insides and fade irregularly into
+        # the fourchette. The stretched back has only a low knuckle mound.
         fold = 0.0
-        for center_k in (0.43, 0.73):
-            # Three broken creases on the inner joint, a broad convex fold outside.
-            center_k += 0.014 * radial + 0.007 * math.cos(theta * 2.5 + self.id)
-            space = 0.030
+        for i, joint in enumerate(self.joints):
+            phase = self.id * 0.87 + i * 1.7
+            center_k = joint + 0.035 + 0.023 * radial + 0.011 * math.cos(2 * theta + phase)
+            pinch_side = pad ** 0.7 * (0.67 + 0.27 * math.sin(theta - phase))
             fold += (
-                mound(t, center_k - space, 0.023)
-                - 1.65 * mound(t, center_k, 0.017)
-                + 0.7 * mound(t, center_k + space, 0.019)
+                pinch_side * (0.62 * mound(t, center_k - 0.025, 0.024)
+                - mound(t, center_k, 0.016) + 0.32 * mound(t, center_k + 0.021, 0.016))
             )
-        relief = 0.00135 if dorsal < 0 else 0.00095
-        if pose:
-            relief *= 1.25
-            if dorsal > 0:
-                thickness += 0.0007 * mound(t, 0.45, 0.10)
-        side = math.copysign(abs(radial) ** 0.84, radial)
-        top = math.copysign(abs(dorsal) ** 0.85, dorsal)
+        relief = (0.0010, 0.0018, 0.00155)[pose]
+        knuckle = (0.00035, 0.00083, 0.00083)[pose]
+        thickness += max(0, dorsal) * knuckle * mound(t, pip + 0.030, 0.067)
+        side = math.copysign(abs(radial) ** 0.88, radial)
+        top = math.copysign(abs(dorsal) ** 0.94, dorsal)
         return (
             center
-            + Vector((width * side * round_tip, 0, 0))
+            + cross * (width * side * round_tip)
             + back * ((thickness + relief * fold) * top * round_tip)
         )
 
@@ -500,7 +543,9 @@ def make_finger(pat, i, top):
     angles.extend(
         mix(-left_angle, left_angle - TAU, j / (EDGE + 1)) for j in range(1, len(outer_left) + 1)
     )
-    uv = [j / n * 0.69 for j in range(n + 1)]
+    unwrapped = [*angles, left_angle - TAU]
+    uv = [(left_angle - angle) * finger.width * HIDE_UV_SCALE for angle in unwrapped]
+    texture_offset = 0.09 * i
     samples = [
         0.025,
         0.05,
@@ -544,26 +589,30 @@ def make_finger(pat, i, top):
             row,
             new,
             uv,
-            prev_t * finger.length * 10,
-            t * finger.length * 10,
+            texture_offset + prev_t * finger.length * HIDE_UV_SCALE,
+            texture_offset + t * finger.length * HIDE_UV_SCALE,
             lambda j: "leather" if j < CORNERS else "palm",
+            dorsal_cut=True,
         )
         row = new
         prev_t = t
     tip = pat.vertex(tuple(finger.center(1.0, pose) for pose in range(3)))
+    last_v = texture_offset + prev_t * finger.length * HIDE_UV_SCALE
+    tip_v = texture_offset + finger.length * HIDE_UV_SCALE
     for j in range(n):
         pat.face(
             [row[j], row[(j + 1) % n], tip],
-            [(uv[j], 0.72), (uv[j + 1], 0.72), ((uv[j] + uv[j + 1]) * 0.5, 0.74)],
+            [(uv[j], last_v), (uv[j + 1], last_v), ((uv[j] + uv[j + 1]) * 0.5, tip_v)],
             "leather" if j < CORNERS else "palm",
+            dorsal_cut=True,
         )
     # Fourchettes: run the turned leather seam up the sides, set just over the dorsal edge.
     for theta in (0.14, PI - 0.14):
         points = []
         for j in range(32):
-            t = 0.14 + 0.81 * j / 31
+            t = 0.17 + 0.75 * j / 31
             points.append(tuple(finger.surface(t, theta, pose) for pose in range(3)))
-        sewn_line(pat, points, 0.00058)
+        sewn_line(pat, points, 0.00037)
 
 
 def spline(knots, t):
@@ -586,24 +635,24 @@ def make_thumb(pat, opening):
     )
     paths = [
         [
-            (-0.051, 0.036, -0.004),
-            (-0.059, 0.046, -0.006),
-            (-0.066, 0.055, -0.009),
-            (-0.070, 0.065, -0.013),
+            (-0.051, 0.035, -0.006),
+            (-0.061, 0.046, -0.009),
+            (-0.068, 0.057, -0.012),
+            (-0.071, 0.067, -0.017),
             (-0.069, 0.077, -0.019),
         ],
         [
             (-0.049, 0.031, -0.010),
             (-0.054, 0.038, -0.024),
-            (-0.048, 0.047, -0.038),
-            (-0.035, 0.054, -0.047),
-            (-0.017, 0.058, -0.046),
+            (-0.048, 0.047, -0.039),
+            (-0.034, 0.053, -0.049),
+            (-0.017, 0.060, -0.047),
         ],
         [
             (-0.050, 0.036, -0.010),
             (-0.058, 0.052, -0.023),
             (-0.058, 0.067, -0.036),
-            (-0.053, 0.080, -0.045),
+            (-0.052, 0.081, -0.046),
             (-0.043, 0.092, -0.051),
         ],
     ]
@@ -614,11 +663,11 @@ def make_thumb(pat, opening):
         tangent = (
             spline(points, min(1.0, t + 0.001)) - spline(points, max(0.0, t - 0.001))
         ).normalized()
-        # Transport the transverse direction along the arcing thumb rather than
-        # twisting the nail side around a fixed world axis in the opposition poses.
+        # Opposition rolls the pad toward the index as the thumb comes across.
         ref = (Vector((0, 0, 1)) - tangent * tangent.z).normalized()
         across = tangent.cross(ref).normalized()
-        return across, ref
+        turn = (0.10, 0.47, 0.63)[pose] * smooth((t - 0.20) / 0.74)
+        return across * math.cos(turn) - ref * math.sin(turn), ref * math.cos(turn) + across * math.sin(turn)
 
     axis_u, axis_v = frame(0, 0)
     p = pat.forms[opening[0]][0] - origin[0]
@@ -631,22 +680,23 @@ def make_thumb(pat, opening):
             [
                 (0, 0.0215),
                 (0.23, 0.0165),
-                (0.42, 0.0137),
-                (0.60, 0.0135),
-                (0.68, 0.0121),
-                (0.79, 0.011),
-                (0.88, 0.0109),
-                (1, 0.0101),
+                (0.42, 0.0132),
+                (0.57, 0.0118),
+                (0.65, 0.0114),
+                (0.77, 0.0098),
+                (0.87, 0.0101),
+                (1, 0.0092),
             ],
         )
-        cap = math.sqrt(max(0.0, 1 - (max(0.0, t - 0.84) / 0.16) ** 2))
-        groove = 0.0009 * (
-            mound(t, 0.58, 0.025) - mound(t, 0.61, 0.019) + 0.55 * mound(t, 0.635, 0.021)
+        cap = math.sqrt(max(0.0, 1 - (max(0.0, t - 0.825) / 0.175) ** 2))
+        pad = max(0.0, -math.sin(a))
+        groove = (0.0007, 0.0014, 0.0011)[pose] * pad * (
+            0.55 * mound(t, 0.62, 0.027) - mound(t, 0.65 + 0.014 * math.cos(a), 0.016)
         )
         return (
             spline(paths[pose], t)
             + u * math.cos(a) * radius * cap
-            + v * math.sin(a) * (radius * 0.86 + groove) * cap
+            + v * math.sin(a) * (radius * (0.73 + 0.22 * pad * mound(t, 0.86, 0.14)) + groove) * cap
         )
 
     # Loft the thumb web into the proximal pad. A circular tube faded in at the
@@ -676,7 +726,8 @@ def make_thumb(pat, opening):
         j = int(fraction)
         return loft(t, j, pose).lerp(loft(t, (j + 1) % count, pose), fraction - j)
 
-    u = [i / count * 0.9 for i in range(count + 1)]
+    u = [i / count * TAU * 0.014 * HIDE_UV_SCALE for i in range(count + 1)]
+    thumb_v_span = 0.076 * HIDE_UV_SCALE
     row = opening
     saddle = {idx: 0.75 for idx in opening}
     last = 0
@@ -709,8 +760,8 @@ def make_thumb(pat, opening):
             row,
             next_row,
             u,
-            last * 0.76,
-            t * 0.76,
+            last * thumb_v_span,
+            t * thumb_v_span,
             lambda j: "palm" if math.sin(angles[j]) < -0.24 else "leather",
         )
         if t <= 0.25:
@@ -718,11 +769,12 @@ def make_thumb(pat, opening):
         last = t
         row = next_row
     tip = pat.vertex(tuple(path[-1] for path in paths))
+    last_v = last * thumb_v_span
     for j in range(count):
         k = (j + 1) % count
         pat.face(
             [row[j], row[k], tip],
-            [(u[j], 0.76), (u[j + 1], 0.76), ((u[j] + u[j + 1]) * 0.5, 0.78)],
+            [(u[j], last_v), (u[j + 1], last_v), ((u[j] + u[j + 1]) * 0.5, thumb_v_span)],
             "leather",
         )
     # Ease the saddle over its sewn insertion. A square transition there
@@ -749,10 +801,10 @@ def make_thumb(pat, opening):
         a = TAU * i / 53
         t = 0.36 + 0.06 * math.cos(a + 0.55)
         samples.append(tuple(seam_point(t, a, pose) for pose in range(3)))
-    sewn_line(pat, samples, 0.00086, True)
+    sewn_line(pat, samples, 0.00055, True)
     for a in (0.10, PI - 0.15):
         samples = [tuple(seam_point(t / 40, a, pose) for pose in range(3)) for t in range(11, 39)]
-        sewn_line(pat, samples, 0.00060)
+        sewn_line(pat, samples, 0.00039)
 
 
 def finish_panels(pat):
@@ -766,9 +818,11 @@ def finish_panels(pat):
 
     # A second thickness of hide spreads the load across the heel and the ball of the thumb.
     def overlay(r, a):
-        u = 0.02 + 0.76 * r * math.cos(a)
-        y = 0.006 + 0.029 * r * math.sin(a) + 0.009 * u - 0.008 * u * u
-        return surf(y, u, False, 0.00065 + 0.00065 * (1.0 - r))
+        across = math.cos(a)
+        along = math.sin(a)
+        u = 0.10 + 0.75 * r * math.copysign(abs(across) ** 0.80, across)
+        y = 0.009 + 0.028 * r * along + 0.010 * u - 0.011 * u * u
+        return surf(y, u, False, 0.00045 + 0.00035 * (1.0 - r))
 
     center = pat.vertex(overlay(0, 0))
     prev = None
@@ -781,25 +835,26 @@ def finish_panels(pat):
             face = (
                 [center, ring[j], ring[k]] if prev is None else [prev[j], ring[j], ring[k], prev[k]]
             )
-            uv = [(pat.forms[idx][0].x * 10, pat.forms[idx][0].y * 10) for idx in face]
+            uv = [(pat.forms[idx][0].x * HIDE_UV_SCALE, pat.forms[idx][0].y * HIDE_UV_SCALE) for idx in face]
             pat.face(face, uv, "leather")
         prev = ring
     # A single locking stitch around the heel reinforcement.
     for i in range(46):
         samples = [overlay(0.94, TAU * (i + t) / 46) for t in (0.1, 0.45, 0.78)]
-        pat.cord(samples, 0.00042, "thread", 5)
+        pat.cord(samples, 0.00030, "thread", 5)
 
     for dorsal in (True, False):
         # A folded opening is handstitched through both layers. Threads sit almost flush.
         for i in range(22):
             us = [-0.97 + 1.94 * (i + f) / 22 for f in (0.07, 0.43, 0.74)]
             samples = [surf(-0.045 + 0.0018 * math.sin(2.8 * u), u, dorsal, 0.00030) for u in us]
-            pat.cord(samples, 0.00042, "thread", 5)
+            pat.cord(samples, 0.00031, "thread", 5)
 
 
 def main():
     common.reset_scene()
     mats = build_materials()
+    scanned_hide(mats)
     worn_dye(mats)
     glove = bpy.data.objects.new("WorkGlove", None)
     bpy.context.collection.objects.link(glove)
@@ -824,6 +879,7 @@ def main():
             area.spaces.active.region_3d.view_location = (0, 0, .38)
             area.spaces.active.shading.color_type = "MATERIAL"
     bpy.context.preferences.filepaths.save_version = 0
+    bpy.data.orphans_purge(do_recursive=True)
     bpy.ops.wm.save_as_mainfile(filepath=str(SOURCE / "loader-gloves.blend"), compress=True)
     glove.location.z = 0
     bpy.ops.export_scene.gltf(
