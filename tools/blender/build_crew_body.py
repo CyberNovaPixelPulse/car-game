@@ -286,6 +286,7 @@ def build():
         "helmet": make_material("Olive tanker helmet", (84, 87, 52), .88),
     })
     body = Garment()
+    arms = Garment()
     joint("Pelvis", (0, 0, 0), (0, 0, .164))
     joint("Chest", (0, 0, .164), (0, .005, .462), "Pelvis")
     joint("Neck", (0, .005, .462), (0, .008, .545), "Chest")
@@ -316,7 +317,7 @@ def build():
         shoulder = Vector((side * .184, .001, .410))
         elbow = Vector((side * .402, .008, .259))
         wrist = Vector((side * .543, .024, .065))
-        sleeve(body, side, label, shoulder, elbow, wrist)
+        sleeve(arms, side, label, shoulder, elbow, wrist)
         leg(body, side, label)
         body.patch((side * .100, .111, .315), .058, .055, [("Chest", 1)], "cuff")
         body.patch((side * .100, .119, .354), .062, .015, [("Chest", 1)], "cloth")
@@ -347,6 +348,7 @@ def build():
             bone.parent = data.edit_bones[parent]
     bpy.ops.object.mode_set(mode="OBJECT")
     body.bind("CrewUniform", rig, materials)
+    arms.bind("CrewArms", rig, materials)
     face.bind("CrewHeadMesh", rig, materials)
     rig["source"] = "Project original, CC0-1.0"
     rig.show_in_front = True

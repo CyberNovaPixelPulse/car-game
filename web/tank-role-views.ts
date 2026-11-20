@@ -169,7 +169,10 @@ export class TankRoleViews {
       }
       views.exterior?.scene.render(state, offset);
     } else {
-      views.exterior?.canvas.remove();
+      if (views.exterior?.canvas.isConnected) {
+        views.exterior.scene.leaveMachineGun();
+        views.exterior.canvas.remove();
+      }
       views.interior!.scene.render(
         state,
         offset,

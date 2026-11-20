@@ -26,6 +26,7 @@ import { battleProjection, battleView } from "./tank-battle-view";
 import { buildDriverArmour } from "./tank-driver-armour";
 import { TankDriverControls } from "./tank-driver-controls";
 import { TankGunnerControls } from "./tank-gunner-controls";
+import { TankLoaderMachineGun } from "./tank-loader-machine-gun";
 import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
 
 /** Metres from the eye within which an enemy tank keeps full detail. */
@@ -47,6 +48,8 @@ export class TankScene {
   private mgMuzzle = new THREE.Group();
   /** The loader's M2 on its cradle; it bucks back with every round. */
   private mgMount?: THREE.Object3D;
+  private loaderMachineGun?: TankLoaderMachineGun;
+  private loaderMachineGunReady?: Promise<boolean>;
   private mgRest = new THREE.Vector3();
   private mgKick = { shots: -1, at: -100 };
   private mgEject = new THREE.Group();
@@ -193,15 +196,17 @@ export class TankScene {
         color: 0x303a2c,
         roughness: 0.9,
       });
-      const mount = buildBrowning(
+      const gun = buildBrowning(
         this.mount,
         steel,
         paint,
-        0.25,
-        -0.28,
-        -0.35,
+        0,
+        -0.24,
+        -0.7,
         this.assets.manager,
+        true,
       );
+      const mount = gun.root;
       this.mgMuzzle.position.z = -1.68;
       mount.add(this.mgMuzzle);
       this.mgMount = mount;
@@ -211,6 +216,23 @@ export class TankScene {
       mount.traverse((object) => {
         if (object instanceof THREE.Mesh) object.castShadow = false;
       });
+      this.loaderMachineGunReady = TankLoaderMachineGun.load(
+        gun,
+        this.assets.manager,
+        () => this.disposed,
+      )
+        .then((operator) => {
+          if (!operator) return false;
+          if (this.disposed) {
+            disposeArt(operator.root);
+            return false;
+          }
+          this.loaderMachineGun = operator;
+          this.mount.add(operator.root);
+          this.lastVisual = "";
+          return true;
+        })
+        .catch(() => false);
     }
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(this.canvas);
@@ -262,6 +284,7 @@ export class TankScene {
     const driverArmourReady = await this.driverArmour;
     const driverControlsReady = await this.driverControlsReady;
     const gunnerControlsReady = await this.gunnerControlsReady;
+    const loaderMachineGunReady = await this.loaderMachineGunReady;
     if (this.disposed) throw new Error("視野準備已取消。");
     if (driverArmourReady === false)
       throw new Error("無法載入駕駛觀察窗，請重試準備。");
@@ -269,6 +292,8 @@ export class TankScene {
       throw new Error("無法載入駕駛動作，請重試準備。");
     if (gunnerControlsReady === false)
       throw new Error("無法載入砲手動作，請重試準備。");
+    if (loaderMachineGunReady === false)
+      throw new Error("無法載入車頂機槍動作，請重試準備。");
     this.render(state); // Instantiate authority-provided vehicle art, without advancing any rules.
     await this.assets.wait();
     if (this.disposed) throw new Error("視野準備已取消。");
@@ -277,6 +302,9 @@ export class TankScene {
     this.lastVisual = "";
     this.render(state);
     await finishPreparation(this.renderer, () => this.disposed);
+  }
+  leaveMachineGun() {
+    this.loaderMachineGun?.leave();
   }
   render(state: TankState, offset = STILL_HEAD, held = 0) {
     this.prepareField(state);
@@ -317,6 +345,7 @@ export class TankScene {
       this.driverControls?.advance(state.time, held),
       this.gunnerControls && state.turret.yawRate,
       this.gunnerControls && state.turret.pitchRate,
+      this.loaderMachineGun?.stamp(state.weapon, state.time),
       aimState.yaw,
       aimState.pitch,
       state.weapon.targets.map((e) => e.phase).join(),
@@ -474,6 +503,7 @@ export class TankScene {
         this.mgRest.z + 0.035 * kick,
       );
       this.mgMount.rotation.x = 0.02 * kick;
+      this.loaderMachineGun?.present(state.weapon, state.time);
     }
     if (this.view === "machine-gun")
       this.mgFlash.present(

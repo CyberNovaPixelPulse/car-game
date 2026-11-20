@@ -103,6 +103,8 @@ test("both grips and wrists fit between the HUD panels below the clear throat", 
     DRIVER_VIEW.openingDistance * Math.tan(DRIVER_VIEW.horizontalFov / 2);
   const uniform = rig.root.getObjectByName("CrewUniform");
   assert.ok(uniform);
+  const arms = rig.root.getObjectByName("CrewArms");
+  assert.ok(arms);
   const world = new THREE.Vector3();
 
   for (const [time, keys, offset] of [
@@ -141,7 +143,7 @@ test("both grips and wrists fit between the HUD panels below the clear throat", 
       }
     }
     driver.root.updateMatrixWorld(true);
-    uniform.traverse((part) => {
+    const assertOpeningClear = (part: THREE.Object3D) => {
       if (!(part instanceof THREE.SkinnedMesh)) return;
       part.skeleton.update();
       for (
@@ -162,6 +164,8 @@ test("both grips and wrists fit between the HUD panels below the clear throat", 
           "a crew vertex covers the clear opening",
         );
       }
-    });
+    };
+    uniform.traverse(assertOpeningClear);
+    arms.traverse(assertOpeningClear);
   }
 });

@@ -291,7 +291,7 @@ export class LoaderRepair {
     this.left.orient();
     this.right.orient();
     this.left.contact = this.right.contact = (1 - released) * reaching;
-    this.body.solveRepair(this.left, this.right);
+    this.body.solveStation(this.left, this.right);
     this.hands.group.visible = true;
     this.hands.left.poseWork(this.body.left, 0.18 * handLoad);
     this.hands.right.poseWork(

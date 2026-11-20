@@ -176,6 +176,16 @@ export class LoaderBody {
   private delta = new THREE.Vector3();
   private axis = new THREE.Vector3();
 
+  constructor() {
+    this.restAtLoadingStation();
+  }
+
+  restAtLoadingStation() {
+    this.origin.copy(homeChest);
+    this.rotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), homeYaw);
+    this.poseHead();
+  }
+
   solve(progress: number, left: LoaderHandTarget, right: LoaderHandTarget) {
     const active = progress > 0 && progress < 1;
     const wl = active ? clamp(left.contact, 0, 1) : 0;
@@ -225,7 +235,12 @@ export class LoaderBody {
     this.poseHead(benchEyeOffset);
   }
 
-  solveRepair(left: LoaderHandTarget, right: LoaderHandTarget) {
+  setMachineGunStation(origin: THREE.Vector3, rotation: THREE.Quaternion) {
+    this.origin.copy(origin);
+    this.rotation.copy(rotation);
+  }
+
+  solveStation(left: LoaderHandTarget, right: LoaderHandTarget) {
     this.solveArms(left, right, left.contact, right.contact, false);
   }
 

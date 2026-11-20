@@ -10,6 +10,8 @@ import type { TankState } from "./tank-core";
 import { LoaderHands } from "./tank-loader-hands";
 import { LoaderRepair } from "./tank-loader-repair";
 import { LoaderRounds } from "./tank-loader-rounds";
+import { TankCrewRig } from "./tank-crew-rig";
+import { TankLoaderUniform } from "./tank-loader-uniform";
 import { loaderCanWork } from "./tank-weapons";
 import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
 
@@ -32,6 +34,8 @@ export class TankInteriorScene {
   private observer?: ResizeObserver;
   private breech?: { recoil: THREE.Object3D; slide: THREE.Object3D };
   private hands = new LoaderHands();
+  private uniform?: TankLoaderUniform;
+  private uniformReady?: Promise<boolean>;
   private rounds!: LoaderRounds;
   private repair?: LoaderRepair;
   private case = new THREE.Group();
@@ -255,6 +259,23 @@ export class TankInteriorScene {
       }
     };
     this.scene.add(this.case, this.hands.group);
+    this.uniformReady = TankCrewRig.load(this.assets.manager)
+      .then((rig) => {
+        if (this.disposed) {
+          disposeArt(rig.root);
+          return false;
+        }
+        try {
+          this.uniform = new TankLoaderUniform(rig);
+        } catch (error) {
+          disposeArt(rig.root);
+          throw error;
+        }
+        this.scene.add(rig.root);
+        this.invalidate();
+        return true;
+      })
+      .catch(() => false);
     new GLTFLoader(this.assets.manager).load(
       "/assets/closeups/loader-gloves.glb",
       ({ scene }) => {
@@ -363,8 +384,9 @@ export class TankInteriorScene {
   }
   async prepare(state: TankState) {
     await this.assets.wait();
+    const uniformReady = await this.uniformReady;
     if (this.disposed) throw new Error("視野準備已取消。");
-    if (!this.breech || !this.repair || !this.hands.ready)
+    if (!this.breech || !this.repair || !this.hands.ready || !uniformReady)
       throw new Error("無法載入車內模型，請重試準備。");
     this.render(state);
     await this.renderer.compileAsync(this.scene, this.camera);
@@ -428,6 +450,20 @@ export class TankInteriorScene {
     }
     this.rounds.present(w, this.hands, loading, jamTravel, this.reducedMotion);
     this.repair?.present(state, resultAge);
+    if (this.uniform) {
+      if (!this.rounds.activePose) this.rounds.body.restAtLoadingStation();
+      const atBench = w.mode === "repair" && this.repair && !w.crouching;
+      const body = atBench ? this.repair!.body : this.rounds.body;
+      const shift =
+        atBench && this.hands.group.visible
+          ? THREE.MathUtils.clamp(
+              (body.right.wrist.y - body.left.wrist.y) * 0.14,
+              -0.04,
+              0.04,
+            )
+          : 0;
+      this.uniform.pose(body.origin, body.rotation, 0, w.crouching, shift);
+    }
     this.case.visible =
       w.chamber === "ejecting" ||
       (w.shotsFired > 0 && recovery >= 0 && recovery < 0.25);
