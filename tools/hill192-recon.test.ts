@@ -42,6 +42,7 @@ test("a segment with clear endpoints still hits the shared terrain diagonal", ()
 test("Hill 192 deploys separated guards and a moving patrol, and allows a normal 200 m main-gun hit", () => {
   const { runtime, step } = solo("gunner");
   runtime.setViewAspect(16 / 9);
+  runtime.commandPractice({ type: "toggle-driver" });
   const initial = step(0);
   const guard = initial.weapon.targets[0];
   const patrol = initial.weapon.targets.at(-1)!;
@@ -71,6 +72,8 @@ test("Hill 192 deploys separated guards and a moving patrol, and allows a normal
   step(0.3);
   runtime.action(FIRE);
   const impact = step(0.45);
+  assert.equal(impact.tank.x, level.spawn.x);
+  assert.equal(impact.tank.z, level.spawn.z);
   assert.equal(impact.weapon.shotsFired, 1);
   assert.equal(guard.hp, 20);
   assert.ok(Math.abs(impact.weapon.impacts[0].z - guard.z) < guard.depth);
