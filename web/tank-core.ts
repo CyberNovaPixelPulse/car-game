@@ -63,6 +63,7 @@ import {
   type OccupationState,
   type TankBattlefield,
 } from "./tank-occupation";
+import { terrainHeightAt } from "./tank-terrain";
 
 export const DRIVE = { forward: 1, reverse: 2, left: 4, right: 8 } as const;
 /** Role-scoped held bits; cannon fire remains a separate discrete action. */
@@ -79,16 +80,7 @@ export const BATTLEFIELD = {
   ],
 } as const;
 
-/** First playable occupation layout uses the existing farm scene and geometry. */
-export const HILL_192_LEVEL: OccupationLevel = {
-  id: "hill-192",
-  battlefield: BATTLEFIELD,
-  spawn: { x: 0, z: 0, yaw: 0 },
-  zone: { x: 0, z: -9, radius: 6.5 },
-  captureSeconds: 12,
-  decayPerSecond: 0.12,
-  enemies: [{ kind: "panzer", x: 18, z: -9 }],
-};
+export { HILL_192_LEVEL } from "./hill192-level";
 
 export interface TankState {
   version: 6;
@@ -102,6 +94,7 @@ export interface TankState {
   tank: {
     hp: number;
     x: number;
+    y?: number;
     z: number;
     yaw: number;
     speed: number;
@@ -164,20 +157,25 @@ export class TankCore implements GameCore<TankState> {
     if (level) {
       const { x, z, yaw } = level.spawn;
       Object.assign(this.state.tank, { x, z, yaw });
+      if (level.battlefield.terrain)
+        this.state.tank.y = terrainHeightAt(level.battlefield.terrain, x, z);
       this.state.occupation = {
         levelId: level.id,
         progress: 0,
         phase: "approach",
       };
-      this.state.weapon.targets = level.enemies.map((enemy, index) =>
-        createEnemyTarget(
+      this.state.weapon.targets = level.enemies.map((enemy, index) => {
+        const target = createEnemyTarget(
           enemy.kind,
           1000 + index,
           enemy.x,
           enemy.z,
           enemy.readyAfter ?? ENEMY_RULES.spawnGrace,
-        ),
-      );
+        );
+        if (level.battlefield.terrain)
+          target.y = terrainHeightAt(level.battlefield.terrain, enemy.x, enemy.z);
+        return target;
+      });
     } else if (this.practice) this.state.weapon.targets = [];
     this.controls.clear();
     this.aspects.clear();
@@ -333,6 +331,7 @@ export class TankCore implements GameCore<TankState> {
       dt,
       this.state.time,
       battlefield.cover,
+      battlefield.terrain,
     );
     if (w.mode === "machine-gun" && loaderCanWork(w, this.state.time)) {
       w.mg.yaw =
@@ -386,6 +385,7 @@ export class TankCore implements GameCore<TankState> {
       dt,
       this.state.time,
       w.smoke,
+      battlefield.terrain,
     );
     // Resolve incoming damage first: zero HP always defeats the crew, even on
     // the step that destroys the last enemy. Weapon/MG/smoke work continues
@@ -518,6 +518,7 @@ export class TankCore implements GameCore<TankState> {
       }
       t.x = x;
       t.z = z;
+      if (battlefield.terrain) t.y = terrainHeightAt(battlefield.terrain, x, z);
     }
     const occupation = this.state.occupation;
     if (occupation && this.occupationLevel) {
@@ -586,7 +587,7 @@ export class TankCore implements GameCore<TankState> {
       !next.battle.projectiles.every((p) =>
         [p.id, p.x, p.y, p.z, p.vx, p.vz, p.damage, p.age].every(
           Number.isFinite,
-        ),
+        ) && (p.vy === undefined || Number.isFinite(p.vy)),
       ) ||
       !next.tank ||
       !validHullImpact(next.tank.impact, next.time) ||
@@ -605,6 +606,7 @@ export class TankCore implements GameCore<TankState> {
         next.tank.speed,
         next.tank.turnRate,
       ].every(Number.isFinite) ||
+      (next.tank.y !== undefined && !Number.isFinite(next.tank.y)) ||
       next.tank.hp < 0 ||
       next.tank.hp > TANK_RULES.maxHp ||
       typeof next.tank.blocked !== "boolean"

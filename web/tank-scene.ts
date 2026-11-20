@@ -9,6 +9,7 @@ import {
   preloadVehicles,
   noteRenderer,
 } from "./tank-vehicle-model";
+import { buildHill192 } from "./hill192-environment";
 import { buildNormandy } from "./tank-environment";
 import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import { disposeArt } from "./tank-art-materials";
@@ -55,6 +56,9 @@ export class TankScene {
   private sight?: HTMLElement;
   private assets = new ArtPreparation();
   private environment = new AbortController();
+  private fieldPrepared = false;
+  private hill192 = false;
+  private sun!: THREE.DirectionalLight;
   private driverArmour?: Promise<boolean>;
   private driverControls?: TankDriverControls;
   private driverControlsReady?: Promise<boolean>;
@@ -102,7 +106,7 @@ export class TankScene {
     this.scene.background = new THREE.Color(0xb9c7c7);
     this.scene.fog = new THREE.Fog(0xb9c7c7, 65, 190);
     this.scene.add(new THREE.HemisphereLight(0xd9e3e9, 0x64654c, 1.25));
-    const sun = new THREE.DirectionalLight(0xffefd6, 2.3);
+    const sun = (this.sun = new THREE.DirectionalLight(0xffefd6, 2.3));
     sun.position.set(-25, 40, 15);
     sun.castShadow = true;
     // Baked tank detail needs a finer shadow map on the target discrete GPU;
@@ -132,7 +136,6 @@ export class TankScene {
         this.scene.backgroundIntensity = 0.8;
       },
     );
-    buildNormandy(this.scene, this.environment.signal, this.assets.manager);
     preloadVehicles(this.assets.manager);
     this.scene.add(this.tank);
     this.scene.add(this.mount);
@@ -218,7 +221,22 @@ export class TankScene {
     this.camera.updateProjectionMatrix();
     this.lastVisual = "";
   }
+  private prepareField(state: TankState) {
+    if (this.fieldPrepared) return;
+    this.fieldPrepared = true;
+    this.hill192 = state.occupation?.levelId === "hill-192";
+    if (this.hill192) {
+      buildHill192(this.scene);
+      this.scene.fog = new THREE.Fog(0xb9c7c7, 240, 710);
+      this.camera.far = 740;
+      this.camera.updateProjectionMatrix();
+      this.scene.add(this.sun.target);
+    } else {
+      buildNormandy(this.scene, this.environment.signal, this.assets.manager);
+    }
+  }
   async prepare(state: TankState) {
+    this.prepareField(state);
     await this.assets.wait();
     const driverArmourReady = await this.driverArmour;
     const driverControlsReady = await this.driverControlsReady;
@@ -237,10 +255,13 @@ export class TankScene {
     await finishPreparation(this.renderer, () => this.disposed);
   }
   render(state: TankState, offset = STILL_HEAD, held = 0) {
+    this.prepareField(state);
     const t = state.tank;
+    const height = t.y ?? 0;
     // Render state is a local GPU concern. Simulation/network clocks keep running at full cadence.
     const pose = [
       t.x,
+      height,
       t.z,
       t.yaw,
       state.turret.yaw,
@@ -298,6 +319,7 @@ export class TankScene {
     this.posePlayer(
       fired?.x ?? t.x,
       fired?.z ?? t.z,
+      fired ? (fired.y ?? 0) : height,
       fired?.hullYaw ?? t.yaw,
       fired ? fired.yaw - fired.hullYaw : state.turret.yaw,
       fired?.pitch ?? state.turret.pitch,
@@ -308,7 +330,14 @@ export class TankScene {
       shotAge,
     );
     if (fired)
-      this.posePlayer(t.x, t.z, t.yaw, state.turret.yaw, state.turret.pitch);
+      this.posePlayer(
+        t.x,
+        t.z,
+        height,
+        t.yaw,
+        state.turret.yaw,
+        state.turret.pitch,
+      );
     const view = battleView(
       t,
       this.view === "machine-gun" ? state.weapon.mg : state.turret,
@@ -320,6 +349,10 @@ export class TankScene {
       view.y + Math.sin(view.pitch) * 40,
       view.z - Math.cos(view.yaw) * Math.cos(view.pitch) * 40,
     );
+    if (this.hill192) {
+      this.sun.position.set(t.x - 25, height + 40, t.z + 15);
+      this.sun.target.position.set(t.x, height, t.z);
+    }
     this.mount.position.copy(this.camera.position);
     this.mount.quaternion.copy(this.camera.quaternion);
     this.camera.getWorldDirection(this.sightDirection);
@@ -367,7 +400,7 @@ export class TankScene {
           target.z - this.camera.position.z,
         ) < LOD_RANGE,
       );
-      mesh.position.set(target.x, 0, target.z);
+      mesh.position.set(target.x, target.y ?? 0, target.z);
       mesh.rotation.y = -target.yaw;
       model.turret.rotation.y = -(target.turretYaw - target.yaw);
       model.setCondition(target.hp > 0, target.phase === "warning");
@@ -441,11 +474,12 @@ export class TankScene {
   private posePlayer(
     x: number,
     z: number,
+    height: number,
     hullYaw: number,
     turretYaw: number,
     pitch: number,
   ) {
-    this.tank.position.set(x, 0, z);
+    this.tank.position.set(x, height, z);
     this.tank.rotation.y = -hullYaw;
     this.turret.rotation.y = -turretYaw;
     this.elevation.rotation.x = pitch;

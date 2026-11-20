@@ -1,9 +1,12 @@
+import type { TerrainHeightGrid } from "./tank-terrain";
 import type { EnemyTarget } from "./tank-weapons";
 
 export interface TankBattlefield {
   readonly limit: number;
   readonly tankRadius: number;
+  readonly terrain?: TerrainHeightGrid;
   readonly cover: readonly (Position & {
+    readonly y?: number;
     readonly width: number;
     readonly depth: number;
     readonly height: number;

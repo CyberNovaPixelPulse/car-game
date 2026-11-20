@@ -42,7 +42,7 @@ export function battleProjection(view: BattleView, aspect: number) {
 }
 
 export function battleView(
-  tank: { x: number; z: number; yaw: number },
+  tank: { x: number; y?: number; z: number; yaw: number },
   aim: { yaw: number; pitch: number },
   view: BattleView,
 ) {
@@ -51,7 +51,7 @@ export function battleView(
   const offset = view === "gunner" ? 1.9 : 0;
   return {
     x: tank.x + Math.sin(yaw) * offset,
-    y: view === "gunner" ? 2.85 : 3.1,
+    y: (tank.y ?? 0) + (view === "gunner" ? 2.85 : 3.1),
     z: tank.z - Math.cos(yaw) * offset,
     yaw,
     pitch: aim.pitch,

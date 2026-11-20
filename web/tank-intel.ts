@@ -71,6 +71,7 @@ export function stepTeamIntel(
   observers: readonly { role: CrewRole; aspect?: number }[],
   cover: readonly {
     x: number;
+    y?: number;
     z: number;
     width: number;
     height: number;
@@ -114,7 +115,7 @@ export function stepTeamIntel(
                 target.z +
                 Math.sin(target.yaw) * right * target.width -
                 Math.cos(target.yaw) * forward * target.depth;
-              const point = [x, target.height * height, z];
+              const point = [x, (target.y ?? 0) + target.height * height, z];
               const dx = x - view.x,
                 dy = point[1] - view.y,
                 dz = z - view.z;
@@ -141,8 +142,8 @@ export function stepTeamIntel(
                     boxHit(
                       eye,
                       point,
-                      [c.x - c.width / 2, 0, c.z - c.depth / 2],
-                      [c.x + c.width / 2, c.height, c.z + c.depth / 2],
+                      [c.x - c.width / 2, c.y ?? 0, c.z - c.depth / 2],
+                      [c.x + c.width / 2, (c.y ?? 0) + c.height, c.z + c.depth / 2],
                     ) !== undefined,
                 )
               );

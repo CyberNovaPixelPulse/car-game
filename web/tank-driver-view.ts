@@ -14,11 +14,11 @@ export const DRIVER_VIEW = {
   cameraHorizontalFov: (100 * Math.PI) / 180,
 } as const;
 
-export function driverView(tank: { x: number; z: number; yaw: number }) {
+export function driverView(tank: { x: number; y?: number; z: number; yaw: number }) {
   const { right, height, forward } = DRIVER_VIEW.eye;
   return {
     x: tank.x + Math.cos(tank.yaw) * right + Math.sin(tank.yaw) * forward,
-    y: height,
+    y: (tank.y ?? 0) + height,
     z: tank.z + Math.sin(tank.yaw) * right - Math.cos(tank.yaw) * forward,
     yaw: tank.yaw,
     pitch: 0,

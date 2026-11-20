@@ -12,6 +12,7 @@ export const BOW_FIRE = 128;
 export { MG_RULES } from "./tank-settings";
 interface Pose {
   x: number;
+  y?: number;
   z: number;
   yaw: number;
   pitch: number;
@@ -60,10 +61,11 @@ export function stepMachineGun(
     belt.rounds--;
     if (belt.rounds === 0) belt.reloadUntil = now + MG_RULES.reload;
     mg.flashUntil = now + FIRING_FEEDBACK.machineGun;
-    const from = [pose.x, 3.1, pose.z];
+    const y = (pose.y ?? 0) + 3.1;
+    const from = [pose.x, y, pose.z];
     const to = [
       pose.x + Math.sin(pose.yaw) * Math.cos(pose.pitch) * MG_RULES.range,
-      3.1 + Math.sin(pose.pitch) * MG_RULES.range,
+      y + Math.sin(pose.pitch) * MG_RULES.range,
       pose.z - Math.cos(pose.yaw) * Math.cos(pose.pitch) * MG_RULES.range,
     ];
     const { fraction: nearest, target } = nearestHostileHit(
@@ -94,7 +96,7 @@ export function stepMachineGun(
 /** Host-owned bow gun: fixed along the hull, nearly harmless to armour. */
 export function stepBowGun(
   w: WeaponState,
-  tank: { x: number; z: number; yaw: number },
+  tank: { x: number; y?: number; z: number; yaw: number },
   held: boolean,
   dt: number,
   now: number,
@@ -120,7 +122,7 @@ export function stepBowGun(
       cos = Math.cos(tank.yaw);
     const from = [
       tank.x + cos * right + sin * forward,
-      height,
+      (tank.y ?? 0) + height,
       tank.z + sin * right - cos * forward,
     ];
     // A little ball-mount wander so a burst walks rather than threads a needle.

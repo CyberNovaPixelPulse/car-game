@@ -4,6 +4,7 @@ import {
   FIRING_FEEDBACK,
 } from "./tank-settings";
 import { smokeBlocks, type SmokeCloud } from "./tank-smoke";
+import { terrainHeightAt, type TerrainHeightGrid } from "./tank-terrain";
 import { boxHit, createEnemyTarget, type EnemyTarget } from "./tank-weapons";
 
 export { LAST_SEEN_SECONDS } from "./tank-settings";
@@ -13,6 +14,7 @@ export const ENEMY_LABELS = {
 } as const;
 interface Box {
   x: number;
+  y?: number;
   z: number;
   width: number;
   depth: number;
@@ -20,6 +22,7 @@ interface Box {
 }
 interface Vehicle {
   x: number;
+  y?: number;
   z: number;
   hp: number;
 }
@@ -85,6 +88,7 @@ export interface EnemyBattle {
     y: number;
     z: number;
     vx: number;
+    vy?: number;
     vz: number;
     damage: number;
     age: number;
@@ -110,8 +114,8 @@ function intersection(a: number[], b: number[], c: Box, margin = 0) {
   return boxHit(
     a,
     b,
-    [c.x - c.width / 2 - margin, 0, c.z - c.depth / 2 - margin],
-    [c.x + c.width / 2 + margin, c.height, c.z + c.depth / 2 + margin],
+    [c.x - c.width / 2 - margin, c.y ?? 0, c.z - c.depth / 2 - margin],
+    [c.x + c.width / 2 + margin, (c.y ?? 0) + c.height, c.z + c.depth / 2 + margin],
   );
 }
 /** Visibility graph around expanded cover corners: both crews can drive around solid cover. */
@@ -126,7 +130,12 @@ export function nextCoverWaypoint(
   const clear = (a: number[], b: number[]) =>
     !cover.some(
       (c) =>
-        intersection([a[0], 1, a[1]], [b[0], 1, b[1]], c, radius) !== undefined,
+        intersection(
+          [a[0], (c.y ?? 0) + 1, a[1]],
+          [b[0], (c.y ?? 0) + 1, b[1]],
+          c,
+          radius,
+        ) !== undefined,
     );
   if (clear(start, goal)) return goal;
   const nodes = [
@@ -175,6 +184,7 @@ export function stepEnemies(
   dt: number,
   now: number,
   smoke: readonly SmokeCloud[],
+  terrain?: TerrainHeightGrid,
 ) {
   if (b.failed || b.won) return;
   while (
@@ -184,16 +194,19 @@ export function stepEnemies(
     b.shellEvents.shift();
   for (const e of enemies) {
     if (e.hp <= 0) continue;
+    const eye = [e.x, (e.y ?? 0) + 2.4, e.z];
+    const aimHeight = (goal: Pick<Vehicle, "x" | "z">) =>
+      terrainHeightAt(terrain, goal.x, goal.z) + 2.4;
     const hiddenBySmoke = smokeBlocks(
       smoke,
-      [e.x, 2.4, e.z],
-      [tank.x, 2.4, tank.z],
+      eye,
+      [tank.x, (tank.y ?? 0) + 2.4, tank.z],
       now,
     );
     const coverBlocked = (goal: Pick<Vehicle, "x" | "z">) =>
       cover.some(
         (c) =>
-          intersection([e.x, 2.4, e.z], [goal.x, 2.4, goal.z], c) !== undefined,
+          intersection(eye, [goal.x, aimHeight(goal), goal.z], c) !== undefined,
       );
     if (!hiddenBySmoke && !coverBlocked(tank)) {
       e.lastSeenX = tank.x;
@@ -234,6 +247,7 @@ export function stepEnemies(
           const step = Math.min(length, speed * dt);
           e.x += (dx / length) * step;
           e.z += (dz / length) * step;
+          if (terrain) e.y = terrainHeightAt(terrain, e.x, e.z);
           e.yaw = Math.atan2(dx, -dz);
         }
         e.phase = "approaching";
@@ -255,14 +269,19 @@ export function stepEnemies(
       // Commit to the announced heading. A moving crew can leave the shot line.
       const dx = Math.sin(e.turretYaw),
         dz = -Math.cos(e.turretYaw);
+      const y = (e.y ?? 0) + 2.4;
+      const vy =
+        ((aimHeight(goal) - y) / Math.max(1, distance)) *
+        ENEMY_RULES.projectileSpeed;
       e.flashUntil = now + FIRING_FEEDBACK.cannon;
       b.projectiles.push({
         id: ++b.shots,
         // Sweep from the firing hull: a muzzle projecting past a nearby wall must not skip it.
         x: e.x,
-        y: 2.4,
+        y,
         z: e.z,
         vx: dx * ENEMY_RULES.projectileSpeed,
+        ...(terrain ? { vy } : {}),
         vz: dz * ENEMY_RULES.projectileSpeed,
         // The three-wave operation gives a coordinated crew time to load, clear
         // jams and traverse the turret, while ignoring incoming fire still loses.
@@ -286,6 +305,7 @@ export function stepEnemies(
   b.projectiles = b.projectiles.filter((p) => {
     const from = [p.x, p.y, p.z];
     p.x += p.vx * dt;
+    p.y += (p.vy ?? 0) * dt;
     p.z += p.vz * dt;
     p.age += dt;
     const to = [p.x, p.y, p.z];

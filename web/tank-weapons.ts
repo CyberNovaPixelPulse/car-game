@@ -1,3 +1,4 @@
+import { terrainHeightAt, type TerrainHeightGrid } from "./tank-terrain";
 import {
   JAM_RULES,
   WEAPON_TIMING,
@@ -41,6 +42,7 @@ export interface ShellFlight {
 export interface EnemyTarget {
   id: number;
   x: number;
+  y?: number;
   z: number;
   width: number;
   height: number;
@@ -172,12 +174,14 @@ export interface WeaponState {
 }
 interface GunPose {
   x: number;
+  y?: number;
   z: number;
   yaw: number;
   pitch: number;
 }
 interface Cover {
   x: number;
+  y?: number;
   z: number;
   width: number;
   depth: number;
@@ -224,13 +228,14 @@ export function nearestHostileHit(
   let fraction = initialFraction;
   let target: EnemyTarget | undefined;
   for (const candidate of [...cover, ...targets.filter((t) => t.hp > 0)]) {
+    const base = candidate.y ?? 0;
     const hit = boxHit(
       from,
       to,
-      [candidate.x - candidate.width / 2, 0, candidate.z - candidate.depth / 2],
+      [candidate.x - candidate.width / 2, base, candidate.z - candidate.depth / 2],
       [
         candidate.x + candidate.width / 2,
-        candidate.height,
+        base + candidate.height,
         candidate.z + candidate.depth / 2,
       ],
     );
@@ -301,14 +306,14 @@ export function fireWeapon(
   const dz = -Math.cos(pose.yaw) * Math.cos(pose.pitch);
   w.shotsFired++;
   const { x, z, yaw, pitch, hullYaw = yaw } = pose;
-  w.lastShotPose = { x, z, yaw, pitch, hullYaw };
+  w.lastShotPose = { x, z, yaw, pitch, hullYaw, y: pose.y };
   w.flashUntil = now + FIRING_FEEDBACK.cannon;
   const speed = BALLISTICS.speed[w.chamberShell!];
   w.projectiles.push({
     shell: w.chamberShell!,
     id: w.shotsFired,
     x: pose.x + dx * 4.8,
-    y: 2.48 + dy * 4.8,
+    y: (pose.y ?? 0) + 2.48 + dy * 4.8,
     z: pose.z + dz * 4.8,
     vx: dx * speed,
     vy: dy * speed,
@@ -376,6 +381,7 @@ export function stepWeapon(
   dt: number,
   now: number,
   cover: readonly Cover[],
+  terrain?: TerrainHeightGrid,
 ) {
   if (w.chamber === "ejecting" && now >= w.ejectAt) {
     w.chamber = "empty";
@@ -432,21 +438,29 @@ export function stepWeapon(
     p.vy -= BALLISTICS.gravity * dt;
     p.age += dt;
     const to = [p.x, p.y, p.z];
+    const fromAboveGround = from[1] - terrainHeightAt(terrain, from[0], from[2]);
+    const toAboveGround = p.y - terrainHeightAt(terrain, p.x, p.z);
+    const groundFraction = fromAboveGround <= 0
+      ? 0
+      : toAboveGround <= 0
+        ? fromAboveGround / (fromAboveGround - toAboveGround)
+        : Infinity;
     const { fraction: nearest, target } = nearestHostileHit(
       from,
       to,
       cover,
       w.targets,
-      p.y <= 0 ? from[1] / (from[1] - p.y) : Infinity,
+      groundFraction,
     );
     if (nearest <= 1) {
       const point = from.map((v, axis) => v + (to[axis] - v) * nearest);
       const damage = SHELL_DAMAGE[p.shell];
       // Only hostile targets participate: the firing tank is never a damage recipient.
       for (const t of w.targets) {
+        const targetHeight = (t.y ?? 0) + t.height / 2;
         const distance = Math.hypot(
           t.x - point[0],
-          t.height / 2 - point[1],
+          targetHeight - point[1],
           t.z - point[2],
         );
         const amount =
@@ -457,9 +471,9 @@ export function stepWeapon(
                   (c) =>
                     boxHit(
                       point,
-                      [t.x, t.height / 2, t.z],
-                      [c.x - c.width / 2, 0, c.z - c.depth / 2],
-                      [c.x + c.width / 2, c.height, c.z + c.depth / 2],
+                      [t.x, targetHeight, t.z],
+                      [c.x - c.width / 2, c.y ?? 0, c.z - c.depth / 2],
+                      [c.x + c.width / 2, (c.y ?? 0) + c.height, c.z + c.depth / 2],
                     ) !== undefined,
                 )
               ? damage.splash
@@ -470,7 +484,7 @@ export function stepWeapon(
         w.smoke.push({
           id: p.id,
           x: point[0],
-          y: 2.5,
+          y: terrainHeightAt(terrain, point[0], point[2]) + 2.5,
           z: point[2],
           radius: SMOKE_RADIUS,
           until: now + SMOKE_SECONDS,
@@ -523,6 +537,7 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
       ["he", "ap", "smoke"].includes(w.chamberShell)) &&
     (w.lastShotPose === undefined ||
       (!!w.lastShotPose &&
+        (w.lastShotPose.y === undefined || Number.isFinite(w.lastShotPose.y)) &&
         [
           w.lastShotPose.x,
           w.lastShotPose.z,
@@ -561,6 +576,7 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
     Array.isArray(w.targets) &&
     w.targets.every(
       (t) =>
+        (t.y === undefined || Number.isFinite(t.y)) &&
         [
           t.id,
           t.x,

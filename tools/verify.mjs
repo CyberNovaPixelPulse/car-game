@@ -96,6 +96,7 @@ if (mode === "status") {
               "tools/tank-core.test.ts",
               "tools/tank-machine-gun.test.ts",
               "tools/tank-occupation.test.ts",
+              "tools/tank-terrain.test.ts",
               "tools/room-rules.test.ts",
               "tools/peer-server.test.ts",
             ],

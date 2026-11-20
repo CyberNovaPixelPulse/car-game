@@ -8,6 +8,7 @@ import {
   PRACTICE_RULES,
 } from "./tank-settings";
 import { nextCoverWaypoint } from "./tank-enemies";
+import { terrainHeightAt } from "./tank-terrain";
 import { createTeamIntel, stepTeamIntel } from "./tank-intel";
 import {
   CROUCH,
@@ -262,7 +263,9 @@ export class PracticeCrew {
     const shell = state.weapon.chamberShell ?? state.weapon.selectedShell;
     const flight = Math.max(0, range - 4.8) / BALLISTICS.speed[shell];
     const pitch = Math.atan2(
-      1.8 - 2.48 + (BALLISTICS.gravity * flight * flight) / 2,
+      terrainHeightAt(this.core.battlefield.terrain, target.x, target.z) +
+        1.8 - ((state.tank.y ?? 0) + 2.48) +
+        (BALLISTICS.gravity * flight * flight) / 2,
       range,
     );
     const pitchError = pitch - state.turret.pitch;

@@ -1410,6 +1410,12 @@ legend {
   stroke-width: 5;
   stroke-linejoin: round;
 }
+.navigation-hill-road {
+  fill: none;
+  stroke: #bca885;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .navigation-cover {
   fill: #d2cbb4;
   stroke: #252a24;
