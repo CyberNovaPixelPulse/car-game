@@ -1,5 +1,6 @@
 import { BATTLEFIELD, type TankState } from "./tank-core";
 import type { OccupationLevel } from "./tank-occupation";
+import { cannonWorldPose } from "./tank-world-pose";
 import { HILL_192_FIELDS, HILL_192_ROADS } from "./hill192-level";
 import { terrainHeightAt, type TerrainHeightGrid } from "./tank-terrain";
 import { TEAM_INTEL_SECONDS } from "./tank-settings";
@@ -55,7 +56,7 @@ export function mountBattleNavigation(
     hull.setAttribute("transform", `rotate(${degrees(state.tank.yaw)})${scale}`);
     gun.setAttribute(
       "transform",
-      `rotate(${degrees(state.tank.yaw + state.turret.yaw)})${scale}`,
+      `rotate(${degrees(cannonWorldPose(state.tank, state.turret).yaw)})${scale}`,
     );
     const living = state.intel.contacts.filter((c) => c.hp > 0);
     const ids = new Set(living.map((c) => String(c.id)));

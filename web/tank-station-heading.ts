@@ -1,6 +1,7 @@
 import { INTERIOR_VIEW } from "./tank-battle-view";
 import type { MotionStation } from "./tank-camera-motion";
 import type { TankState } from "./tank-core";
+import { cannonWorldPose } from "./tank-world-pose";
 
 const interiorLookYaw = Math.atan2(
   INTERIOR_VIEW.targetX - INTERIOR_VIEW.eyeX,
@@ -14,7 +15,7 @@ export function stationHeading(state: TankState, station: MotionStation) {
     case "machine-gun":
       return state.tank.yaw + state.weapon.mg.yaw;
     case "gunner":
-      return state.tank.yaw + state.turret.yaw;
+      return cannonWorldPose(state.tank, state.turret).yaw;
     default:
       return state.tank.yaw + state.turret.yaw + interiorLookYaw;
   }

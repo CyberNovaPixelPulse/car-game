@@ -65,6 +65,8 @@ import {
   type TankBattlefield,
 } from "./tank-occupation";
 import { terrainHeightAt } from "./tank-terrain";
+import { restingHullPitch, stepHullPitch } from "./tank-suspension";
+import { cannonWorldPose } from "./tank-world-pose";
 
 export const DRIVE = { forward: 1, reverse: 2, left: 4, right: 8 } as const;
 /** Role-scoped held bits; cannon fire remains a separate discrete action. */
@@ -98,6 +100,7 @@ export interface TankState {
     y?: number;
     z: number;
     yaw: number;
+    pitch?: number;
     speed: number;
     turnRate: number;
     blocked: boolean;
@@ -158,8 +161,18 @@ export class TankCore implements GameCore<TankState> {
     if (level) {
       const { x, z, yaw } = level.spawn;
       Object.assign(this.state.tank, { x, z, yaw });
-      if (level.battlefield.terrain)
-        this.state.tank.y = terrainHeightAt(level.battlefield.terrain, x, z);
+      if (level.battlefield.terrain) {
+        const { terrain } = level.battlefield;
+        const { tank, turret } = this.state;
+        tank.y = terrainHeightAt(terrain, x, z);
+        tank.pitch = restingHullPitch(terrain, tank);
+        // Begin level with the horizon, then let the live hull take the gun
+        // with it. The range demonstration uses the original starting sight.
+        turret.pitch = Math.max(
+          AIMING.minPitch,
+          Math.min(AIMING.maxPitch, -tank.pitch),
+        );
+      }
       this.state.occupation = {
         levelId: level.id,
         progress: 0,
@@ -293,12 +306,7 @@ export class TankCore implements GameCore<TankState> {
     if (action === FIRE) {
       fireWeapon(
         this.state.weapon,
-        {
-          ...this.state.tank,
-          hullYaw: this.state.tank.yaw,
-          yaw: this.state.tank.yaw + this.state.turret.yaw,
-          pitch: this.state.turret.pitch,
-        },
+        cannonWorldPose(this.state.tank, this.state.turret),
         this.state.time,
       );
       return;
@@ -462,6 +470,7 @@ export class TankCore implements GameCore<TankState> {
       Number(Boolean(keys & DRIVE.reverse));
     const steering =
       Number(Boolean(keys & DRIVE.right)) - Number(Boolean(keys & DRIVE.left));
+    const previousSpeed = t.speed;
     t.speed = approach(
       t.speed,
       propulsion * (propulsion < 0 ? DRIVING.reverse : DRIVING.forward),
@@ -532,6 +541,8 @@ export class TankCore implements GameCore<TankState> {
       t.z = z;
       if (battlefield.terrain) t.y = terrainHeightAt(battlefield.terrain, x, z);
     }
+    if (battlefield.terrain)
+      t.pitch = stepHullPitch(battlefield.terrain, t, previousSpeed, dt);
     const occupation = this.state.occupation;
     if (occupation && this.occupationLevel) {
       stepOccupation(
@@ -626,6 +637,7 @@ export class TankCore implements GameCore<TankState> {
         next.tank.turnRate,
       ].every(Number.isFinite) ||
       (next.tank.y !== undefined && !Number.isFinite(next.tank.y)) ||
+      (next.tank.pitch !== undefined && !Number.isFinite(next.tank.pitch)) ||
       next.tank.hp < 0 ||
       next.tank.hp > TANK_RULES.maxHp ||
       typeof next.tank.blocked !== "boolean"

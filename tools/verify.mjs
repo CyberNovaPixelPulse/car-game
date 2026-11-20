@@ -96,6 +96,7 @@ if (mode === "status") {
               "tools/gunner-crew-pose.test.ts",
               "tools/tank-mechanical-audio.test.ts",
               "tools/tank-core.test.ts",
+              "tools/tank-hull-pose.test.ts",
               "tools/tank-machine-gun.test.ts",
               "tools/tank-occupation.test.ts",
               "tools/tank-terrain.test.ts",

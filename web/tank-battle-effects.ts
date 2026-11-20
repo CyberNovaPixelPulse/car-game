@@ -712,7 +712,7 @@ export class BattleEffects {
   }
 
   /** Hull pitches up and squats on its rear suspension, then rocks back. */
-  rockHull(root: THREE.Object3D, turretYaw: number) {
+  rockHull(root: THREE.Object3D, turretYaw: number, hullPitch = 0) {
     root.rotation.order = "YXZ";
     const t = this.time - this.firedAt;
     const rock =
@@ -722,7 +722,7 @@ export class BattleEffects {
           (1 - Math.exp(-t / 0.025)) *
           Math.exp(-t / 0.32) *
           Math.cos(2 * Math.PI * RECOIL.rebound * t);
-    root.rotation.x = rock * Math.cos(turretYaw);
+    root.rotation.x = hullPitch + rock * Math.cos(turretYaw);
     root.rotation.z = rock * Math.sin(turretYaw);
   }
 

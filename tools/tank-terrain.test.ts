@@ -119,7 +119,10 @@ test("a normal main-gun launch uses the terrain height and legacy practice stays
   core.input(2, LOAD);
   core.step(WEAPON_TIMING.load + 0.1);
   core.action(1, FIRE);
-  assert.equal(core.view().weapon.projectiles[0].y, (tank.y ?? 0) + 2.48);
+  const worldPivotHeight = (tank.y ?? 0) + 2.48 * Math.cos(tank.pitch ?? 0);
+  assert.ok(
+    Math.abs(core.view().weapon.projectiles[0].y - worldPivotHeight) < 1e-6,
+  );
 
   core.start(startOptions);
   assert.equal(core.view().tank.y, undefined);

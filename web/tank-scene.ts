@@ -316,6 +316,7 @@ export class TankScene {
       height,
       t.z,
       t.yaw,
+      t.pitch,
       state.turret.yaw,
       state.turret.pitch,
       ...state.weapon.targets.flatMap((e) => [
@@ -376,8 +377,10 @@ export class TankScene {
       fired?.z ?? t.z,
       fired ? (fired.y ?? 0) : height,
       fired?.hullYaw ?? t.yaw,
-      fired ? fired.yaw - fired.hullYaw : state.turret.yaw,
-      fired?.pitch ?? state.turret.pitch,
+      fired?.turretYaw ??
+        (fired ? fired.yaw - fired.hullYaw : state.turret.yaw),
+      fired?.turretPitch ?? fired?.pitch ?? state.turret.pitch,
+      fired ? fired.hullPitch : t.pitch,
     );
     this.cannonBlast.present(
       this.player.muzzle,
@@ -392,6 +395,7 @@ export class TankScene {
         t.yaw,
         state.turret.yaw,
         state.turret.pitch,
+        t.pitch,
       );
     const view = battleView(
       t,
@@ -521,7 +525,7 @@ export class TankScene {
         : undefined,
     });
     this.effects.recoilBarrel(this.elevation);
-    this.effects.rockHull(this.tank, state.turret.yaw);
+    this.effects.rockHull(this.tank, state.turret.yaw, t.pitch);
     this.effects.setLens(
       this.camera,
       this.renderer.getDrawingBufferSize(this.lensSize).y,
@@ -535,9 +539,11 @@ export class TankScene {
     hullYaw: number,
     turretYaw: number,
     pitch: number,
+    hullPitch?: number,
   ) {
     this.tank.position.set(x, height, z);
-    this.tank.rotation.y = -hullYaw;
+    if (hullPitch === undefined) this.tank.rotation.y = -hullYaw;
+    else this.tank.rotation.set(hullPitch, -hullYaw, 0, "YXZ");
     this.turret.rotation.y = -turretYaw;
     this.elevation.rotation.x = pitch;
   }

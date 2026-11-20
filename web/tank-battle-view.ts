@@ -1,4 +1,10 @@
 import { DRIVER_VIEW, driverView } from "./tank-driver-view";
+import {
+  cannonWorldPose,
+  hullPoint,
+  type HullPose,
+  type TurretAim,
+} from "./tank-world-pose";
 
 /** Horizontal eye and sight line in the turret-fixed loader compartment. */
 export const INTERIOR_VIEW = {
@@ -41,12 +47,21 @@ export function battleProjection(view: BattleView, aspect: number) {
   };
 }
 
-export function battleView(
-  tank: { x: number; y?: number; z: number; yaw: number },
-  aim: { yaw: number; pitch: number },
-  view: BattleView,
-) {
+export function battleView(tank: HullPose, aim: TurretAim, view: BattleView) {
   if (view === "driver") return driverView(tank);
+  if (view === "gunner" && tank.pitch !== undefined) {
+    const gun = cannonWorldPose(tank, aim);
+    return {
+      ...hullPoint(
+        tank,
+        Math.sin(aim.yaw) * 1.9,
+        2.85,
+        Math.cos(aim.yaw) * 1.9,
+      ),
+      yaw: gun.yaw,
+      pitch: gun.pitch,
+    };
+  }
   const yaw = tank.yaw + aim.yaw;
   const offset = view === "gunner" ? 1.9 : 0;
   return {

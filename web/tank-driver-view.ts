@@ -1,3 +1,5 @@
+import { hullPoint, type HullPose } from "./tank-world-pose";
+
 /** The driver's fixed eye and the actual clear opening, shared by art and scouting.
  * Angles are radians; right/forward are metres in hull-local coordinates.
  */
@@ -14,14 +16,12 @@ export const DRIVER_VIEW = {
   cameraHorizontalFov: (100 * Math.PI) / 180,
 } as const;
 
-export function driverView(tank: { x: number; y?: number; z: number; yaw: number }) {
+export function driverView(tank: HullPose) {
   const { right, height, forward } = DRIVER_VIEW.eye;
   return {
-    x: tank.x + Math.cos(tank.yaw) * right + Math.sin(tank.yaw) * forward,
-    y: (tank.y ?? 0) + height,
-    z: tank.z + Math.sin(tank.yaw) * right - Math.cos(tank.yaw) * forward,
+    ...hullPoint(tank, right, height, forward),
     yaw: tank.yaw,
-    pitch: 0,
+    pitch: tank.pitch ?? 0,
     horizontalFov: DRIVER_VIEW.horizontalFov,
     verticalFov: DRIVER_VIEW.verticalFov,
   };

@@ -22,6 +22,7 @@ import {
   speedometerMarkup,
 } from "./tank-speedometer";
 import { JAM_RULES, SHELL_LABELS } from "./tank-weapons";
+import { cannonWorldPose } from "./tank-world-pose";
 
 const calibrationResult = `<p class="repair-calibration-result hud-panel" data-testid="repair-calibration-result" hidden><span class="calibration-result-message" role="status"></span><span class="calibration-shared-needle" aria-hidden="true"></span></p>`;
 
@@ -306,8 +307,10 @@ function bindBattleHud(
           : "倒車";
     contact.textContent = tank.blocked ? "車體受阻" : "車體正常";
     heading.textContent = `${Math.round((tank.yaw * 180) / Math.PI) % 360}°`;
-    turretHeading.textContent = `${degrees((tank.yaw + turret.yaw) % (Math.PI * 2))}°`;
-    turretPitch.textContent = `${degrees(turret.pitch)}°`;
+    const gun = cannonWorldPose(tank, turret);
+    const azimuth = gun.yaw % (Math.PI * 2);
+    turretHeading.textContent = `${degrees(azimuth < 0 ? azimuth + Math.PI * 2 : azimuth)}°`;
+    turretPitch.textContent = `${degrees(gun.pitch)}°`;
     health.textContent = `${Math.round(tank.hp * 10) / 10}/${TANK_RULES.maxHp}`;
     damageWarning.textContent = battle.lastDamage
       ? `敵彈命中！車體受損 ${battle.lastDamage}`

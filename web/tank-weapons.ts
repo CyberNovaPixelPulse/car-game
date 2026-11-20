@@ -3,6 +3,7 @@ import {
   terrainSegmentHit,
   type TerrainHeightGrid,
 } from "./tank-terrain";
+import { cannonPivot, type CannonPose } from "./tank-world-pose";
 import {
   JAM_RULES,
   WEAPON_TIMING,
@@ -155,7 +156,7 @@ export interface WeaponState {
   loadProgress: number;
   ejectAt: number;
   shotsFired: number;
-  lastShotPose?: GunPose & { hullYaw: number };
+  lastShotPose?: CannonPose;
   flashUntil: number;
   randomState: number;
   jamChecked: boolean;
@@ -179,13 +180,6 @@ export interface WeaponState {
     shell: ShellType;
     until: number;
   }[];
-}
-interface GunPose {
-  x: number;
-  y?: number;
-  z: number;
-  yaw: number;
-  pitch: number;
 }
 interface Cover {
   x: number;
@@ -309,7 +303,7 @@ export function lastCannonFiredAt(w: WeaponState) {
 
 export function fireWeapon(
   w: WeaponState,
-  pose: GunPose & { hullYaw?: number },
+  pose: Omit<CannonPose, "hullYaw"> & { hullYaw?: number },
   now: number,
 ) {
   if (w.chamber !== "loaded") return;
@@ -317,16 +311,34 @@ export function fireWeapon(
   const dy = Math.sin(pose.pitch);
   const dz = -Math.cos(pose.yaw) * Math.cos(pose.pitch);
   w.shotsFired++;
-  const { x, z, yaw, pitch, hullYaw = yaw } = pose;
+  const {
+    x,
+    z,
+    yaw,
+    pitch,
+    hullYaw = yaw,
+    hullPitch,
+    turretYaw,
+    turretPitch,
+  } = pose;
   w.lastShotPose = { x, z, yaw, pitch, hullYaw, y: pose.y };
+  if (hullPitch !== undefined)
+    Object.assign(w.lastShotPose, { hullPitch, turretYaw, turretPitch });
+  const pivot = cannonPivot({
+    x,
+    y: pose.y,
+    z,
+    yaw: hullYaw,
+    pitch: hullPitch,
+  });
   w.flashUntil = now + FIRING_FEEDBACK.cannon;
   const speed = BALLISTICS.speed[w.chamberShell!];
   w.projectiles.push({
     shell: w.chamberShell!,
     id: w.shotsFired,
-    x: pose.x + dx * 4.8,
-    y: (pose.y ?? 0) + 2.48 + dy * 4.8,
-    z: pose.z + dz * 4.8,
+    x: pivot.x + dx * 4.8,
+    y: pivot.y + dy * 4.8,
+    z: pivot.z + dz * 4.8,
     vx: dx * speed,
     vy: dy * speed,
     vz: dz * speed,
@@ -562,6 +574,10 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
     (w.lastShotPose === undefined ||
       (!!w.lastShotPose &&
         (w.lastShotPose.y === undefined || Number.isFinite(w.lastShotPose.y)) &&
+        (w.lastShotPose.hullPitch === undefined ||
+          (Number.isFinite(w.lastShotPose.hullPitch) &&
+            Number.isFinite(w.lastShotPose.turretYaw) &&
+            Number.isFinite(w.lastShotPose.turretPitch))) &&
         [
           w.lastShotPose.x,
           w.lastShotPose.z,

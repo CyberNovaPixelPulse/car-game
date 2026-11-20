@@ -10,6 +10,7 @@ import {
 import { nextCoverWaypoint } from "./tank-enemies";
 import { terrainHeightAt } from "./tank-terrain";
 import { createTeamIntel, stepTeamIntel } from "./tank-intel";
+import { cannonPivot, cannonWorldPose } from "./tank-world-pose";
 import {
   CROUCH,
   LOAD,
@@ -254,22 +255,25 @@ export class PracticeCrew {
       this.core.input(slot, AIM.right, PRACTICE_RULES.observerAspect);
       return;
     }
-    const dx = target.x - state.tank.x,
-      dz = target.z - state.tank.z;
+    const pivot = cannonPivot(state.tank);
+    const gun = cannonWorldPose(state.tank, state.turret);
+    const dx = target.x - pivot.x,
+      dz = target.z - pivot.z;
     const range = Math.hypot(dx, dz);
     const yawError = Math.atan2(
-      Math.sin(Math.atan2(dx, -dz) - state.tank.yaw - state.turret.yaw),
-      Math.cos(Math.atan2(dx, -dz) - state.tank.yaw - state.turret.yaw),
+      Math.sin(Math.atan2(dx, -dz) - gun.yaw),
+      Math.cos(Math.atan2(dx, -dz) - gun.yaw),
     );
     const shell = state.weapon.chamberShell ?? state.weapon.selectedShell;
     const flight = Math.max(0, range - 4.8) / BALLISTICS.speed[shell];
     const pitch = Math.atan2(
       terrainHeightAt(this.core.battlefield.terrain, target.x, target.z) +
-        1.8 - ((state.tank.y ?? 0) + 2.48) +
+        1.8 -
+        pivot.y +
         (BALLISTICS.gravity * flight * flight) / 2,
       range,
     );
-    const pitchError = pitch - state.turret.pitch;
+    const pitchError = pitch - gun.pitch;
     const axis = (
       error: number,
       rate: number,
