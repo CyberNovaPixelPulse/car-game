@@ -25,6 +25,7 @@ import { FIRING_FEEDBACK } from "./tank-settings";
 import { battleProjection, battleView } from "./tank-battle-view";
 import { buildDriverArmour } from "./tank-driver-armour";
 import { TankDriverControls } from "./tank-driver-controls";
+import { TankGunnerControls } from "./tank-gunner-controls";
 import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
 
 /** Metres from the eye within which an enemy tank keeps full detail. */
@@ -62,6 +63,8 @@ export class TankScene {
   private driverArmour?: Promise<boolean>;
   private driverControls?: TankDriverControls;
   private driverControlsReady?: Promise<boolean>;
+  private gunnerControls?: TankGunnerControls;
+  private gunnerControlsReady?: Promise<boolean>;
   private player!: VehicleModel;
   private width = 0;
   private height = 0;
@@ -162,6 +165,24 @@ export class TankScene {
         })
         .catch(() => false);
     }
+    if (this.view === "gunner") {
+      this.gunnerControlsReady = TankGunnerControls.load(
+        this.assets.manager,
+        () => this.disposed,
+      )
+        .then((controls) => {
+          if (!controls) return false;
+          if (this.disposed) {
+            disposeArt(controls.root);
+            return false;
+          }
+          this.gunnerControls = controls;
+          this.mount.add(controls.root);
+          this.lastVisual = "";
+          return true;
+        })
+        .catch(() => false);
+    }
     if (this.view === "machine-gun") {
       const steel = new THREE.MeshStandardMaterial({
         color: 0x434a43,
@@ -240,11 +261,14 @@ export class TankScene {
     await this.assets.wait();
     const driverArmourReady = await this.driverArmour;
     const driverControlsReady = await this.driverControlsReady;
+    const gunnerControlsReady = await this.gunnerControlsReady;
     if (this.disposed) throw new Error("視野準備已取消。");
     if (driverArmourReady === false)
       throw new Error("無法載入駕駛觀察窗，請重試準備。");
     if (driverControlsReady === false)
       throw new Error("無法載入駕駛動作，請重試準備。");
+    if (gunnerControlsReady === false)
+      throw new Error("無法載入砲手動作，請重試準備。");
     this.render(state); // Instantiate authority-provided vehicle art, without advancing any rules.
     await this.assets.wait();
     if (this.disposed) throw new Error("視野準備已取消。");
@@ -291,6 +315,8 @@ export class TankScene {
       pose,
       headStamp(offset),
       this.driverControls?.advance(state.time, held),
+      this.gunnerControls && state.turret.yawRate,
+      this.gunnerControls && state.turret.pitchRate,
       aimState.yaw,
       aimState.pitch,
       state.weapon.targets.map((e) => e.phase).join(),
@@ -358,6 +384,7 @@ export class TankScene {
     this.camera.getWorldDirection(this.sightDirection);
     applyHeadOffset(this.camera, offset, this.view === "driver");
     this.driverControls?.pose(offset);
+    this.gunnerControls?.pose(state.turret, offset);
     if (this.view !== "driver") {
       this.sight ??=
         this.canvas.parentElement?.querySelector<HTMLElement>(".sight") ??
