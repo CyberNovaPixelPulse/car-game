@@ -87,16 +87,15 @@ test("the exported crew rig drives each lever and keeps both palms attached", as
   assert.ok(Math.abs(last.right) < 0.001);
 });
 
-test("both grips sit in the normal driving view and below the clear throat", async () => {
+test("both grips and wrists fit between the HUD panels below the clear throat", async () => {
   const rig = await loadRig();
   const driver = new TankDriverControls(rig);
-  const aspect = 16 / 9;
-  const camera = new THREE.PerspectiveCamera(
-    THREE.MathUtils.radToDeg(battleProjection("driver", aspect).verticalFov),
-    aspect,
-    0.1,
-    180,
-  );
+  const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 180);
+  const viewports = [
+    // The inner edges of the map and the driver help/AI panels, with padding.
+    { width: 824, height: 743, left: 182, right: 460 },
+    { width: 1280, height: 720, left: 182, right: 916 },
+  ];
   const throatZ = -DRIVER_VIEW.openingDistance;
   const throatY =
     DRIVER_VIEW.openingDistance * Math.tan(DRIVER_VIEW.verticalFov / 2);
@@ -110,6 +109,8 @@ test("both grips sit in the normal driving view and below the clear throat", asy
     [0, 0, STILL_HEAD],
     [0.3, DRIVE.left, { ...STILL_HEAD, y: -0.018, pitch: 0.022, roll: -0.016 }],
     [0.6, DRIVE.right, { ...STILL_HEAD, y: 0.019, pitch: -0.024, roll: 0.014 }],
+    [0.9, DRIVE.left, { ...STILL_HEAD, x: 0.022, y: -0.018, roll: -0.016 }],
+    [1.2, DRIVE.right, { ...STILL_HEAD, x: -0.022, y: 0.019, roll: 0.014 }],
   ] as const) {
     driver.advance(time, keys);
     driver.pose(offset);
@@ -117,11 +118,27 @@ test("both grips sit in the normal driving view and below the clear throat", asy
     camera.quaternion.identity();
     applyHeadOffset(camera, offset, true);
     camera.updateMatrixWorld(true);
-    for (const side of sides) {
-      const grip = getLever(driver, side).getObjectByName("SteeringGrip")!;
-      const projected = grip.getWorldPosition(world).project(camera);
-      assert.ok(Math.abs(projected.x) < 1);
-      assert.ok(projected.y > -1 && projected.y < 0);
+    for (const { width, height, left, right } of viewports) {
+      camera.aspect = width / height;
+      camera.fov = THREE.MathUtils.radToDeg(
+        battleProjection("driver", camera.aspect).verticalFov,
+      );
+      camera.updateProjectionMatrix();
+      for (const side of sides) {
+        const grip = getLever(driver, side).getObjectByName("SteeringGrip")!;
+        for (const part of [grip, rig.bones[side].hand]) {
+          const projected = part.getWorldPosition(world).project(camera);
+          const x = ((projected.x + 1) * width) / 2;
+          assert.ok(
+            x > left && x < right,
+            `${part.name} is behind the HUD at ${width} px`,
+          );
+          assert.ok(
+            projected.y > -1 && projected.y < 0,
+            `${part.name} is cropped at ${width} px`,
+          );
+        }
+      }
     }
     driver.root.updateMatrixWorld(true);
     uniform.traverse((part) => {

@@ -5,11 +5,15 @@ import { disposeArt } from "./tank-art-materials";
 import { DRIVE } from "./tank-core";
 import { TankCrewRig, type CrewSide } from "./tank-crew-rig";
 
-const LEVER_X = 0.136;
-const LEVER_Y = -0.566;
-const LEVER_Z = -0.243;
+const LEVER_CENTER_X = -0.055;
+const LEVER_PIVOT_X = 0.112;
+const HANDLE_X = 0.052;
+const LEVER_Y = -0.575;
+const LEVER_Z = -0.279;
 const GRIP_HEIGHT = 0.423;
 const GRIP_IN_HAND = new THREE.Vector3(0, 0.095, -0.032);
+const UP = new THREE.Vector3(0, 1, 0);
+const BACK = new THREE.Vector3(0, 0, 1);
 const FOOT_ROTATION = new THREE.Quaternion().setFromUnitVectors(
   new THREE.Vector3(0, 1, 0),
   new THREE.Vector3(0, -0.13, -0.9915).normalize(),
@@ -22,7 +26,10 @@ const sides = [
 /** The two steering levers, hands and boots share the armoured window's mount. */
 export class TankDriverControls {
   readonly root = new THREE.Group();
-  private readonly levers: Record<CrewSide, THREE.Group>;
+  private readonly levers: Record<
+    CrewSide,
+    { pivot: THREE.Group; grip: THREE.Mesh }
+  >;
   private readonly positions: Record<CrewSide, number> = { left: 0, right: 0 };
   private readonly grip = new THREE.Vector3();
   private readonly wrist = new THREE.Vector3();
@@ -34,6 +41,7 @@ export class TankDriverControls {
   private readonly zAxis = new THREE.Vector3();
   private readonly basis = new THREE.Matrix4();
   private readonly palm = new THREE.Quaternion();
+  private readonly palmTilt = new THREE.Quaternion();
   private previousTime: number | undefined;
 
   constructor(readonly rig: TankCrewRig) {
@@ -48,34 +56,43 @@ export class TankDriverControls {
       color: 0x292b24,
       roughness: 0.89,
     });
-    const levers = {} as Record<CrewSide, THREE.Group>;
+    const levers = {} as TankDriverControls["levers"];
     for (const { name, sign } of sides) {
       const lever = new THREE.Group();
       lever.name = name === "left" ? "LeftSteeringLever" : "RightSteeringLever";
-      lever.position.set(sign * LEVER_X, LEVER_Y, LEVER_Z);
+      lever.position.set(
+        LEVER_CENTER_X + sign * LEVER_PIVOT_X,
+        LEVER_Y,
+        LEVER_Z,
+      );
+      // Floor pivots straddle the driver's legs; the handles bend inward into
+      // the clear part of the cockpit between the map and the work panel.
+      const x = sign * (HANDLE_X - LEVER_PIVOT_X);
       const base = new THREE.Mesh(
         new RoundedBoxGeometry(0.081, 0.044, 0.095, 3, 0.009),
         steel,
       );
       base.position.copy(lever.position);
+      const shaft = new THREE.Vector3(x, GRIP_HEIGHT, 0);
       const rod = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.01, 0.016, GRIP_HEIGHT, 14),
+        new THREE.CylinderGeometry(0.01, 0.016, shaft.length(), 14),
         steel,
       );
-      rod.position.y = GRIP_HEIGHT / 2;
+      rod.position.copy(shaft).multiplyScalar(0.5);
+      rod.quaternion.setFromUnitVectors(UP, shaft.normalize());
       const grip = new THREE.Mesh(
         new THREE.CapsuleGeometry(0.018, 0.07, 5, 20),
         graphite,
       );
       grip.name = "SteeringGrip";
-      grip.position.y = GRIP_HEIGHT;
+      grip.position.set(x, GRIP_HEIGHT, 0);
       const collar = new THREE.Mesh(
         new THREE.CylinderGeometry(0.021, 0.019, 0.012, 20),
         steel,
       );
-      collar.position.y = GRIP_HEIGHT - 0.049;
+      collar.position.set(x, GRIP_HEIGHT - 0.049, 0);
       lever.add(rod, grip, collar);
-      levers[name] = lever;
+      levers[name] = { pivot: lever, grip };
       this.root.add(base, lever);
     }
     this.levers = levers;
@@ -121,24 +138,26 @@ export class TankDriverControls {
     bones.chest.rotateX(-0.13 + offset.pitch * 0.85);
     bones.chest.rotateZ(offset.roll * 1.05);
     for (const { name, sign } of sides) {
-      const angle = -this.positions[name] * 0.14;
-      const lever = this.levers[name];
-      lever.rotation.x = angle;
+      const angle = -this.positions[name] * 0.08;
+      const { pivot, grip } = this.levers[name];
+      pivot.rotation.x = angle;
       this.grip
-        .set(0, GRIP_HEIGHT, 0)
-        .applyEuler(lever.rotation)
-        .add(lever.position);
-      // Hand Y points along its fingers. Rotate X along the lever so the
-      // fingers wrap across its length and the palm faces inward.
+        .copy(grip.position)
+        .applyEuler(pivot.rotation)
+        .add(pivot.position);
+      // Orient each palm inward around its lever, with the forearms angled
+      // slightly upward from the handles.
       this.xAxis.set(0, -sign * Math.cos(angle), -sign * Math.sin(angle));
-      this.yAxis.set(-sign * 0.18, 0, -1);
+      this.yAxis.set(sign * 0.24, 0, -1);
       this.yAxis
         .addScaledVector(this.xAxis, -this.yAxis.dot(this.xAxis))
         .normalize();
       this.zAxis.crossVectors(this.xAxis, this.yAxis);
-      this.palm.setFromRotationMatrix(
-        this.basis.makeBasis(this.xAxis, this.yAxis, this.zAxis),
-      );
+      this.palm
+        .setFromRotationMatrix(
+          this.basis.makeBasis(this.xAxis, this.yAxis, this.zAxis),
+        )
+        .multiply(this.palmTilt.setFromAxisAngle(BACK, -sign * 0.32));
       this.wrist
         .copy(GRIP_IN_HAND)
         .applyQuaternion(this.palm)
