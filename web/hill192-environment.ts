@@ -1,325 +1,367 @@
 import * as THREE from "three";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { disposeArt } from "./tank-art-materials";
 import light from "./levels/hill192-light.json" with { type: "json" };
-import {
-  HILL_192_FIELDS,
-  HILL_192_LEVEL,
-  HILL_192_ROADS,
-  HILL_192_TERRAIN,
-  roadDistance,
-} from "./hill192-level";
+import { HILL_192_LEVEL, HILL_192_TERRAIN } from "./hill192-level";
+import { disposeArt } from "./tank-art-materials";
 import { terrainHeightAt } from "./tank-terrain";
 
-const colours = {
-  meadow: new THREE.Color(0x66764d),
-  plough: new THREE.Color(0x665640),
-  pasture: new THREE.Color(0x526849),
-  stubble: new THREE.Color(0x8b8155),
-  lane: new THREE.Color(0x77674e),
-  verge: new THREE.Color(0x878265),
-};
-
-function terrainGeometry() {
-  const grid = HILL_192_TERRAIN;
-  const rows = grid.elevations.length;
-  const columns = grid.elevations[0].length;
-  const positions = new Float32Array(rows * columns * 3);
-  const colourData = new Float32Array(positions.length);
-  const triangles: number[] = [];
-  const colour = new THREE.Color();
-  for (let row = 0; row < rows; row++) {
-    const z = grid.minZ + row * grid.spacing;
-    for (let column = 0; column < columns; column++) {
-      const x = grid.minX + column * grid.spacing;
-      const index = row * columns + column;
-      positions.set([x, grid.elevations[row][column], z], index * 3);
-      const field = HILL_192_FIELDS.find(
-        (f) =>
-          Math.abs(x - f.x) <= f.width / 2 && Math.abs(z - f.z) <= f.depth / 2,
-      );
-      colour.copy(field ? colours[field.kind] : colours.meadow);
-      const pattern = Math.sin(x * 0.051 + z * 0.07) * 0.025;
-      const furrow = field?.kind === "plough" ? 0.05 * Math.sin(x * 0.38) : 0;
-      colour.multiplyScalar(0.94 + pattern + furrow);
-      for (const road of HILL_192_ROADS) {
-        const width = roadDistance(x, z, road);
-        const shoulder =
-          1 - THREE.MathUtils.smoothstep(width, road.width / 2, road.width);
-        colour.lerp(colours.verge, shoulder * 0.75);
-      }
-      colourData.set([colour.r, colour.g, colour.b], index * 3);
-      if (row + 1 < rows && column + 1 < columns)
-        triangles.push(
-          index,
-          index + columns,
-          index + 1,
-          index + 1,
-          index + columns,
-          index + columns + 1,
-        );
-    }
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute("color", new THREE.BufferAttribute(colourData, 3));
-  geometry.setIndex(triangles);
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
 export const HILL_192_LIGHT = light;
-const ART = "/art/hill192";
-const CELL = 56;
-const STRIDE = 6;
-const partsByKind = {
-  oak: ["OakTrunk", "OakCrown", "OakLeafMasses"],
-  bocage: ["Bocage"],
-  flint: ["Flint"],
-  verge: ["Verge"],
-  stubble: ["Stubble"],
-};
+const ART = "/art/hill192/pasture-blend";
+const CELL = 48;
+const TERRAIN_TILE = 63;
 
-interface LandscapeLayout {
-  stride: number;
-  placements: Partial<Record<keyof typeof partsByKind, number[]>>;
+interface WorldPart {
+  ground: boolean;
+  far?: boolean;
+  instances: number[][];
 }
 
-interface LandscapeCell {
+interface WorldLayout {
+  sourceMap: string;
+  sun: [number, number, number];
+  meshes: Record<string, WorldPart>;
+}
+
+interface VisibleBatch {
+  object: THREE.InstancedMesh;
+  near: number;
+  far: number;
+  shadow: boolean;
+}
+
+interface Cell {
   x: number;
   z: number;
-  meshes: {
-    object: THREE.InstancedMesh;
-    distance: number;
-    shadow: boolean;
-  }[];
+  batches: VisibleBatch[];
 }
 
-/** Fade distant low vegetation by cell. Trees keep their crown silhouette
- * into the mist, while fine branch/leaf parts stay close to the player. */
-function placeFoliage(
-  group: THREE.Group,
-  model: THREE.Group,
-  layout: LandscapeLayout,
+function terrainTile(west: number, north: number) {
+  const grid = HILL_192_TERRAIN;
+  const width = grid.elevations[0].length;
+  const height = grid.elevations.length;
+  const east = Math.min(width - 1, west + TERRAIN_TILE);
+  const south = Math.min(height - 1, north + TERRAIN_TILE);
+  const stride = east - west + 1;
+  const positions = [];
+  const normals = [];
+  const indices = [];
+  for (let row = north; row <= south; row++) {
+    for (let column = west; column <= east; column++) {
+      const elevation = grid.elevations[row][column];
+      positions.push(
+        grid.minX + column * grid.spacing,
+        elevation,
+        grid.minZ + row * grid.spacing,
+      );
+      const left = Math.max(column - 1, 0);
+      const right = Math.min(column + 1, width - 1);
+      const above = Math.max(row - 1, 0);
+      const below = Math.min(row + 1, height - 1);
+      const nx =
+        (grid.elevations[row][left] - grid.elevations[row][right]) /
+        ((right - left) * grid.spacing);
+      const nz =
+        (grid.elevations[above][column] - grid.elevations[below][column]) /
+        ((below - above) * grid.spacing);
+      const length = Math.hypot(nx, 1, nz);
+      normals.push(nx / length, 1 / length, nz / length);
+      if (column === east || row === south) continue;
+      const corner = (row - north) * stride + column - west;
+      indices.push(
+        corner,
+        corner + stride,
+        corner + 1,
+        corner + 1,
+        corner + stride,
+        corner + stride + 1,
+      );
+    }
+  }
+  return new THREE.BufferGeometry()
+    .setAttribute("position", new THREE.Float32BufferAttribute(positions, 3))
+    .setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3))
+    .setIndex(indices);
+}
+
+const WORLD_POSITION = "varying vec2 landXZ;";
+
+function projectedMaterial(
+  key: string,
+  uniforms: Record<string, THREE.Texture>,
+  map: string,
+  roughness: string,
 ) {
-  if (layout.stride !== STRIDE)
-    throw new Error("不符的 192 高地植被資料格式。");
-  model.updateMatrixWorld(true);
-  const cells = new Map<string, LandscapeCell>();
-  const move = new THREE.Matrix4();
-  const rotate = new THREE.Matrix4();
-  const scale = new THREE.Matrix4();
-  const tint = new THREE.Color();
-  for (const [kind, names] of Object.entries(partsByKind)) {
-    const rows = layout.placements[kind as keyof typeof partsByKind];
-    if (!rows || rows.length % STRIDE !== 0)
-      throw new Error(`缺少 192 高地的植被分布 ${kind}。`);
-    const parts: { name: string; mesh: THREE.Mesh }[] = [];
-    for (const name of names) {
-      const objects = model.getObjectByName(name);
-      if (!objects) throw new Error(`缺少 192 高地模型 ${name}。`);
-      objects.traverse((object) => {
-        if (!(object instanceof THREE.Mesh)) return;
-        const materials = Array.isArray(object.material)
-          ? object.material
-          : [object.material];
-        if (kind === "verge" || kind === "stubble" || name === "OakCrown")
-          for (const material of materials) material.side = THREE.DoubleSide;
-        parts.push({ name, mesh: object });
-      });
-    }
-    const starts = new Map<string, number[]>();
-    for (let i = 0; i < rows.length; i += STRIDE) {
-      const column = Math.floor(rows[i] / CELL);
-      const row = Math.floor(rows[i + 2] / CELL);
-      const key = `${column}:${row}`;
-      if (!cells.has(key)) {
+  const material = new THREE.MeshStandardMaterial({
+    roughness: 0.91,
+    vertexColors: key === "distant",
+  });
+  material.customProgramCacheKey = () => `hill192-pasture-${key}`;
+  material.onBeforeCompile = (shader) => {
+    const samplers = Object.keys(uniforms)
+      .map((name) => `uniform sampler2D ${name};`)
+      .join("\n");
+    for (const [name, texture] of Object.entries(uniforms))
+      shader.uniforms[name] = { value: texture };
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", `#include <common>\n${WORLD_POSITION}`)
+      .replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+vec4 groundPosition = vec4(position, 1.0);
+#ifdef USE_INSTANCING
+  groundPosition = instanceMatrix * groundPosition;
+#endif
+landXZ = (modelMatrix * groundPosition).xz;`,
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        `#include <common>\n${WORLD_POSITION}\n${samplers}`,
+      )
+      .replace("#include <color_fragment>", `#include <color_fragment>\n${map}`)
+      .replace("#include <roughnessmap_fragment>", roughness);
+  };
+  return material;
+}
+
+function pastureMaterial(textures: Record<string, THREE.Texture>) {
+  return projectedMaterial(
+    "ground",
+    textures,
+    `
+vec2 maskUV = vec2(landXZ.x, -landXZ.y) / 600.0 + 0.5;
+vec3 weights = texture2D(groundMask, maskUV).rgb;
+vec3 conditions = texture2D(conditionMask, maskUV).rgb;
+vec3 parcels = texture2D(parcelMask, maskUV).rgb;
+vec2 metres = vec2(landXZ.y, -landXZ.x);
+vec2 drift = vec2(
+  .75*sin(dot(metres, vec2(.43,.19))) + .39*cos(dot(metres, vec2(-.24,.71))),
+  .69*sin(dot(metres, vec2(.31,-.47))) + .44*cos(dot(metres, vec2(.62,.32)))
+);
+vec2 phase = metres + drift;
+vec2 grassUV = vec2(dot(phase, vec2(.848,.530)), dot(phase, vec2(-.530,.848))) / 2.85;
+vec3 grass = texture2D(meadowPhoto, grassUV).rgb * vec3(.74,.99,.65);
+float meadow = parcels.b * 2.0 - 1.0;
+grass *= 1.0 + meadow * (1.0 - max(conditions.r,conditions.g)) * vec3(.15,.275,.225);
+vec3 dryGrass = grass * vec3(1.30,1.18,.81) + vec3(.012,.005,.001);
+grass = mix(grass, dryGrass, conditions.b * (.8 - .1*meadow));
+vec3 soil = texture2D(soilPhoto, (metres + drift * (1.0 - weights.g)) / 4.05).rgb * vec3(1.03,.95,.82);
+vec3 field = mix(grass, soil, weights.r);
+field = mix(field, dryGrass * vec3(1.25,1.06,.76), parcels.r * .66);
+field *= mix(vec3(1.0), vec3(.55,.68,.55), parcels.g * .58);
+vec3 lane = texture2D(mudPhoto, metres / 4.05).rgb * vec3(1.23,1.12,.97) + vec3(.032,.025,.017);
+vec3 flint = texture2D(stonePhoto, metres / 1.9).rgb * vec3(.91,.96,.88);
+vec3 surface = mix(mix(field,lane,weights.g),flint,weights.b*.78);
+surface *= mix(vec3(1.0),vec3(.52,.57,.56),conditions.g * .84);
+surface *= mix(vec3(1.0),vec3(.60,.61,.59),conditions.r * .69);
+diffuseColor.rgb *= surface;`,
+    `
+float roughnessFactor = mix(roughness, .37, max(conditions.g, conditions.r * .45));`,
+  );
+}
+
+function distantMaterial(texture: THREE.Texture) {
+  return projectedMaterial(
+    "distant",
+    { distantMask: texture },
+    `
+vec2 atlasUV = (landXZ - vec2(-1550.,-975.)) / vec2(2950.,1975.);
+atlasUV.y = 1.0 - atlasUV.y;
+vec3 fields = texture2D(distantMask,atlasUV).rgb;
+float outer = max(abs(landXZ.x),abs(landXZ.y)) - 300.;
+diffuseColor.rgb = mix(diffuseColor.rgb,fields,.89*smoothstep(17.,86.,outer));`,
+    "#include <roughnessmap_fragment>",
+  );
+}
+
+function matrixFromUnreal(values: number[], matrix: THREE.Matrix4) {
+  if (values.length !== 12) throw new Error("192 高地的物件座標格式不符。");
+  return matrix.set(
+    values[0],
+    values[3],
+    values[6],
+    values[9],
+    values[1],
+    values[4],
+    values[7],
+    values[10],
+    values[2],
+    values[5],
+    values[8],
+    values[11],
+    0,
+    0,
+    0,
+    1,
+  );
+}
+
+function rangeFor(name: string) {
+  if (/RoadGrass|Stubble|Flint|Sedge|GrassShoulder|IvyToe|Verge/.test(name))
+    return 78;
+  if (name === "SM_OakLeaves") return 76;
+  return 260;
+}
+
+function putWorldObjects(
+  group: THREE.Group,
+  library: THREE.Group,
+  layout: WorldLayout,
+  ground: THREE.Material,
+  horizon: THREE.Material,
+  stone: THREE.Texture,
+) {
+  if (layout.sourceMap !== "/Game/Hill192PastureBlend/Hill192PastureBlend")
+    throw new Error("192 高地的場景來源不符。");
+  const cells = new Map<string, Cell>();
+  const transform = new THREE.Matrix4();
+  const lowGround = new THREE.MeshStandardMaterial({
+    color: 0x7e8355,
+    vertexColors: true,
+    side: THREE.DoubleSide,
+    roughness: 1,
+  });
+  const oldCanopy = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    side: THREE.DoubleSide,
+    roughness: 0.94,
+  });
+  const stoneMaterial = new THREE.MeshStandardMaterial({
+    color: 0xb2a78e,
+    map: stone,
+    roughness: 0.89,
+  });
+  const water = new THREE.MeshStandardMaterial({
+    color: 0x615a40,
+    metalness: 0.34,
+    roughness: 0.18,
+    transparent: true,
+    opacity: 0.87,
+    depthWrite: false,
+  });
+  library.updateMatrixWorld(true);
+  for (const [name, part] of Object.entries(layout.meshes)) {
+    const prototype = library.getObjectByName(name);
+    if (!prototype) throw new Error(`缺少 192 高地物件 ${name}。`);
+    const isTerrain = part.ground;
+    const waterSurface = name === "SM_WaterSurface";
+    const cellPlacements = new Map<string, number[][]>();
+    for (const pose of part.instances) {
+      const x = Math.floor(pose[9] / CELL);
+      const z = Math.floor(pose[11] / CELL);
+      const key = `${x}:${z}`;
+      if (!cells.has(key))
         cells.set(key, {
-          x: (column + 0.5) * CELL,
-          z: (row + 0.5) * CELL,
-          meshes: [],
+          x: (x + 0.5) * CELL,
+          z: (z + 0.5) * CELL,
+          batches: [],
         });
-      }
-      if (!starts.has(key)) starts.set(key, []);
-      starts.get(key)!.push(i);
+      let poses = cellPlacements.get(key);
+      if (!poses) cellPlacements.set(key, (poses = []));
+      poses.push(pose);
     }
-    for (const [key, indices] of starts) {
-      for (const { name, mesh } of parts) {
-        const instance = new THREE.InstancedMesh(
-          mesh.geometry,
-          mesh.material,
-          indices.length,
-        );
-        indices.forEach((start, number) => {
-          const [x, y, z, yaw, size, variation] = rows.slice(
-            start,
-            start + STRIDE,
+
+    const levels = part.far
+      ? [
+          { node: prototype, near: 0, far: 96 },
+          {
+            node: library.getObjectByName(name + "_far"),
+            near: 96,
+            far: rangeFor(name),
+          },
+        ]
+      : [{ node: prototype, near: 0, far: rangeFor(name) }];
+    for (const { node, near, far } of levels) {
+      if (!node) throw new Error(`缺少 192 高地遠景物件 ${name}。`);
+      // Fine ground cover has a single useful visibility band.
+      if (near >= far) continue;
+      node.traverse((mesh) => {
+        if (!(mesh instanceof THREE.Mesh)) return;
+        let material = mesh.material;
+        if (isTerrain) material = name.includes("Relief") ? horizon : ground;
+        else if (waterSurface) material = water;
+        else if (name.includes("Flint") || name === "SM_FieldEdgeStone")
+          material = stoneMaterial;
+        else if (name.startsWith("SM_Oak")) material = oldCanopy;
+        else if (/^SM_(RoadGrass|Stubble|Verge)$/.test(name))
+          material = lowGround;
+        for (const [key, poses] of cellPlacements) {
+          const object = new THREE.InstancedMesh(
+            mesh.geometry,
+            material,
+            poses.length,
           );
-          move
-            .makeTranslation(x, y, z)
-            .multiply(rotate.makeRotationY(yaw))
-            .multiply(scale.makeScale(size, size, size))
-            .multiply(mesh.matrixWorld);
-          instance.setMatrixAt(number, move);
-          instance.setColorAt(
-            number,
-            tint.setRGB(variation, variation, variation),
+          object.name = name;
+          poses.forEach((pose, index) =>
+            object.setMatrixAt(
+              index,
+              matrixFromUnreal(pose, transform).multiply(mesh.matrixWorld),
+            ),
           );
-        });
-        instance.computeBoundingSphere();
-        instance.receiveShadow = true;
-        group.add(instance);
-        cells.get(key)!.meshes.push({
-          object: instance,
-          distance:
-            name === "OakLeafMasses"
-              ? Infinity
-              : kind === "oak"
-                ? 196
-                : kind === "bocage"
-                  ? 220
-                  : kind === "flint"
-                    ? 95
-                    : 71,
-          shadow: kind === "oak" || kind === "bocage",
-        });
-      }
+          object.computeBoundingSphere();
+          object.receiveShadow = !waterSurface;
+          group.add(object);
+          if (isTerrain || waterSurface) continue;
+          cells.get(key)!.batches.push({
+            object,
+            near,
+            far,
+            shadow:
+              far > 96 && !name.includes("Leaves") && !name.includes("Masses"),
+          });
+        }
+      });
     }
   }
   return [...cells.values()];
 }
 
-/** Terrain beyond the actual play bounds is visible across the valley. The
- * inner ring uses every survey border point, so its seam cannot open. */
-function terrainSkirt() {
-  const grid = HILL_192_TERRAIN;
-  const steps = grid.elevations.length - 1;
-  const edge = (steps * grid.spacing) / 2;
-  const sides = [
-    (t: number) => [-edge, t],
-    (t: number) => [t, edge],
-    (t: number) => [edge, -t],
-    (t: number) => [-t, -edge],
-  ];
-  const contour = sides.flatMap((side) =>
-    Array.from({ length: steps }, (_, i) => side(-edge + i * grid.spacing)),
-  );
-  const positions: number[] = [];
-  const tint: number[] = [];
-  const triangles: number[] = [];
-  const rings = [1, 1.05, 1.14, 1.3, 1.52, 1.78];
-  rings.forEach((radius, ring) => {
-    contour.forEach(([x, z], i) => {
-      const progress = radius - 1;
-      const ground = terrainHeightAt(grid, x, z);
-      const hills =
-        Math.sin(x * 0.022 + z * 0.013) * 7 +
-        Math.cos(x * 0.015 - z * 0.023) * 4 -
-        2.4;
-      positions.push(x * radius, ground + hills * progress, z * radius);
-      const { r, g, b } = colours.meadow;
-      tint.push(r, g, b);
-      if (!ring) return;
-      const n = contour.length;
-      const current = ring * n + i;
-      const next = ring * n + ((i + 1) % n);
-      triangles.push(current - n, current, next - n, next - n, current, next);
-    });
+function addCoverAndGoal(group: THREE.Group, stone: THREE.Texture) {
+  const masonry = new THREE.MeshStandardMaterial({
+    map: stone,
+    color: 0xc7bdab,
+    roughness: 1,
   });
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute(
-    "position",
-    new THREE.Float32BufferAttribute(positions, 3),
-  );
-  geometry.setAttribute("color", new THREE.Float32BufferAttribute(tint, 3));
-  geometry.setIndex(triangles);
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
-function texturedGround(
-  weights: THREE.Texture,
-  rocks: THREE.Texture,
-  grass: THREE.Texture,
-  soil: THREE.Texture,
-  mud: THREE.Texture,
-  stone: THREE.Texture,
-) {
-  const material = new THREE.MeshStandardMaterial({ roughness: 0.94 });
-  material.customProgramCacheKey = () => "hill192-ground-v1";
-  material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, {
-      authoredWeights: { value: weights },
-      flintWeights: { value: rocks },
-      patchGrass: { value: grass },
-      patchSoil: { value: soil },
-      patchMud: { value: mud },
-      patchRock: { value: stone },
-    });
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying vec2 landXZ;")
-      .replace(
-        "#include <begin_vertex>",
-        "#include <begin_vertex>\nlandXZ = (modelMatrix * vec4(position, 1.0)).xz;",
-      );
-    shader.fragmentShader = shader.fragmentShader
-      .replace(
-        "#include <common>",
-        `#include <common>
-varying vec2 landXZ;
-uniform sampler2D authoredWeights, flintWeights, patchGrass, patchSoil, patchMud, patchRock;`,
-      )
-      .replace(
-        "#include <map_fragment>",
-        `
-vec2 land = landXZ;
-vec2 mapUV = vec2(land.x, -land.y) / 600.0 + 0.5;
-vec3 weights = texture2D(authoredWeights, mapUV).rgb;
-vec3 grass = texture2D(patchGrass, land / 2.8).rgb;
-float fieldDrift = texture2D(patchGrass, land / 95.0).r;
-vec3 meadow = grass * vec3(0.75, 1.02, 0.58) + vec3(0.018, 0.030, 0.006);
-meadow *= mix(0.88, 1.12, smoothstep(0.03, 0.38, fieldDrift));
-vec3 cropped = meadow * vec3(0.74, 0.86, 0.71);
-vec3 stubble = grass * vec3(1.38, 1.16, 0.65) + vec3(0.035, 0.023, 0.004);
-stubble *= 0.91 + 0.11 * sin(land.x * 10.5 - land.y * 0.28);
-vec3 bare = texture2D(patchSoil, land / 3.8).rgb * vec3(1.09, 0.984, 0.86);
-float furrow = 0.5 + 0.5 * sin(land.x * 7.8 + land.y * 0.36);
-bare *= mix(0.72, 1.10, smoothstep(0.10, 0.9, furrow));
-vec3 field = mix(meadow, cropped, smoothstep(0.08, 0.31, weights.r));
-field = mix(field, stubble, smoothstep(0.41, 0.67, weights.r));
-field = mix(field, bare, smoothstep(0.76, 0.98, weights.r));
-vec3 damp = texture2D(patchMud, land / 4.1).rgb;
-vec3 lane = damp * vec3(1.03, 0.91, 0.77) + vec3(0.047, 0.032, 0.015);
-lane = mix(lane, damp * vec3(0.67, 0.61, 0.5), weights.b * 0.94);
-vec3 flint = texture2D(patchRock, land / 1.7).rgb * vec3(1.04, 1.02, 0.94);
-diffuseColor.rgb *= mix(mix(field, lane, weights.g), flint, texture2D(flintWeights, mapUV).r * 0.86);
-`,
-      )
-      .replace(
-        "#include <roughnessmap_fragment>",
-        "float roughnessFactor = mix(roughness, 0.38, weights.g * weights.b);",
-      );
-  };
-  return material;
-}
-
-function masonryGeometry(width: number, height: number, depth: number) {
-  const box = new THREE.BoxGeometry(width, height, depth);
-  const points = box.getAttribute("position");
-  const normal = box.getAttribute("normal");
-  const uv = box.getAttribute("uv");
-  // Tile in metres. Exact silhouette corresponds to the authority cover.
-  for (let i = 0; i < points.count; i++) {
-    const x = points.getX(i);
-    const y = points.getY(i);
-    const z = points.getZ(i);
-    uv.setXY(
-      i,
-      (Math.abs(normal.getX(i)) > 0.5 ? z : x) / 3,
-      (Math.abs(normal.getY(i)) > 0.5 ? z : y) / 3,
+  for (const cover of HILL_192_LEVEL.battlefield.cover) {
+    const wall = new THREE.Mesh(
+      new THREE.BoxGeometry(cover.width, cover.height, cover.depth),
+      masonry,
     );
+    const positions = wall.geometry.getAttribute("position");
+    const normals = wall.geometry.getAttribute("normal");
+    const uv = wall.geometry.getAttribute("uv");
+    for (let i = 0; i < positions.count; i++) {
+      const x = positions.getX(i),
+        y = positions.getY(i),
+        z = positions.getZ(i);
+      uv.setXY(
+        i,
+        (Math.abs(normals.getX(i)) > 0.5 ? z : x) / 3,
+        (Math.abs(normals.getY(i)) > 0.5 ? z : y) / 3,
+      );
+    }
+    wall.position.set(cover.x, (cover.y ?? 0) + cover.height / 2, cover.z);
+    wall.castShadow = wall.receiveShadow = true;
+    group.add(wall);
   }
-  return box;
+  const { x, z, radius } = HILL_192_LEVEL.zone;
+  const marks = Array.from({ length: 96 }, (_, i) => {
+    const angle = (i * Math.PI) / 48;
+    const east = x + Math.cos(angle) * radius;
+    const south = z + Math.sin(angle) * radius;
+    return new THREE.Vector3(
+      east,
+      terrainHeightAt(HILL_192_TERRAIN, east, south) + 0.15,
+      south,
+    );
+  });
+  group.add(
+    new THREE.LineLoop(
+      new THREE.BufferGeometry().setFromPoints(marks),
+      new THREE.LineBasicMaterial({ color: 0xe7c574 }),
+    ),
+  );
 }
 
 export function buildHill192(
@@ -328,136 +370,137 @@ export function buildHill192(
   manager: THREE.LoadingManager,
 ) {
   const group = new THREE.Group();
-  group.name = "Hill 192";
-  const groundMaterial = new THREE.MeshStandardMaterial({
-    vertexColors: true,
-    roughness: 0.94,
-  });
-  const terrain = new THREE.Mesh(terrainGeometry(), groundMaterial);
-  const horizon = new THREE.Mesh(terrainSkirt(), groundMaterial);
-  terrain.receiveShadow = horizon.receiveShadow = true;
-  group.add(terrain, horizon);
-  const masonry = new THREE.MeshStandardMaterial({
-    color: 0x858075,
-    roughness: 1,
-  });
-  for (const cover of HILL_192_LEVEL.battlefield.cover) {
-    const wall = new THREE.Mesh(
-      masonryGeometry(cover.width, cover.height, cover.depth),
-      masonry,
-    );
-    wall.position.set(cover.x, (cover.y ?? 0) + cover.height / 2, cover.z);
-    wall.castShadow = wall.receiveShadow = true;
-    group.add(wall);
-  }
-
-  const { x, z, radius } = HILL_192_LEVEL.zone;
-  const marks = [];
-  for (let i = 0; i < 96; i++) {
-    const angle = (i * Math.PI) / 48;
-    const mx = x + Math.cos(angle) * radius;
-    const mz = z + Math.sin(angle) * radius;
-    marks.push(
-      new THREE.Vector3(
-        mx,
-        terrainHeightAt(HILL_192_TERRAIN, mx, mz) + 0.15,
-        mz,
-      ),
-    );
-  }
-  group.add(
-    new THREE.LineLoop(
-      new THREE.BufferGeometry().setFromPoints(marks),
-      new THREE.LineBasicMaterial({ color: 0xe7c574 }),
-    ),
-  );
-  scene.add(group);
-
-  let cells: LandscapeCell[] = [];
-  let lastX = Infinity;
-  let lastZ = Infinity;
-  const update = (x: number, z: number) => {
-    if (Math.hypot(lastX - x, lastZ - z) < 9) return;
-    lastX = x;
-    lastZ = z;
-    for (const cell of cells) {
-      const distance = Math.hypot(cell.x - x, cell.z - z);
-      for (const { object, distance: range, shadow } of cell.meshes) {
-        object.visible = distance <= range;
-        object.castShadow = shadow && distance < 95;
-      }
-    }
-  };
+  group.name = "Hill192PastureBlend";
   const textures: THREE.Texture[] = [];
   const roots = new Set<THREE.Object3D>([group]);
-  let released = false;
-  signal.addEventListener(
-    "abort",
-    () => {
-      released = true;
-      group.removeFromParent();
-      disposeArt([...roots], { textures });
-      textures.length = 0;
-      roots.clear();
-      cells = [];
-    },
-    { once: true },
-  );
+  const materials: THREE.Material[] = [];
+  let cells: Cell[] = [];
+  let sun = HILL_192_LIGHT.sun;
+  let lastX = Infinity;
+  let lastZ = Infinity;
+  const release = () => {
+    group.removeFromParent();
+    disposeArt([...roots], { materials, textures });
+    roots.clear();
+    textures.length = materials.length = cells.length = 0;
+  };
+  signal.addEventListener("abort", release, { once: true });
 
   const loader = new THREE.TextureLoader();
-  const texture = (url: string, colorSpace: string = THREE.SRGBColorSpace) =>
-    loader.loadAsync(url).then((texture) => {
-      if (released) texture.dispose();
-      else textures.push(texture);
-      texture.colorSpace = colorSpace;
-      texture.wrapS = texture.wrapT = colorSpace
-        ? THREE.RepeatWrapping
-        : THREE.ClampToEdgeWrapping;
-      texture.anisotropy = 4;
-      return texture;
-    });
-  const photo = (name: string) => texture(`/art/terrain/${name}_diff_1k.jpg`);
-  const key = `${ART}/vegetation.glb`;
+  const texture = async (path: string, repeat = false) => {
+    const image = await loader.loadAsync(path);
+    if (signal.aborted) image.dispose();
+    else textures.push(image);
+    image.colorSpace = repeat ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    image.wrapS = image.wrapT = repeat
+      ? THREE.RepeatWrapping
+      : THREE.ClampToEdgeWrapping;
+    image.anisotropy = 4;
+    return image;
+  };
+  const key = `${ART}/world.glb`;
   manager.itemStart(key);
-  void Promise.all([
-    texture(`${ART}/ground-weights.png`, THREE.NoColorSpace),
-    texture(`${ART}/flint-weights.png`, THREE.NoColorSpace),
-    photo("leafy_grass"),
-    photo("farm_soil"),
-    photo("muddy_tracks"),
-    photo("old_stone_wall_02"),
-    new GLTFLoader().loadAsync(key).then(({ scene: model }) => {
-      if (released) disposeArt(model);
-      else roots.add(model);
-      return model;
-    }),
-    fetch(`${ART}/layout.json`, { signal }).then(async (response) => {
+  const ready = Promise.all([
+    texture(`${ART}/ground.png`),
+    texture(`${ART}/conditions.png`),
+    texture(`${ART}/parcels.png`),
+    texture(`${ART}/distant.jpg`),
+    texture(`${ART}/meadow.jpg`, true),
+    texture("/art/terrain/farm_soil_diff_1k.jpg", true),
+    texture("/art/terrain/muddy_tracks_diff_1k.jpg", true),
+    texture("/art/terrain/old_stone_wall_02_diff_1k.jpg", true),
+    new GLTFLoader()
+      .setMeshoptDecoder(MeshoptDecoder)
+      .loadAsync(key)
+      .then(({ scene: library }) => {
+        if (signal.aborted) disposeArt(library);
+        else roots.add(library);
+        return library;
+      }),
+    fetch(`${ART}/world.json`, { signal }).then((response) => {
       if (!response.ok)
-        throw new Error(`無法下載 192 高地植被分布（${response.status}）。`);
-      return (await response.json()) as LandscapeLayout;
+        throw new Error(`192 高地的場景資料無法下載（${response.status}）。`);
+      return response.json() as Promise<WorldLayout>;
     }),
   ])
-    .then(([weights, rocks, grass, soil, mud, stone, model, layout]) => {
-      if (released) return;
-      cells = placeFoliage(group, model, layout);
-      terrain.material = horizon.material = texturedGround(
-        weights,
-        rocks,
-        grass,
-        soil,
-        mud,
-        stone,
-      );
-      groundMaterial.dispose();
-      masonry.map = stone;
-      masonry.color.setHex(0xd3c7af);
-      masonry.needsUpdate = true;
-      lastX = Infinity;
-    })
+    .then(
+      ([
+        groundMask,
+        conditionMask,
+        parcelMask,
+        distant,
+        meadowPhoto,
+        soilPhoto,
+        mudPhoto,
+        stonePhoto,
+        library,
+        layout,
+      ]) => {
+        if (signal.aborted) return false;
+        const ground = pastureMaterial({
+          groundMask,
+          conditionMask,
+          parcelMask,
+          meadowPhoto,
+          soilPhoto,
+          mudPhoto,
+          stonePhoto,
+        });
+        const horizon = distantMaterial(distant);
+        materials.push(ground, horizon);
+        const { elevations } = HILL_192_TERRAIN;
+        for (
+          let north = 0;
+          north < elevations.length - 1;
+          north += TERRAIN_TILE
+        ) {
+          for (
+            let west = 0;
+            west < elevations[0].length - 1;
+            west += TERRAIN_TILE
+          ) {
+            const tile = new THREE.Mesh(terrainTile(west, north), ground);
+            tile.receiveShadow = true;
+            group.add(tile);
+          }
+        }
+        cells = putWorldObjects(
+          group,
+          library,
+          layout,
+          ground,
+          horizon,
+          stonePhoto,
+        );
+        addCoverAndGoal(group, stonePhoto);
+        sun = layout.sun;
+        lastX = Infinity;
+        scene.add(group);
+        return true;
+      },
+    )
     .catch((error: unknown) => {
-      if (!signal.aborted)
-        console.warn("192 高地素材無法載入，使用簡易地景。", error);
+      if (!signal.aborted) console.warn("192 高地場景載入失敗。", error);
+      return false;
     })
     .finally(() => manager.itemEnd(key));
-  return { update };
+
+  return {
+    ready,
+    get sun() {
+      return sun;
+    },
+    update(x: number, z: number) {
+      if (Math.hypot(lastX - x, lastZ - z) < 5) return;
+      lastX = x;
+      lastZ = z;
+      for (const cell of cells) {
+        const distance = Math.hypot(cell.x - x, cell.z - z);
+        for (const { object, near, far, shadow } of cell.batches) {
+          object.visible = distance >= near && distance < far;
+          object.castShadow = shadow && distance < 68;
+        }
+      }
+    },
+  };
 }

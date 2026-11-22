@@ -1,3 +1,4 @@
+import pasture from "./levels/hill192-pasture-height.json" with { type: "json" };
 import dem from "./levels/hill192-dem.json" with { type: "json" };
 import type { OccupationLevel } from "./tank-occupation";
 import { terrainHeightAt, type TerrainHeightGrid } from "./tank-terrain";
@@ -117,7 +118,7 @@ const survey: TerrainHeightGrid = {
 // triangles used by simulation. The editable survey remains in metres ASL.
 const spacing = dem.spacing / 2;
 const size = 2 * (dem.size - 1) + 1;
-export const HILL_192_TERRAIN: TerrainHeightGrid = {
+export const HILL_192_SURVEY_TERRAIN: TerrainHeightGrid = {
   minX: survey.minX,
   minZ: survey.minZ,
   spacing,
@@ -135,6 +136,27 @@ export const HILL_192_TERRAIN: TerrainHeightGrid = {
   ),
 };
 
+// Unreal Landscape vertices are exported as north-up little-endian G16.
+// UE uses (sample - 32768) * 16 / 128 centimetres for this Landscape.
+const nativeHeights = Uint8Array.from(atob(pasture.data), (value) =>
+  value.charCodeAt(0),
+);
+const nativeSamples = new DataView(nativeHeights.buffer);
+export const HILL_192_TERRAIN: TerrainHeightGrid = {
+  minX: -HILL_192_LIMIT,
+  minZ: -HILL_192_LIMIT,
+  spacing: (2 * HILL_192_LIMIT) / (pasture.side - 1),
+  elevations: Array.from({ length: pasture.side }, (_, row) =>
+    Array.from(
+      { length: pasture.side },
+      (_, column) =>
+        (nativeSamples.getUint16(2 * (row * pasture.side + column), true) -
+          32768) /
+        800,
+    ),
+  ),
+};
+
 const roughCover = [
   { x: -85, z: 68, width: 18, depth: 3.5, height: 2 },
   { x: -208, z: 10, width: 4, depth: 24, height: 2.5 },
@@ -144,18 +166,21 @@ const roughCover = [
   { x: 98, z: 163, width: 22, depth: 3, height: 2 },
 ];
 
-function coverBase(box: (typeof roughCover)[number]) {
+function coverBase(
+  terrain: TerrainHeightGrid,
+  box: (typeof roughCover)[number],
+) {
   const heights: number[] = [];
   for (const u of [-0.5, -0.25, 0, 0.25, 0.5])
     for (const v of [-0.5, -0.25, 0, 0.25, 0.5])
       heights.push(
-        terrainHeightAt(
-          HILL_192_TERRAIN,
-          box.x + box.width * u,
-          box.z + box.depth * v,
-        ),
+        terrainHeightAt(terrain, box.x + box.width * u, box.z + box.depth * v),
       );
   return Math.min(...heights);
+}
+
+export function hill192Cover(terrain: TerrainHeightGrid) {
+  return roughCover.map((box) => ({ ...box, y: coverBase(terrain, box) }));
 }
 
 export const HILL_192_LEVEL: OccupationLevel = {
@@ -164,10 +189,7 @@ export const HILL_192_LEVEL: OccupationLevel = {
     limit: HILL_192_LIMIT,
     tankRadius: 3.4,
     terrain: HILL_192_TERRAIN,
-    cover: roughCover.map((box) => ({
-      ...box,
-      y: coverBase(box),
-    })),
+    cover: hill192Cover(HILL_192_TERRAIN),
   },
   spawn: { x: -110, z: -75, yaw: Math.PI },
   zone: { x: -110, z: 95, radius: 18 },

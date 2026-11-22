@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { HILL_192_TERRAIN } from "../web/hill192-level.ts";
+import {
+  HILL_192_SURVEY_TERRAIN,
+  HILL_192_TERRAIN,
+} from "../web/hill192-level.ts";
 import { terrainHeightAt } from "../web/tank-terrain.ts";
 
 const folder = new URL("../public/art/hill192/", import.meta.url);
@@ -35,7 +38,9 @@ test("the Hill 192 Blender exports cover every instanced landscape part", () => 
       const [x, y, z, , size] = placements.slice(i, i + guide.stride);
       assert.ok(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z));
       assert.ok(size > 0);
-      assert.ok(Math.abs(y - terrainHeightAt(HILL_192_TERRAIN, x, z)) < 0.23);
+      assert.ok(
+        Math.abs(y - terrainHeightAt(HILL_192_SURVEY_TERRAIN, x, z)) < 0.23,
+      );
       // The designated long approach runs along X = -110. No tree canopy or
       // full hedge placement may cross the shared open corridor.
       if (z > -87 && z < 145 && kind === "oak")
@@ -61,4 +66,44 @@ test("the authored field and flint masks use opaque PNG channels", () => {
   // values being impacted by an alpha channel and premultiplied decoding.
   assert.equal(ground.readUInt8(25), 2);
   assert.equal(flint.readUInt8(25), 0);
+});
+
+test("the Unreal world ships every prototype without an extra texture decoder", () => {
+  const glb = read("pasture-blend/world.glb");
+  assert.equal(glb.toString("utf8", 0, 4), "glTF");
+  const model = JSON.parse(
+    glb.toString("utf8", 20, 20 + glb.readUInt32LE(12)),
+  ) as {
+    extensionsRequired: string[];
+    nodes: { name: string }[];
+  };
+  assert.ok(!model.extensionsRequired.includes("KHR_texture_basisu"));
+  const names = new Set(model.nodes.map((node) => node.name));
+  const layout = JSON.parse(read("pasture-blend/world.json").toString()) as {
+    sourceMap: string;
+    meshes: Record<string, { far?: boolean; instances: number[][] }>;
+  };
+  assert.equal(
+    layout.sourceMap,
+    "/Game/Hill192PastureBlend/Hill192PastureBlend",
+  );
+  for (const [name, part] of Object.entries(layout.meshes)) {
+    assert.ok(names.has(name), name);
+    assert.ok(!part.far || names.has(name + "_far"), name);
+    assert.ok(part.instances.length > 0);
+    assert.ok(
+      part.instances.every(
+        (pose) => pose.length === 12 && pose.every(Number.isFinite),
+      ),
+    );
+  }
+
+  // Loose flint was placed on the native collision surface. The browser's
+  // north-up height field must stay under those same meshes after conversion.
+  const flint = layout.meshes.SM_Flint.instances;
+  assert.ok(flint.length > 1000);
+  for (const pose of flint) {
+    const [x, y, z] = pose.slice(9);
+    assert.ok(Math.abs(terrainHeightAt(HILL_192_TERRAIN, x, z) - y) < 0.015);
+  }
 });

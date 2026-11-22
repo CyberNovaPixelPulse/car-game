@@ -123,9 +123,22 @@ unpacked Sun Position extension in a temporary directory containing the
 exports review stills from the road, ridge and survey cameras. No extensions
 are installed by the build.
 
-The exports under `hill192/` package a compact vegetation prototype library,
+The original Blender exports under `hill192/` package a compact vegetation prototype library,
 world placements, field/lane/rut weights, and flint shoulder weights.
-The game uses the original terrain triangles, textured exact-cover boxes and
+That scene uses the original terrain triangles, textured exact-cover boxes and
 56 m instancing cells. Scattered vegetation and the far horizon landform are
 visual scenery. The main approach stays open between the flanking bocage
 banks. The panorama remains fixed through the round.
+
+
+The game’s Unreal-derived Hill 192 trial uses `hill192/pasture-blend/`.
+Its 600 m terrain includes elevations from IGN RGE ALTI / Géoplateforme
+under Licence Ouverte 2.0. The ground scans use the CC0 Poly Haven
+assets listed above, with Meadow Detail derived from Leafy Grass. Hazel,
+rowan, beech, silver birch, aspen, sedge, ivy and wild grass use the Tevy
+CC0 1.0 models. Weathered gate geometry and texture inputs are derived
+from Grab3D Farm Gate under CC0 1.0. [Tevy model catalog](https://tevy.dev/models) · [Grab3D Farm Gate](https://grab3d.com/models/props/farm-gate/)
+
+“Oak Tree” by vinish.dev is used for the leaning wet-bank oak under
+CC BY 4.0. The Hill 192 adaptation adjusts the crown, trunk, scale and root
+placement and includes simplified levels of detail. [Original model](https://vinish.dev/free-3d-models/trees#oak-tree) · [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · [Unreal export and local play](../../docs/hill192-unreal.md)

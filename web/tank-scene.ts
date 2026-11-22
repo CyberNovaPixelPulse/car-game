@@ -292,6 +292,8 @@ export class TankScene {
   async prepare(state: TankState) {
     this.prepareField(state);
     await this.assets.wait();
+    if (this.hill192Art && !(await this.hill192Art.ready))
+      throw new Error("無法載入 192 高地場景，請重試準備。");
     const driverArmourReady = await this.driverArmour;
     const driverControlsReady = await this.driverControlsReady;
     const gunnerControlsReady = await this.gunnerControlsReady;
@@ -420,7 +422,7 @@ export class TankScene {
       view.z - Math.cos(view.yaw) * Math.cos(view.pitch) * 40,
     );
     if (this.hill192) {
-      const [east, up, south] = HILL_192_LIGHT.sun;
+      const [east, up, south] = this.hill192Art?.sun ?? HILL_192_LIGHT.sun;
       this.sun.position.set(
         t.x + east * 68,
         height + up * 68,
