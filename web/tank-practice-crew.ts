@@ -1,13 +1,16 @@
 import { CREW_ROLES, type CrewRole } from "./crew";
-import { TankCore, BATTLEFIELD, AIM, DRIVE } from "./tank-core";
+import { TankCore, AIM, DRIVE } from "./tank-core";
 import {
+  JAM_RULES,
   BALLISTICS,
   DRIVING,
   REPAIR_RULES,
   PRACTICE_RULES,
 } from "./tank-settings";
 import { nextCoverWaypoint } from "./tank-enemies";
+import { terrainHeightAt } from "./tank-terrain";
 import { createTeamIntel, stepTeamIntel } from "./tank-intel";
+import { cannonPivot, cannonWorldPose } from "./tank-world-pose";
 import {
   CROUCH,
   LOAD,
@@ -26,12 +29,14 @@ export type PracticeCommand =
   | { type: "select-shell"; shell: ShellType }
   | { type: "start-round" };
 
+const gunnerAwaitingOrder = "待命・等候交戰指令";
+
 /** Local crew sends the same role-checked controls as a human. No state injection. */
 export class PracticeCrew {
   private shell: ShellType = "ap";
   private loaderStatus = "等待工作";
   private gunnerStatus = "等待交戰";
-  private firing = true;
+  private firing: boolean;
   private driverStopped = false;
   private driverStatus = "等待交戰";
   private escapeGoal?: { x: number; z: number };
@@ -40,7 +45,11 @@ export class PracticeCrew {
   constructor(
     private core: TankCore,
     private role: CrewRole,
-  ) {}
+    private readonly occupation = false,
+  ) {
+    this.firing = !occupation;
+    if (occupation) this.gunnerStatus = gunnerAwaitingOrder;
+  }
   get status() {
     return {
       round: this.core.practiceRound,
@@ -59,6 +68,10 @@ export class PracticeCrew {
         break;
       case "toggle-fire":
         this.firing = !this.firing;
+        if (this.occupation && !this.firing) {
+          this.fireAt = undefined;
+          this.gunnerStatus = gunnerAwaitingOrder;
+        }
         break;
       case "select-shell":
         this.shell = command.shell;
@@ -69,6 +82,19 @@ export class PracticeCrew {
     }
   }
   switchRole(role: CrewRole) {
+    const { speed, turnRate } = this.core.view().tank;
+    if (
+      this.occupation &&
+      this.role === "driver" &&
+      role !== "driver" &&
+      Math.abs(speed) <= REPAIR_RULES.stoppedSpeed &&
+      Math.abs(turnRate) <= REPAIR_RULES.stoppedTurnRate
+    ) {
+      this.driverStopped = true;
+      this.driverStatus = "依指令停車";
+    }
+    if (this.occupation && role !== this.role)
+      this.gunnerStatus = this.firing ? "等待交戰" : gunnerAwaitingOrder;
     this.role = role;
     this.escapeGoal = undefined;
     this.fireAt = undefined;
@@ -129,11 +155,11 @@ export class PracticeCrew {
       return stop("交戰停車");
     if (!target && distance < PRACTICE_RULES.searchArrival)
       this.searchPoint = (this.searchPoint + 1) % 4;
-    const size = BATTLEFIELD.tankRadius * Math.SQRT2;
+    const size = this.core.battlefield.tankRadius * Math.SQRT2;
     let [x, z] = nextCoverWaypoint(
       { ...tank, width: size, depth: size },
       goal,
-      BATTLEFIELD.cover,
+      this.core.battlefield.cover,
     );
     // A human can park legally inside the navigator's extra safety margin.
     // Retain an outward goal until clear, rather than steering toward a zero vector.
@@ -141,8 +167,8 @@ export class PracticeCrew {
       !this.escapeGoal &&
       (Math.hypot(x - tank.x, z - tank.z) < 0.1 || tank.blocked)
     ) {
-      const margin = BATTLEFIELD.tankRadius + 0.2;
-      const cover = BATTLEFIELD.cover.find(
+      const margin = this.core.battlefield.tankRadius + 0.2;
+      const cover = this.core.battlefield.cover.find(
         (c) =>
           Math.abs(tank.x - c.x) < c.width / 2 + margin &&
           Math.abs(tank.z - c.z) < c.depth / 2 + margin,
@@ -203,19 +229,22 @@ export class PracticeCrew {
     const state = this.core.view();
     // The AI has its own 16:9 optical view, independent of the player's canvas.
     this.core.input(slot, 0, PRACTICE_RULES.observerAspect);
+    const waitingForOrder = this.occupation && !this.firing;
     if (
+      waitingForOrder ||
       state.battle.failed ||
       !state.weapon.targets.some((target) => target.hp > 0)
     ) {
       this.fireAt = undefined;
-      this.gunnerStatus = "等待交戰";
+      this.gunnerStatus = waitingForOrder ? gunnerAwaitingOrder : "等待交戰";
       return;
     }
     const observation = { ...state, intel: createTeamIntel() };
     stepTeamIntel(
       observation,
       [{ role: "gunner", aspect: PRACTICE_RULES.observerAspect }],
-      BATTLEFIELD.cover,
+      this.core.battlefield.cover,
+      this.core.battlefield.terrain,
     );
     const target = observation.intel.contacts.find(
       (contact) => contact.visible && contact.hp > 0,
@@ -226,20 +255,25 @@ export class PracticeCrew {
       this.core.input(slot, AIM.right, PRACTICE_RULES.observerAspect);
       return;
     }
-    const dx = target.x - state.tank.x,
-      dz = target.z - state.tank.z;
+    const pivot = cannonPivot(state.tank);
+    const gun = cannonWorldPose(state.tank, state.turret);
+    const dx = target.x - pivot.x,
+      dz = target.z - pivot.z;
     const range = Math.hypot(dx, dz);
     const yawError = Math.atan2(
-      Math.sin(Math.atan2(dx, -dz) - state.tank.yaw - state.turret.yaw),
-      Math.cos(Math.atan2(dx, -dz) - state.tank.yaw - state.turret.yaw),
+      Math.sin(Math.atan2(dx, -dz) - gun.yaw),
+      Math.cos(Math.atan2(dx, -dz) - gun.yaw),
     );
     const shell = state.weapon.chamberShell ?? state.weapon.selectedShell;
     const flight = Math.max(0, range - 4.8) / BALLISTICS.speed[shell];
     const pitch = Math.atan2(
-      1.8 - 2.48 + (BALLISTICS.gravity * flight * flight) / 2,
+      terrainHeightAt(this.core.battlefield.terrain, target.x, target.z) +
+        1.8 -
+        pivot.y +
+        (BALLISTICS.gravity * flight * flight) / 2,
       range,
     );
-    const pitchError = pitch - state.turret.pitch;
+    const pitchError = pitch - gun.pitch;
     const axis = (
       error: number,
       rate: number,
@@ -343,6 +377,12 @@ export class PracticeCrew {
     }
     if (w.jam.active) {
       this.loaderStatus = "排除卡彈";
+      if (
+        w.jam.result === "trying" &&
+        Math.abs(w.jam.needle - w.jam.zone - JAM_RULES.width / 2) <
+          PRACTICE_RULES.jamTolerance
+      )
+        this.core.action(slot, STOP_JAM);
       return;
     }
     if (w.chamber === "loaded") {

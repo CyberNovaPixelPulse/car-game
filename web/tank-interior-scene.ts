@@ -1,9 +1,26 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { interiorFraming, INTERIOR_VIEW } from "./tank-battle-view";
+import { STILL_HEAD } from "./tank-camera-motion";
+import { cabinFlashIntensity, cannonShotAge } from "./tank-cannon-blast";
+import { applyHeadOffset, headStamp } from "./tank-head-camera";
 import { disposeArt } from "./tank-art-materials";
 import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import type { TankState } from "./tank-core";
 import { LoaderHands } from "./tank-loader-hands";
+import { LoaderRepair } from "./tank-loader-repair";
+import { LoaderRounds } from "./tank-loader-rounds";
+import { TankCrewRig } from "./tank-crew-rig";
+import { TankLoaderUniform } from "./tank-loader-uniform";
+import { loaderCanWork } from "./tank-weapons";
 import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
+
+const WORK_FORWARD = new THREE.Vector3(
+  INTERIOR_VIEW.targetX - INTERIOR_VIEW.eyeX,
+  0,
+  INTERIOR_VIEW.targetZ - INTERIOR_VIEW.eyeZ,
+).normalize();
+const CABIN_UP = new THREE.Vector3(0, 1, 0);
 
 /** Enclosed loader workspace. Deliberately owns no battlefield geometry or rules. */
 export class TankInteriorScene {
@@ -12,20 +29,24 @@ export class TankInteriorScene {
   private disposed = false;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(58, 1, 0.05, 16);
+  private sightLine = new THREE.Vector3();
+  private framing = interiorFraming(16 / 9);
   private observer?: ResizeObserver;
-  private recoil = new THREE.Group();
-  private block = new THREE.Group();
-  private round = new THREE.Group();
-  private case = new THREE.Group();
+  private breech?: { recoil: THREE.Object3D; slide: THREE.Object3D };
   private hands = new LoaderHands();
-  /** The ready-rack round the loader takes; it leaves the rack while he carries it. */
-  private rackRound?: THREE.Object3D;
+  private uniform?: TankLoaderUniform;
+  private uniformReady?: Promise<boolean>;
+  private rounds!: LoaderRounds;
+  private repair?: LoaderRepair;
+  private case = new THREE.Group();
+  private readonly reflectedFlash = new THREE.PointLight(0xffce96, 0, 4);
   private textures: THREE.Texture[] = [];
   private materials: THREE.Material[] = [];
   private dirty = true;
   private visualStamp = "";
   private width = 0;
   private height = 0;
+  private modelStamp = "";
   private reducedMotion = matchMedia("(prefers-reduced-motion: reduce)")
     .matches;
   constructor(
@@ -42,13 +63,13 @@ export class TankInteriorScene {
   }
   private build() {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
     this.scene.background = new THREE.Color(0x171e1c);
-    this.scene.add(new THREE.HemisphereLight(0xe4e5cf, 0x252c25, 1.3));
-    const lamp = new THREE.SpotLight(0xffe4ad, 36, 9, Math.PI / 3, 0.55, 2);
+    this.scene.add(new THREE.HemisphereLight(0xe1e4d9, 0x66675c, 1.15));
+    const lamp = new THREE.SpotLight(0xffe6c6, 22, 9, Math.PI / 3, 0.68, 2);
     lamp.target.position.set(0, 1.2, -0.6);
     this.scene.add(lamp.target);
     lamp.castShadow = true;
@@ -56,9 +77,11 @@ export class TankInteriorScene {
     lamp.shadow.bias = -0.001;
     lamp.position.set(1.2, 2.5, 1.4);
     this.scene.add(lamp);
-    const fill = new THREE.PointLight(0xc6d5d0, 14, 7, 2);
+    const fill = new THREE.PointLight(0xc6d5d0, 7.5, 7, 2);
     fill.position.set(-1.4, 1.9, 0.8);
     this.scene.add(fill);
+    this.reflectedFlash.position.set(-0.28, 1.93, 0.35);
+    this.scene.add(this.reflectedFlash);
     const mat = (color: number, metalness = 0.15, roughness = 0.65) => {
       const material = new THREE.MeshStandardMaterial({
         color,
@@ -165,34 +188,31 @@ export class TankInteriorScene {
     }
     for (let i = 0; i < 14; i++)
       box(4.3, 0.009, 0.024, steel, 0, 0.015, -2 + i * 0.32);
-    // Recoil cradle and polished guides surround the 75mm gun's rear mechanism.
-    this.scene.add(this.recoil);
-    for (const x of [-0.55, 0.55]) {
-      const guide = cylinder(0.07, 2.1, steel, x, 1.36, -1.15, this.recoil);
-      guide.rotation.x = Math.PI / 2;
-      box(0.25, 0.47, 0.36, darkPaint, x, 1.29, -0.58, this.recoil);
-      box(0.2, 0.15, 1.8, darkPaint, x, 1.1, -1.2);
-    }
-    const gun = cylinder(0.33, 1.3, steel, 0, 1.48, -1.55, this.recoil);
-    gun.rotation.x = Math.PI / 2;
-    // An open mouth with substantial machined frame rather than a solid box.
-    for (const x of [-0.34, 0.34])
-      box(0.18, 0.8, 0.57, steel, x, 1.45, -0.62, this.recoil);
-    for (const y of [1.08, 1.82])
-      box(0.84, 0.14, 0.57, steel, 0, y, -0.62, this.recoil);
-    cylinder(0.21, 0.02, dark, 0, 1.47, -0.92, this.recoil).rotation.x =
-      Math.PI / 2;
-    this.recoil.add(this.block);
-    this.block.position.set(0, 0, -0.55);
-    box(0.49, 0.52, 0.24, steel, 0, 1.42, 0, this.block);
-    box(0.24, 0.12, 0.08, darkPaint, 0, 1.42, 0.16, this.block);
-    const lever = cylinder(0.026, 0.58, steel, 0.51, 1.55, -0.46, this.recoil);
-    lever.rotation.z = -0.5;
-    cylinder(0.055, 0.15, rubber, 0.65, 1.79, -0.46, this.recoil);
-    for (const x of [-0.34, 0.34])
-      for (const y of [1.13, 1.77])
-        cylinder(0.036, 0.035, dark, x, y, -0.31, this.recoil).rotation.x =
-          Math.PI / 2;
+    new GLTFLoader(this.assets.manager).load(
+      "/assets/closeups/loader-fittings.glb",
+      ({ scene }) => {
+        const recoil = scene.getObjectByName("BreechRecoil");
+        const slide = scene.getObjectByName("BreechSlide");
+        if (this.disposed || !recoil || !slide) {
+          disposeArt(scene);
+          return;
+        }
+        scene.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          object.castShadow = object.receiveShadow = true;
+          const material = object.material;
+          if (!(material instanceof THREE.MeshStandardMaterial)) return;
+          if (material.name === "Cast" || material.name === "Paint") {
+            material.normalMap = normal;
+            material.normalScale.set(0.18, 0.18);
+            material.roughnessMap = roughness;
+          }
+        });
+        this.breech = { recoil, slide };
+        this.scene.add(scene);
+        this.invalidate();
+      },
+    );
     // Elevation handwheel, its hub and spokes; fixed to the cradle.
     const wheel = mesh(
       new THREE.TorusGeometry(0.25, 0.026, 8, 32),
@@ -238,28 +258,51 @@ export class TankInteriorScene {
         band.rotation.x = Math.PI / 2;
       }
     };
-    this.scene.add(this.round, this.case, this.hands.group);
-    makeShell(this.round);
+    this.scene.add(this.case, this.hands.group);
+    this.uniformReady = TankCrewRig.load(this.assets.manager)
+      .then((rig) => {
+        if (this.disposed) {
+          disposeArt(rig.root);
+          return false;
+        }
+        try {
+          this.uniform = new TankLoaderUniform(rig);
+        } catch (error) {
+          disposeArt(rig.root);
+          throw error;
+        }
+        this.scene.add(rig.root);
+        this.invalidate();
+        return true;
+      })
+      .catch(() => false);
+    new GLTFLoader(this.assets.manager).load(
+      "/assets/closeups/loader-gloves.glb",
+      ({ scene }) => {
+        if (this.disposed || !this.hands.dress(scene)) {
+          disposeArt(scene);
+          return;
+        }
+        this.invalidate();
+      },
+    );
     makeShell(this.case, true);
-    // Ready rack and strapped, nose-up ammunition against the right wall.
-    box(0.82, 0.17, 1.65, darkPaint, 1.72, 0.5, -0.35);
-    for (let row = 0; row < 2; row++)
-      for (let i = 0; i < 4; i++) {
-        const round = new THREE.Group();
-        this.scene.add(round);
-        makeShell(round, false, row ? 0x4a5050 : 0x606746);
-        if (row === 0 && i === 3) this.rackRound = round;
-        round.position.set(1.48 + row * 0.32, 0.88, -0.95 + i * 0.4);
-        round.rotation.x = Math.PI / 2;
-        mesh(
-          new THREE.TorusGeometry(0.12, 0.018, 8, 20),
-          darkPaint,
-          round.position.x,
-          0.62,
-          round.position.z,
-        ).rotation.x = Math.PI / 2;
-      }
-    for (const z of [-1.15, 0.55]) box(0.85, 0.035, 0.06, steel, 1.72, 1.13, z);
+    this.rounds = new LoaderRounds(this.scene, (paint) => {
+      const round = new THREE.Group();
+      makeShell(round, false, paint);
+      return round;
+    });
+    new GLTFLoader(this.assets.manager).load(
+      "/assets/closeups/repair-panel.glb",
+      ({ scene }) => {
+        if (this.disposed) {
+          disposeArt(scene);
+          return;
+        }
+        this.repair = LoaderRepair.bind(scene, this.scene, this.hands);
+        this.invalidate();
+      },
+    );
     // Conduits and junction boxes follow the wall, avoiding the ejection path.
     const pipe = new THREE.CatmullRomCurve3([
       new THREE.Vector3(-2.1, 0.3, 0.1),
@@ -334,11 +377,17 @@ export class TankInteriorScene {
       scenePixelRatio(w, h, this.quality),
     );
     this.camera.aspect = w / h;
+    this.framing = interiorFraming(this.camera.aspect);
+    this.camera.zoom = this.framing.zoom;
+    this.hands.frameTorso(this.framing.zoom);
     this.camera.updateProjectionMatrix();
   }
   async prepare(state: TankState) {
     await this.assets.wait();
+    const uniformReady = await this.uniformReady;
     if (this.disposed) throw new Error("視野準備已取消。");
+    if (!this.breech || !this.repair || !this.hands.ready || !uniformReady)
+      throw new Error("無法載入車內模型，請重試準備。");
     this.render(state);
     await this.renderer.compileAsync(this.scene, this.camera);
     if (this.disposed) throw new Error("視野準備已取消。");
@@ -346,7 +395,7 @@ export class TankInteriorScene {
     this.render(state);
     await finishPreparation(this.renderer, () => this.disposed);
   }
-  render(state: TankState) {
+  render(state: TankState, offset = STILL_HEAD, stunGain = 1, lookYaw = 0) {
     const w = state.weapon;
     // An enclosed, motionless workplace does not need to redraw the world at
     // every host/UI tick. All authority clocks still advance outside this view.
@@ -356,38 +405,65 @@ export class TankInteriorScene {
       state.time < w.ejectAt + 0.25;
     const motion = w.chamber === "ejecting" || tail;
     const stunned = state.time < w.stunnedUntil;
-    const stamp = [
+    const loading = w.mode === "loading" && loaderCanWork(w, state.time);
+    const jamTravel = this.rounds.jamTravel(w, state.time, loading);
+    const resultAge = this.repair?.resultAge(state) ?? Infinity;
+    const calibration = state.repair.calibration;
+    const modelStamp = [
+      jamTravel,
       w.chamber,
+      w.chamberShell,
+      w.mode,
       Math.floor(w.loadProgress * 90),
       w.crouching,
       stunned,
-      motion || w.jam.active ? Math.floor(state.time * 30) : "still",
+      w.mode === "repair" && state.repair.status,
+      w.mode === "repair" && calibration.result,
+      w.mode === "repair" &&
+        calibration.result === "active" &&
+        Math.floor(calibration.elapsed * 30),
+      Math.floor(resultAge * 30),
+      w.mode === "repair" && Math.floor(state.repair.activeSeconds * 30),
+      motion ? Math.floor(state.time * 30) : "still",
+    ].join(":");
+    const reflection = cabinFlashIntensity(cannonShotAge(state));
+    const stamp = [
+      modelStamp,
+      stunGain,
+      lookYaw,
+      headStamp(offset),
+      reflection,
     ].join(":");
     if (!this.dirty && stamp === this.visualStamp) return;
     this.dirty = false;
     this.visualStamp = stamp;
+    this.reflectedFlash.intensity = reflection;
     const eject =
       w.chamber === "ejecting"
         ? THREE.MathUtils.clamp(1 - (w.ejectAt - state.time) / 0.8, 0, 1)
         : 1;
     const recovery = state.time - w.ejectAt;
-    this.recoil.position.z = w.chamber === "ejecting" ? 0.22 * (1 - eject) : 0;
-    this.block.position.y = w.chamber === "loaded" ? 0 : -0.5;
-    const tilt = stunned && !this.reducedMotion ? 0.025 : 0;
-    this.camera.position.set(1.35, w.crouching ? 0.74 : 1.9, 1.55);
-    this.camera.lookAt(-0.05, w.crouching ? 1.12 : 1.35, -0.7);
-    this.camera.rotation.z = tilt;
-    this.round.visible = w.chamber === "loading";
-    if (this.round.visible)
-      this.hands.pose(
-        this.camera,
-        this.round,
-        w.loadProgress,
-        w.jam.active && !this.reducedMotion ? state.time : 0,
-        w.crouching,
-      );
-    else this.hands.hide();
-    if (this.rackRound) this.rackRound.visible = !this.round.visible;
+    if (this.breech) {
+      this.breech.recoil.position.z =
+        w.chamber === "ejecting" ? 0.22 * (1 - eject) : 0;
+      this.breech.slide.position.y = w.chamber === "loaded" ? 0 : -0.53;
+    }
+    this.rounds.present(w, this.hands, loading, jamTravel, this.reducedMotion);
+    this.repair?.present(state, resultAge);
+    if (this.uniform) {
+      if (!this.rounds.activePose) this.rounds.body.restAtLoadingStation();
+      const atBench = w.mode === "repair" && this.repair && !w.crouching;
+      const body = atBench ? this.repair!.body : this.rounds.body;
+      const shift =
+        atBench && this.hands.group.visible
+          ? THREE.MathUtils.clamp(
+              (body.right.wrist.y - body.left.wrist.y) * 0.14,
+              -0.04,
+              0.04,
+            )
+          : 0;
+      this.uniform.pose(body.origin, body.rotation, 0, w.crouching, shift);
+    }
     this.case.visible =
       w.chamber === "ejecting" ||
       (w.shotsFired > 0 && recovery >= 0 && recovery < 0.25);
@@ -399,7 +475,64 @@ export class TankInteriorScene {
       -0.45 + flight * 2.0,
     );
     this.case.rotation.z = flight * 0.7;
-    this.renderer.shadowMap.needsUpdate = true;
+    const tilt = stunned && !this.reducedMotion ? 0.025 * stunGain : 0;
+    this.camera.position.set(
+      INTERIOR_VIEW.eyeX,
+      w.crouching ? 0.74 : 1.9,
+      INTERIOR_VIEW.eyeZ,
+    );
+    this.camera.lookAt(
+      INTERIOR_VIEW.targetX,
+      w.crouching ? 1.12 : INTERIOR_VIEW.standingTargetY,
+      INTERIOR_VIEW.targetZ,
+    );
+    const camera = this.camera;
+    let lens = 58;
+    let stationYaw =
+      w.mode === "repair" ? this.framing.repairYaw : this.framing.loadingYaw;
+    if (this.rounds.activePose && !this.reducedMotion) {
+      // The head follows the shared torso. Keep the turret-relative horizontal
+      // bearing so the player's look keys and directional alerts stay aligned.
+      camera.position.copy(this.rounds.body.eye);
+      const sight = this.sightLine.subVectors(
+        this.rounds.focus,
+        camera.position,
+      );
+      const working =
+        THREE.MathUtils.smoothstep(w.loadProgress, 0, 0.17) *
+        (1 - THREE.MathUtils.smoothstep(w.loadProgress, 0.88, 1));
+      const targetPitch = THREE.MathUtils.clamp(
+        Math.atan2(sight.y, Math.max(0.25, sight.dot(WORK_FORWARD))),
+        -1.0,
+        -0.08,
+      );
+      const pitch = THREE.MathUtils.lerp(-0.272, targetPitch, working);
+      sight.copy(WORK_FORWARD);
+      sight.y = Math.tan(pitch);
+      camera.lookAt(sight.add(camera.position));
+      lens += 20 * working;
+      camera.rotation.z *= working;
+    } else if (w.mode === "repair" && this.repair && !w.crouching) {
+      camera.position.copy(this.repair.body.eye);
+      this.sightLine.copy(WORK_FORWARD);
+      this.sightLine.y = -0.62;
+      camera.lookAt(this.sightLine.add(camera.position));
+      if (tilt) camera.rotateZ(tilt);
+      // Leave space to the right of the dial for the wrist and ratchet arc.
+      stationYaw = -0.23 * this.framing.zoom;
+      lens = 79;
+    } else {
+      camera.rotation.z = tilt;
+    }
+    if (camera.fov !== lens) {
+      camera.fov = lens;
+      camera.updateProjectionMatrix();
+    }
+
+    this.camera.rotateOnWorldAxis(CABIN_UP, stationYaw + lookYaw);
+    applyHeadOffset(this.camera, offset);
+    this.renderer.shadowMap.needsUpdate = this.modelStamp !== modelStamp;
+    this.modelStamp = modelStamp;
     this.renderer.render(this.scene, this.camera);
   }
   dispose() {
@@ -407,7 +540,6 @@ export class TankInteriorScene {
     this.disposed = true;
     this.assets.cancel();
     this.observer?.disconnect();
-    this.hands.dispose();
     disposeArt(this.scene, {
       materials: this.materials,
       textures: this.textures,

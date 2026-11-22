@@ -1,6 +1,9 @@
+import { CrewCameraMotion } from "./tank-camera-motion";
+import type { CameraPreferences } from "./tank-motion-preferences";
 import type { CrewRole } from "./crew";
 import { validViewAspect } from "./tank-battle-view";
 import type { TankState } from "./tank-core";
+import { InteriorLook } from "./tank-interior-look";
 import { TankInteriorScene } from "./tank-interior-scene";
 import { TankScene } from "./tank-scene";
 import type { SceneQuality } from "./tank-scene-quality";
@@ -17,11 +20,13 @@ interface ViewCanvas<Scene> {
 
 interface RoleViews {
   context: RoleViewContext;
+  motion: CrewCameraMotion;
   phase: "preparing" | "ready" | "mounted";
   exterior?: ViewCanvas<TankScene>;
   interior?: ViewCanvas<TankInteriorScene>;
   loader?: {
     mgViewport: HTMLElement;
+    look: InteriorLook;
   };
   onRestoreError?: (error: unknown) => void;
 }
@@ -118,15 +123,35 @@ export class TankRoleViews {
     }
   }
 
-  render(state: TankState) {
+  lookKey(code: string, down: boolean, repeat = false) {
+    return this.current?.loader?.look.key(code, down, repeat) ?? false;
+  }
+
+  releaseLook() {
+    this.current?.loader?.look.release();
+  }
+
+  render(
+    state: TankState,
+    paused: boolean,
+    preferences: CameraPreferences,
+    held = 0,
+  ) {
     const views = this.current;
     if (views?.phase !== "mounted") return;
+    const station =
+      views.context.role === "loader" ? state.weapon.mode : views.context.role;
+    const offset = views.motion.sample(state, station, paused, preferences);
     const loader = views.loader;
     if (!loader) {
-      views.exterior!.scene.render(state);
+      views.exterior!.scene.render(state, offset, paused ? 0 : held);
       return;
     }
 
+    const lookYaw = loader.look.sample(
+      state.weapon.mode,
+      paused || state.battle.failed || state.battle.won,
+    );
     const machineGun = state.weapon.mode === "machine-gun";
     if (machineGun) {
       if (!views.exterior && views.onRestoreError) {
@@ -142,10 +167,20 @@ export class TankRoleViews {
         loader.mgViewport.prepend(views.exterior.canvas);
         views.interior!.scene.invalidate();
       }
-      views.exterior?.scene.render(state);
+      views.exterior?.scene.render(state, offset);
     } else {
-      views.exterior?.canvas.remove();
-      views.interior!.scene.render(state);
+      if (views.exterior?.canvas.isConnected) {
+        views.exterior.scene.leaveMachineGun();
+        views.exterior.canvas.remove();
+      }
+      views.interior!.scene.render(
+        state,
+        offset,
+        preferences.enabled && !state.battle.failed && !state.battle.won
+          ? preferences.overall * preferences.impact
+          : 0,
+        lookYaw,
+      );
     }
   }
 
@@ -166,7 +201,11 @@ export class TankRoleViews {
 
   private begin(context: RoleViewContext) {
     this.clear();
-    const views: RoleViews = { context, phase: "preparing" };
+    const views: RoleViews = {
+      context,
+      phase: "preparing",
+      motion: new CrewCameraMotion(),
+    };
     this.current = views;
     return views;
   }
@@ -205,7 +244,7 @@ export class TankRoleViews {
       const mgWorkspace = station.querySelector<HTMLElement>(".mg-workspace")!;
       const mgViewport =
         mgWorkspace.querySelector<HTMLElement>(".battle-viewport")!;
-      views.loader = { mgViewport };
+      views.loader = { mgViewport, look: new InteriorLook() };
       interiorViewport.prepend(views.interior!.canvas);
     } else {
       station

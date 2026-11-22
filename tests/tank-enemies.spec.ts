@@ -31,6 +31,23 @@ test("敵車接近並預告開火，敵彈扣除三人共用血量直至一致�
       );
       await expect(page.getByTestId("tank-health")).toHaveText("0/100");
     }
+    // The terminal camera has finished settling on the same view as motion
+    // off. Compare exposed battlefield pixels, away from the outcome and HUD.
+    await c.gunner.waitForTimeout(850);
+    const viewport = (await c.gunner
+      .getByRole("img", { name: "主炮戰場視野" })
+      .boundingBox())!;
+    const clip = {
+      x: viewport.x + viewport.width * 0.255,
+      y: viewport.y + viewport.height * 0.34,
+      width: viewport.width * 0.08,
+      height: viewport.height * 0.3,
+    };
+    const settled = await c.gunner.screenshot({ clip });
+    await c.gunner
+      .getByRole("button", { name: "鏡頭震動", exact: true })
+      .click();
+    expect(await c.gunner.screenshot({ clip })).toEqual(settled);
     await c.driver.screenshot({
       path: `${process.env.TANK_EVIDENCE_DIR || "/tmp/car-game-spec30/evidence/37/legacy/visual27-final/regression/visual21"}/legacy-defeat-driver.png`,
       fullPage: true,

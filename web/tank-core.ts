@@ -16,6 +16,7 @@ import {
   createEnemyBattle,
   createWaveTargets,
   stepEnemies,
+  validEnemyShellEvents,
   type EnemyBattle,
 } from "./tank-enemies";
 import {
@@ -44,6 +45,11 @@ import {
   validWeapon,
   type WeaponState,
 } from "./tank-weapons";
+import {
+  collisionHeading,
+  validHullImpact,
+  type HullImpact,
+} from "./tank-collision";
 import { validViewAspect } from "./tank-battle-view";
 import {
   createTeamIntel,
@@ -51,6 +57,16 @@ import {
   validTeamIntel,
   type TeamIntel,
 } from "./tank-intel";
+import {
+  FIRST_OCCUPATION_ENEMY_ID,
+  stepOccupation,
+  type OccupationLevel,
+  type OccupationState,
+  type TankBattlefield,
+} from "./tank-occupation";
+import { terrainHeightAt } from "./tank-terrain";
+import { restingHullPitch, stepHullPitch } from "./tank-suspension";
+import { cannonWorldPose } from "./tank-world-pose";
 
 export const DRIVE = { forward: 1, reverse: 2, left: 4, right: 8 } as const;
 /** Role-scoped held bits; cannon fire remains a separate discrete action. */
@@ -66,26 +82,33 @@ export const BATTLEFIELD = {
     { x: 14, z: 16, width: 8, depth: 2, height: 2.5 },
   ],
 } as const;
+
+export { HILL_192_LEVEL } from "./hill192-level";
+
 export interface TankState {
-  version: 5;
+  version: 6;
   intel: TeamIntel;
   repair: RepairState;
   time: number;
   weapon: WeaponState;
   battle: EnemyBattle;
+  occupation?: OccupationState;
   turret: { yaw: number; pitch: number; yawRate: number; pitchRate: number };
   tank: {
     hp: number;
     x: number;
+    y?: number;
     z: number;
     yaw: number;
+    pitch?: number;
     speed: number;
     turnRate: number;
     blocked: boolean;
+    impact: HullImpact | null;
   };
 }
 const initial = (seed = 1): TankState => ({
-  version: 5,
+  version: 6,
   intel: createTeamIntel(),
   repair: createRepairState(seed),
   time: 0,
@@ -100,6 +123,7 @@ const initial = (seed = 1): TankState => ({
     speed: 0,
     turnRate: 0,
     blocked: false,
+    impact: null,
   },
 });
 const approach = (value: number, target: number, amount: number) =>
@@ -110,12 +134,18 @@ const approach = (value: number, target: number, amount: number) =>
 /** Host-owned tank rules. Presentation reads the same snapshots on each crew client. */
 export class TankCore implements GameCore<TankState> {
   private state = initial();
+  private contact?: { cover: number; heading: number; x: number; z: number };
   private controls = new Map<number, number>();
   private aspects = new Map<number, number>();
   private participants: number[] = [];
   private paused = false;
   private practice = false;
+  private occupationLevel?: OccupationLevel;
   private round = 0;
+  get battlefield(): TankBattlefield {
+    return this.occupationLevel?.battlefield ?? BATTLEFIELD;
+  }
+
   get practiceRound() {
     return this.round;
   }
@@ -123,9 +153,52 @@ export class TankCore implements GameCore<TankState> {
   constructor(private roleOf: (participant: number) => CrewRole | undefined) {}
   start(options: GameStart) {
     this.state = initial(options.seed);
+    this.contact = undefined;
     this.practice = !!options.practice;
+    this.occupationLevel = this.practice ? options.occupation : undefined;
     this.round = 0;
-    if (this.practice) this.state.weapon.targets = [];
+    const level = this.occupationLevel;
+    if (level) {
+      const { x, z, yaw } = level.spawn;
+      Object.assign(this.state.tank, { x, z, yaw });
+      if (level.battlefield.terrain) {
+        const { terrain } = level.battlefield;
+        const { tank, turret } = this.state;
+        tank.y = terrainHeightAt(terrain, x, z);
+        tank.pitch = restingHullPitch(terrain, tank);
+        // Begin level with the horizon, then let the live hull take the gun
+        // with it. The range demonstration uses the original starting sight.
+        turret.pitch = Math.max(
+          AIMING.minPitch,
+          Math.min(AIMING.maxPitch, -tank.pitch),
+        );
+      }
+      this.state.occupation = {
+        levelId: level.id,
+        progress: 0,
+        phase: "approach",
+      };
+      this.state.weapon.targets = level.enemies.map((enemy, index) => {
+        const target = createEnemyTarget(
+          enemy.kind,
+          FIRST_OCCUPATION_ENEMY_ID + index,
+          enemy.x,
+          enemy.z,
+          enemy.readyAfter ?? ENEMY_RULES.spawnGrace,
+        );
+        if (enemy.yaw !== undefined) target.yaw = target.turretYaw = enemy.yaw;
+        if (enemy.deployment)
+          target.phase =
+            enemy.deployment.mode === "guard" ? "guarding" : "patrolling";
+        if (level.battlefield.terrain)
+          target.y = terrainHeightAt(
+            level.battlefield.terrain,
+            enemy.x,
+            enemy.z,
+          );
+        return target;
+      });
+    } else if (this.practice) this.state.weapon.targets = [];
     this.controls.clear();
     this.aspects.clear();
     this.participants = options.participants;
@@ -134,6 +207,7 @@ export class TankCore implements GameCore<TankState> {
   startPracticeRound() {
     if (
       !this.practice ||
+      this.occupationLevel ||
       this.paused ||
       this.state.battle.failed ||
       this.state.weapon.targets.some((target) => target.hp > 0)
@@ -232,11 +306,7 @@ export class TankCore implements GameCore<TankState> {
     if (action === FIRE) {
       fireWeapon(
         this.state.weapon,
-        {
-          ...this.state.tank,
-          yaw: this.state.tank.yaw + this.state.turret.yaw,
-          pitch: this.state.turret.pitch,
-        },
+        cannonWorldPose(this.state.tank, this.state.turret),
         this.state.time,
       );
       return;
@@ -258,6 +328,7 @@ export class TankCore implements GameCore<TankState> {
   }
   private advance(dt: number) {
     if (this.state.battle.failed || this.state.battle.won) return;
+    const battlefield = this.battlefield;
     this.state.time += dt;
     let loading = false;
     let loaderKeys = 0;
@@ -276,7 +347,8 @@ export class TankCore implements GameCore<TankState> {
       loading,
       dt,
       this.state.time,
-      BATTLEFIELD.cover,
+      battlefield.cover,
+      battlefield.terrain,
     );
     if (w.mode === "machine-gun" && loaderCanWork(w, this.state.time)) {
       w.mg.yaw =
@@ -309,7 +381,8 @@ export class TankCore implements GameCore<TankState> {
       Boolean(loaderKeys & MG_FIRE),
       dt,
       this.state.time,
-      BATTLEFIELD.cover,
+      battlefield.cover,
+      battlefield.terrain,
     );
     let driverKeys = 0;
     for (const [participant, held] of this.controls)
@@ -320,16 +393,19 @@ export class TankCore implements GameCore<TankState> {
       Boolean(driverKeys & BOW_FIRE),
       dt,
       this.state.time,
-      BATTLEFIELD.cover,
+      battlefield.cover,
+      battlefield.terrain,
     );
     stepEnemies(
       this.state.battle,
       this.state.weapon.targets,
       this.state.tank,
-      BATTLEFIELD.cover,
+      battlefield.cover,
       dt,
       this.state.time,
       w.smoke,
+      battlefield.terrain,
+      this.occupationLevel?.enemies,
     );
     // Resolve incoming damage first: zero HP always defeats the crew, even on
     // the step that destroys the last enemy. Weapon/MG/smoke work continues
@@ -394,6 +470,7 @@ export class TankCore implements GameCore<TankState> {
       Number(Boolean(keys & DRIVE.reverse));
     const steering =
       Number(Boolean(keys & DRIVE.right)) - Number(Boolean(keys & DRIVE.left));
+    const previousSpeed = t.speed;
     t.speed = approach(
       t.speed,
       propulsion * (propulsion < 0 ? DRIVING.reverse : DRIVING.forward),
@@ -407,24 +484,77 @@ export class TankCore implements GameCore<TankState> {
     t.yaw = (t.yaw + t.turnRate * dt + Math.PI * 2) % (Math.PI * 2);
     const x = t.x + Math.sin(t.yaw) * t.speed * dt;
     const z = t.z - Math.cos(t.yaw) * t.speed * dt;
-    const r = BATTLEFIELD.tankRadius;
+    const r = battlefield.tankRadius;
     const outside =
-      Math.abs(x) + r > BATTLEFIELD.limit ||
-      Math.abs(z) + r > BATTLEFIELD.limit;
-    const collision = BATTLEFIELD.cover.some(
+      Math.abs(x) + r > battlefield.limit ||
+      Math.abs(z) + r > battlefield.limit;
+    const coverIndex = battlefield.cover.findIndex(
       (c) =>
         x + r > c.x - c.width / 2 &&
         x - r < c.x + c.width / 2 &&
         z + r > c.z - c.depth / 2 &&
         z - r < c.z + c.depth / 2,
     );
-    t.blocked = (outside || collision) && Math.abs(t.speed) > 0.01;
-    if (t.blocked) t.speed = 0;
-    else {
+    t.blocked = (outside || coverIndex >= 0) && Math.abs(t.speed) > 0.01;
+    if (t.blocked) {
+      const cover = outside ? -1 : coverIndex;
+      const heading = collisionHeading(
+        t,
+        x,
+        z,
+        r,
+        battlefield.limit,
+        battlefield.cover[cover],
+      );
+      if (
+        !this.contact ||
+        this.contact.cover !== cover ||
+        this.contact.heading !== heading
+      ) {
+        t.impact = {
+          id: (t.impact?.id ?? 0) + 1,
+          at: this.state.time,
+          heading,
+          normalSpeed: Math.abs(t.speed * Math.cos(t.yaw - heading)),
+        };
+      }
+      this.contact = { cover, heading, x: t.x, z: t.z };
+      t.speed = 0;
+    } else {
+      // Release only after moving away from the contact. A key release or a
+      // tiny successful substep toward the same wall is not a new collision.
+      const contact = this.contact;
+      if (contact) {
+        const away =
+          (contact.x - x) * Math.sin(contact.heading) -
+          (contact.z - z) * Math.cos(contact.heading);
+        const obstacle = battlefield.cover[contact.cover];
+        const sideFace = Math.abs(contact.heading) === Math.PI / 2;
+        const clearedEnd =
+          obstacle &&
+          (sideFace
+            ? Math.abs(z - obstacle.z) > obstacle.depth / 2 + r + 0.035
+            : Math.abs(x - obstacle.x) > obstacle.width / 2 + r + 0.035);
+        if (away > 0.035 || clearedEnd) this.contact = undefined;
+      }
       t.x = x;
       t.z = z;
+      if (battlefield.terrain) t.y = terrainHeightAt(battlefield.terrain, x, z);
     }
-    stepRepair(this.state, loading, dt);
+    if (battlefield.terrain)
+      t.pitch = stepHullPitch(battlefield.terrain, t, previousSpeed, dt);
+    const occupation = this.state.occupation;
+    if (occupation && this.occupationLevel) {
+      stepOccupation(
+        occupation,
+        this.occupationLevel,
+        t,
+        this.state.weapon.targets,
+        dt,
+      );
+      if (occupation.phase === "secured") this.state.battle.won = true;
+    }
+    stepRepair(this.state, loading && !this.state.battle.won, dt);
     this.observe();
   }
   private observe() {
@@ -434,7 +564,8 @@ export class TankCore implements GameCore<TankState> {
         const role = this.roleOf(participant);
         return role ? [{ role, aspect: this.aspects.get(participant) }] : [];
       }),
-      BATTLEFIELD.cover,
+      this.battlefield.cover,
+      this.battlefield.terrain,
     );
   }
   draw(participant: number) {
@@ -449,25 +580,47 @@ export class TankCore implements GameCore<TankState> {
   restore(snapshot: string) {
     const next: TankState = JSON.parse(snapshot);
     if (
-      next.version !== 5 ||
+      next.version !== 6 ||
+      (this.occupationLevel
+        ? !next.occupation ||
+          next.occupation.levelId !== this.occupationLevel.id ||
+          !Number.isFinite(next.occupation.progress) ||
+          next.occupation.progress < 0 ||
+          next.occupation.progress > 1 ||
+          ![
+            "approach",
+            "capturing",
+            "contested",
+            "retreating",
+            "secured",
+          ].includes(next.occupation.phase)
+        : next.occupation !== undefined) ||
       !validTeamIntel(next.intel, next.time, next.weapon?.targets) ||
-      !validRepair(next.repair) ||
+      !validRepair(next.repair, next.time) ||
       !next.battle ||
       typeof next.battle.failed !== "boolean" ||
       typeof next.battle.won !== "boolean" ||
       !Number.isInteger(next.battle.wave) ||
       next.battle.wave < 1 ||
       next.battle.wave > TANK_RULES.waves ||
+      !validEnemyShellEvents(
+        next.battle.shellEvents,
+        next.time,
+        next.battle.shots,
+      ) ||
       !Array.isArray(next.battle.projectiles) ||
       ![next.battle.shots, next.battle.lastHitAt, next.battle.lastDamage].every(
         Number.isFinite,
       ) ||
-      !next.battle.projectiles.every((p) =>
-        [p.id, p.x, p.y, p.z, p.vx, p.vz, p.damage, p.age].every(
-          Number.isFinite,
-        ),
+      !next.battle.projectiles.every(
+        (p) =>
+          [p.id, p.x, p.y, p.z, p.vx, p.vz, p.damage, p.age].every(
+            Number.isFinite,
+          ) &&
+          (p.vy === undefined || Number.isFinite(p.vy)),
       ) ||
       !next.tank ||
+      !validHullImpact(next.tank.impact, next.time) ||
       !next.turret ||
       !validWeapon(next.weapon) ||
       ![
@@ -483,6 +636,8 @@ export class TankCore implements GameCore<TankState> {
         next.tank.speed,
         next.tank.turnRate,
       ].every(Number.isFinite) ||
+      (next.tank.y !== undefined && !Number.isFinite(next.tank.y)) ||
+      (next.tank.pitch !== undefined && !Number.isFinite(next.tank.pitch)) ||
       next.tank.hp < 0 ||
       next.tank.hp > TANK_RULES.maxHp ||
       typeof next.tank.blocked !== "boolean"

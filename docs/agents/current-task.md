@@ -1,14 +1,13 @@
-# 目前任務
+# 未合併工作整合
 
-- 任務：為坦克加入擬真合成音效——行駛（履帶）、引擎、主炮開火、砲塔旋轉、砲彈裝填與裝填手「裝填完畢」通知；第二輪加入戰場音效（敵砲定位、命中、擦過、彈著、殉爆、.50 機槍、維修、風聲、遠方砲擊）；第三輪加入開火後座力、華麗砲口與爆炸特效（`web/tank-battle-effects.ts`、`docs/tank-effects.md`）、車內聲音不經裝甲濾波、退殼滾動聲、裝填手改美式英語。
-- 本輪預算：60 分鐘，拆兩個里程碑；2026-11-18 15:15 開始，16:15 截止（Asia/Taipei）。
-  - 里程碑一（30 分鐘）：純函式合成器與即時音效圖，接上所有職位。
-  - 里程碑二（30 分鐘）：音效開關擴及三個職位、文件、`npm test`、build、離線試聽檔。
-- 第五輪（2026-11-18）：駕駛員觀察窗改為髒污玻璃直視鏡風格、彈道改用真實初速、駕駛員車體機槍（對坦克幾乎無傷害）、坦克風化外觀與排氣／履帶揚塵、乘員對話（`web/tank-crew-chatter.ts`）。`npm test` 與 build 通過；E2E（Playwright）依 `AGENTS.md` 未在此執行，彈道變快可能影響既有命中相關測試，列為未驗證。
-- 工作分支：`dev`；實際來源以 `git rev-parse HEAD` 為準。
-- 本輪交付：`web/tank-audio-synth.ts`（不依賴瀏覽器的音色合成）、`web/tank-vehicle-audio.ts`（WebAudio 即時圖與快照邊緣觸發）、`tools/render-audio-preview.ts`（輸出 WAV 試聽）、`docs/tank-audio.md`。
-- 音效只讀快照，不改任何遊戲規則或權威狀態。
-- 驗證結果：`npm test` 通過、build 通過（既有的大 chunk 警告與本輪無關）。另以 Node 版 WebAudio 離線執行同一份 `TankVehicleAudio`，跑 23 秒腳本（發動→敵砲→擦過→被擊中→加速→轉向→頂牆→轉砲→裝填→開火→退殼→高爆命中與殉爆→機槍→維修），車內與艙外兩種聽位皆無 NaN、峰值不超過滿刻度；此離線環境不在專案依賴內。
-- 驗證範圍：`npm test` 與 build。依 `AGENTS.md`，瀏覽器內實際播放只能用 Codex 內建瀏覽器，本輪未做；人工聆聽、語音合成在各瀏覽器的可用性皆列為未驗證。
+- 範圍為將乘員鏡頭、裝填與維修、192 高地及 PR 試玩範本集中至一張以 `main` 為目標的 PR。
+- 2026-11-22 23:58 開始，2026-11-23 00:28 為第一輪檢查點（台北時間）。
+- 工作分支為 `codex/consolidate-current-work`，從已接入 Unreal PastureBlend 的 `b7957e4` 整合。
+- 交付為整合草稿 PR、快速檢查、正式建置及內建瀏覽器的正常單人流程。三人實機仍待安排。
 
-開始新任務、驗證結束及交付時更新本頁；實際run結果從索引取得，不在本頁複製逐項測試結果。
+## 交付與驗證
+
+- [整合草稿 PR #90](https://github.com/CyberNovaPixelPulse/car-game/pull/90) 以 `main` 為目標，接替 #65、#76 與 #68。
+- 以 `12f6cbf` 執行 `npm test` 和 `npm run build`。62 項測試與型別檢查通過，收集 153 項瀏覽器案例。正式建置有套件體積提示。[GitHub verify](https://github.com/CyberNovaPixelPulse/car-game/actions/runs/45041690763)
+- 同一建置用內建瀏覽器驗證 192 高地沿主農路達到 100% 占領與勝利，重開回到 `(-110, -75)` 及 0%。駕駛的震動開關可關閉和恢復。暫停切成裝填手後，R 鬆開時保留 47.4%，再按可續裝至主炮就緒。
+- 三人三裝置、完整瀏覽器回歸、窄窗校準重疊與受擊混音峰值待驗。歷史證據見[乘員鏡頭](../tank-camera-validation.md)、[裝填手工作站](../tank-loader-validation.md)與 [Unreal 192 高地](../hill192-unreal.md)。

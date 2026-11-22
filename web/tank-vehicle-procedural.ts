@@ -879,6 +879,7 @@ export function buildBrowning(
   y: number,
   z: number,
   manager?: THREE.LoadingManager,
+  firstPerson = false,
 ) {
   const gun = new THREE.Group();
   gun.position.set(x, y, z);
@@ -907,8 +908,12 @@ export function buildBrowning(
   // Rounded receiver edges, separate top-cover lip and rubbed feed contacts.
   // Wear follows these working surfaces rather than a whole-screen grime layer.
   part(gun, armour(0.17, 0.185, 0.52, 0.009), receiverSteel, 0, 0, -0.2);
-  part(gun, armour(0.18, 0.018, 0.42, 0.004), receiverSteel, 0, 0.103, -0.22);
-  part(gun, armour(0.135, 0.03, 0.13, 0.006), worn, 0, 0.125, -0.08);
+  const cover = new THREE.Group();
+  cover.name = "BrowningTopCover";
+  cover.position.set(0, 0.103, -0.43);
+  gun.add(cover);
+  part(cover, armour(0.18, 0.018, 0.42, 0.004), receiverSteel, 0, 0, 0.21);
+  part(cover, armour(0.135, 0.03, 0.13, 0.006), worn, 0, 0.022, 0.35);
   for (const side of [-1, 1]) {
     for (let i = 0; i < 6; i++) {
       const rivet = part(
@@ -1013,48 +1018,67 @@ export function buildBrowning(
   bore.rotation.y = Math.PI;
   // Right-side retracting slide handle with its knob.
   part(gun, box(0.02, 0.025, 0.24), worn, 0.098, -0.02, -0.18);
+  const slide = new THREE.Group();
+  slide.name = "BrowningChargingHandle";
+  slide.position.set(0.13, -0.02, -0.06);
+  gun.add(slide);
   const knob = part(
-    gun,
+    slide,
     new THREE.CylinderGeometry(0.022, 0.022, 0.06, 10),
     dark,
-    0.13,
-    -0.02,
-    -0.06,
   );
   knob.rotation.z = Math.PI / 2;
   // Linked belt sagging from the ammunition can into the feedway.
+  const belt = new THREE.Group();
+  belt.name = "BrowningBelt";
+  gun.add(belt);
+  const links: THREE.Group[] = [];
   for (let i = 0; i < 8; i++) {
     const t = i / 7;
     const x = -0.105 - t * 0.2;
     const y = 0.07 - Math.sin(t * Math.PI) * 0.05 - t * 0.02;
+    const parent = firstPerson ? new THREE.Group() : gun;
+    if (firstPerson) {
+      parent.position.set(x, y, 0);
+      belt.add(parent);
+      links.push(parent);
+    }
+    const cx = firstPerson ? 0 : x;
+    const cy = firstPerson ? 0 : y;
     const round = part(
-      gun,
+      parent,
       new THREE.CylinderGeometry(0.012, 0.012, 0.105, 8),
       brass,
-      x,
-      y,
+      cx,
+      cy,
       -0.15,
     );
     round.rotation.x = Math.PI / 2;
     const bullet = part(
-      gun,
+      parent,
       new THREE.ConeGeometry(0.012, 0.03, 8),
       worn,
-      x,
-      y,
+      cx,
+      cy,
       -0.217,
     );
     bullet.rotation.x = -Math.PI / 2;
-    part(gun, box(0.022, 0.026, 0.02), dark, x, y, -0.13);
-    part(gun, box(0.022, 0.026, 0.02), dark, x, y, -0.175);
+    part(parent, box(0.022, 0.026, 0.02), dark, cx, cy, -0.13);
+    part(parent, box(0.022, 0.026, 0.02), dark, cx, cy, -0.175);
+    if (firstPerson) batchFixedParts(parent);
   }
   // Rear folding leaf sight and front blade sit below the screen's aiming center.
   part(gun, box(0.026, 0.14, 0.022), steel, 0, 0.15, -0.25);
   part(gun, box(0.085, 0.018, 0.025), worn, 0, 0.21, -0.25);
   part(gun, box(0.014, 0.1, 0.02), steel, 0, 0.075, -1.53);
   // The two grips, butterfly trigger and U-cradle identify the working end.
+  const grips: THREE.Object3D[] = [];
   for (const side of [-1, 1]) {
     part(gun, box(0.035, 0.17, 0.045), dark, side * 0.12, -0.06, 0.13);
+    const contact = new THREE.Object3D();
+    contact.position.set(side * 0.12, -0.06, 0.153);
+    gun.add(contact);
+    grips.push(contact);
     part(gun, box(0.15, 0.027, 0.035), steel, side * 0.075, 0.025, 0.12);
     part(gun, box(0.025, 0.2, 0.18), paint, side * 0.13, -0.15, -0.24);
     const pivot = part(
@@ -1086,8 +1110,9 @@ export function buildBrowning(
     -0.24,
   );
   clamp.rotation.x = Math.PI / 2;
+  batchFixedParts(cover);
   batchFixedParts(gun);
-  return gun;
+  return { root: gun, cover, slide, belt, links, leftGrip: grips[0], rightGrip: grips[1] };
 }
 
 /** Cut-out pattern of the barrel support's cooling holes. */

@@ -2,12 +2,14 @@ import { TRANSPORT } from "./tank-settings";
 import type { Room, Session } from "./network";
 import type { CrewRole } from "./crew";
 import { TankCore, type TankState } from "./tank-core";
+import type { OccupationLevel } from "./tank-occupation";
 import { PracticeCrew, type PracticeCommand } from "./tank-practice-crew";
 
 export interface GameStart {
   participants: number[];
   seed: number;
   practice?: boolean;
+  occupation?: OccupationLevel;
 }
 
 /** A game owns simulation and presentation; the room transports opaque snapshots. */
@@ -39,6 +41,7 @@ export class GameRuntime {
   private viewAspect?: number;
   private previous: number;
   private lastNetwork = 0;
+  awaitingFirstSnapshot = false;
   // Session.room is replaced before callbacks. Keep the OLD authority pause state.
   private tankPaused = false;
   get paused() {
@@ -77,6 +80,7 @@ export class GameRuntime {
     session.onState = (snapshot) => {
       try {
         core.restore(snapshot);
+        this.awaitingFirstSnapshot = false;
       } catch (error) {
         this.onRestoreError(error as Error);
       }
@@ -99,6 +103,7 @@ export class GameRuntime {
     };
     session.onStart = (participants, seed) => {
       this.mode = "online";
+      this.awaitingFirstSnapshot = !this.session.isHost;
       this.practiceCrew = undefined;
       this.held = 0;
       this.viewAspect = undefined;
@@ -215,13 +220,19 @@ export class GameRuntime {
     if (this.session.isHost) this.session.finish(this.core.snapshot());
   }
 
-  startPractice(seed: number, role: CrewRole) {
+  startPractice(seed: number, role: CrewRole, occupation?: OccupationLevel) {
     this.mode = "practice";
+    this.awaitingFirstSnapshot = false;
     this.localPaused = false;
     this.held = 0;
     this.viewAspect = undefined;
-    this.practiceCrew = new PracticeCrew(this.core, role);
-    this.core.start({ participants: [0, 1, 2], seed, practice: true });
+    this.practiceCrew = new PracticeCrew(this.core, role, !!occupation);
+    this.core.start({
+      participants: [0, 1, 2],
+      seed,
+      practice: true,
+      occupation,
+    });
     this.previous = this.now();
   }
 

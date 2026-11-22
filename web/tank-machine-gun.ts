@@ -1,3 +1,4 @@
+import { terrainSegmentHit, type TerrainHeightGrid } from "./tank-terrain";
 import { MG_RULES, BOW_MG, FIRING_FEEDBACK } from "./tank-settings";
 import {
   nearestHostileHit,
@@ -12,6 +13,7 @@ export const BOW_FIRE = 128;
 export { MG_RULES } from "./tank-settings";
 interface Pose {
   x: number;
+  y?: number;
   z: number;
   yaw: number;
   pitch: number;
@@ -32,14 +34,25 @@ export function stepMachineGun(
   dt: number,
   now: number,
   cover: readonly Cover[],
+  terrain?: TerrainHeightGrid,
 ) {
   const mg = w.mg;
+  const belt = (mg.belt ??= { rounds: MG_RULES.beltCapacity, reloadUntil: 0 });
+  const wantsFire = held && w.mode === "machine-gun" && loaderCanWork(w, now);
   mg.tracers = mg.tracers.filter((t) => t.until > now);
+
+  // A committed reload and thermal cooldown both use the shared game clock.
+  if (belt.reloadUntil > 0 && now >= belt.reloadUntil) {
+    belt.rounds = MG_RULES.beltCapacity;
+    belt.reloadUntil = 0;
+  } else if (belt.rounds === 0 && belt.reloadUntil === 0 && wantsFire) {
+    belt.reloadUntil = now + MG_RULES.reload;
+  }
   if (now < mg.coolUntil) {
     mg.heat = Math.min(1, (mg.coolUntil - now) / MG_RULES.cooldown);
     return;
   }
-  if (!held || w.mode !== "machine-gun" || !loaderCanWork(w, now)) {
+  if (!wantsFire || belt.reloadUntil > 0) {
     mg.heat = Math.max(0, mg.heat - dt * MG_RULES.cooling);
     return;
   }
@@ -47,11 +60,14 @@ export function stepMachineGun(
   if (now >= mg.nextShot) {
     mg.nextShot = now + MG_RULES.interval;
     mg.shots++;
+    belt.rounds--;
+    if (belt.rounds === 0) belt.reloadUntil = now + MG_RULES.reload;
     mg.flashUntil = now + FIRING_FEEDBACK.machineGun;
-    const from = [pose.x, 3.1, pose.z];
+    const y = (pose.y ?? 0) + 3.1;
+    const from = [pose.x, y, pose.z];
     const to = [
       pose.x + Math.sin(pose.yaw) * Math.cos(pose.pitch) * MG_RULES.range,
-      3.1 + Math.sin(pose.pitch) * MG_RULES.range,
+      y + Math.sin(pose.pitch) * MG_RULES.range,
       pose.z - Math.cos(pose.yaw) * Math.cos(pose.pitch) * MG_RULES.range,
     ];
     const { fraction: nearest, target } = nearestHostileHit(
@@ -59,7 +75,7 @@ export function stepMachineGun(
       to,
       cover,
       w.targets,
-      to[1] <= 0 ? from[1] / (from[1] - to[1]) : 1,
+      terrainSegmentHit(terrain, from, to) ?? 1,
     );
     if (target) target.hp = Math.max(0, target.hp - MG_RULES.damage);
     mg.tracers.push({
@@ -82,11 +98,12 @@ export function stepMachineGun(
 /** Host-owned bow gun: fixed along the hull, nearly harmless to armour. */
 export function stepBowGun(
   w: WeaponState,
-  tank: { x: number; z: number; yaw: number },
+  tank: { x: number; y?: number; z: number; yaw: number },
   held: boolean,
   dt: number,
   now: number,
   cover: readonly Cover[],
+  terrain?: TerrainHeightGrid,
 ) {
   const bow = (w.bow ??= createBowGun());
   bow.tracers = bow.tracers.filter((t) => t.until > now);
@@ -108,7 +125,7 @@ export function stepBowGun(
       cos = Math.cos(tank.yaw);
     const from = [
       tank.x + cos * right + sin * forward,
-      height,
+      (tank.y ?? 0) + height,
       tank.z + sin * right - cos * forward,
     ];
     // A little ball-mount wander so a burst walks rather than threads a needle.
@@ -124,7 +141,7 @@ export function stepBowGun(
       to,
       cover,
       w.targets,
-      to[1] <= 0 ? from[1] / (from[1] - to[1]) : 1,
+      terrainSegmentHit(terrain, from, to) ?? 1,
     );
     if (target) target.hp = Math.max(0, target.hp - BOW_MG.damage);
     bow.tracers.push({

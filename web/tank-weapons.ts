@@ -1,10 +1,17 @@
 import {
+  terrainHeightAt,
+  terrainSegmentHit,
+  type TerrainHeightGrid,
+} from "./tank-terrain";
+import { cannonPivot, type CannonPose } from "./tank-world-pose";
+import {
   JAM_RULES,
   WEAPON_TIMING,
   SHELL_DAMAGE,
   BALLISTICS,
   ENEMY_RULES,
   FIRING_FEEDBACK,
+  MG_RULES,
 } from "./tank-settings";
 export { SHELL_DAMAGE } from "./tank-settings";
 import { SMOKE_RADIUS, SMOKE_SECONDS, type SmokeCloud } from "./tank-smoke";
@@ -40,6 +47,7 @@ export interface ShellFlight {
 export interface EnemyTarget {
   id: number;
   x: number;
+  y?: number;
   z: number;
   width: number;
   height: number;
@@ -55,7 +63,11 @@ export interface EnemyTarget {
     | "warning"
     | "reloading"
     | "blind-fire"
-    | "searching";
+    | "searching"
+    | "guarding"
+    | "patrolling";
+  patrolWaypoint?: number;
+  fireSlope?: number;
   lastSeenX: number;
   lastSeenZ: number;
   lastSeenAt: number;
@@ -63,6 +75,8 @@ export interface EnemyTarget {
   fireAt: number;
   flashUntil: number;
 }
+export const SHELL_IMPACT_SECONDS = 0.6;
+
 export interface BowGun {
   heat: number;
   coolUntil: number;
@@ -119,6 +133,8 @@ export interface WeaponState {
     nextShot: number;
     flashUntil: number;
     shots: number;
+    /** Absent on snapshots sent before the roof gun supported belts. */
+    belt?: { rounds: number; reloadUntil: number };
     tracers: {
       id: number;
       x: number;
@@ -140,6 +156,7 @@ export interface WeaponState {
   loadProgress: number;
   ejectAt: number;
   shotsFired: number;
+  lastShotPose?: CannonPose;
   flashUntil: number;
   randomState: number;
   jamChecked: boolean;
@@ -164,14 +181,9 @@ export interface WeaponState {
     until: number;
   }[];
 }
-interface GunPose {
-  x: number;
-  z: number;
-  yaw: number;
-  pitch: number;
-}
 interface Cover {
   x: number;
+  y?: number;
   z: number;
   width: number;
   depth: number;
@@ -218,13 +230,18 @@ export function nearestHostileHit(
   let fraction = initialFraction;
   let target: EnemyTarget | undefined;
   for (const candidate of [...cover, ...targets.filter((t) => t.hp > 0)]) {
+    const base = candidate.y ?? 0;
     const hit = boxHit(
       from,
       to,
-      [candidate.x - candidate.width / 2, 0, candidate.z - candidate.depth / 2],
+      [
+        candidate.x - candidate.width / 2,
+        base,
+        candidate.z - candidate.depth / 2,
+      ],
       [
         candidate.x + candidate.width / 2,
-        candidate.height,
+        base + candidate.height,
         candidate.z + candidate.depth / 2,
       ],
     );
@@ -247,6 +264,7 @@ export function createWeaponState(seed = 1): WeaponState {
       nextShot: 0,
       flashUntil: 0,
       shots: 0,
+      belt: { rounds: MG_RULES.beltCapacity, reloadUntil: 0 },
       tracers: [],
     },
     bow: createBowGun(),
@@ -279,20 +297,48 @@ export function createWeaponState(seed = 1): WeaponState {
     ],
   };
 }
-export function fireWeapon(w: WeaponState, pose: GunPose, now: number) {
+export function lastCannonFiredAt(w: WeaponState) {
+  return w.shotsFired ? w.flashUntil - FIRING_FEEDBACK.cannon : -Infinity;
+}
+
+export function fireWeapon(
+  w: WeaponState,
+  pose: Omit<CannonPose, "hullYaw"> & { hullYaw?: number },
+  now: number,
+) {
   if (w.chamber !== "loaded") return;
   const dx = Math.sin(pose.yaw) * Math.cos(pose.pitch);
   const dy = Math.sin(pose.pitch);
   const dz = -Math.cos(pose.yaw) * Math.cos(pose.pitch);
   w.shotsFired++;
+  const {
+    x,
+    z,
+    yaw,
+    pitch,
+    hullYaw = yaw,
+    hullPitch,
+    turretYaw,
+    turretPitch,
+  } = pose;
+  w.lastShotPose = { x, z, yaw, pitch, hullYaw, y: pose.y };
+  if (hullPitch !== undefined)
+    Object.assign(w.lastShotPose, { hullPitch, turretYaw, turretPitch });
+  const pivot = cannonPivot({
+    x,
+    y: pose.y,
+    z,
+    yaw: hullYaw,
+    pitch: hullPitch,
+  });
   w.flashUntil = now + FIRING_FEEDBACK.cannon;
   const speed = BALLISTICS.speed[w.chamberShell!];
   w.projectiles.push({
     shell: w.chamberShell!,
     id: w.shotsFired,
-    x: pose.x + dx * 4.8,
-    y: 2.48 + dy * 4.8,
-    z: pose.z + dz * 4.8,
+    x: pivot.x + dx * 4.8,
+    y: pivot.y + dy * 4.8,
+    z: pivot.z + dz * 4.8,
     vx: dx * speed,
     vy: dy * speed,
     vz: dz * speed,
@@ -309,11 +355,23 @@ function random(w: WeaponState) {
   w.randomState = (Math.imul(w.randomState, 1664525) + 1013904223) >>> 0;
   return w.randomState / 4294967296;
 }
-/**
- * Kept for the ordered action path: a jam now clears itself while the
- * loader works it (no needle mini-game), so a stop request does nothing.
- */
-export function stopJam(_w: WeaponState, _now: number) {}
+export function stopJam(w: WeaponState, now: number) {
+  const j = w.jam;
+  if (
+    w.mode !== "loading" ||
+    !loaderCanWork(w, now) ||
+    !j.active ||
+    j.result !== "trying"
+  )
+    return;
+  if (j.needle >= j.zone && j.needle <= j.zone + JAM_RULES.width) {
+    j.active = false;
+    j.result = "cleared";
+  } else {
+    j.result = "failed";
+    j.retryAt = now + JAM_RULES.retry;
+  }
+}
 export function loaderCanWork(w: WeaponState, now: number) {
   return !w.crouching && now >= w.stunnedUntil;
 }
@@ -347,18 +405,25 @@ export function stepWeapon(
   dt: number,
   now: number,
   cover: readonly Cover[],
+  terrain?: TerrainHeightGrid,
 ) {
   if (w.chamber === "ejecting" && now >= w.ejectAt) {
     w.chamber = "empty";
     if (!w.crouching) w.stunnedUntil = w.ejectAt + LOADER_STUN_SECONDS;
   }
   const j = w.jam;
-  // A jammed round is worked free by hand: the needle is the clearing progress.
   if (j.active && w.mode === "loading" && loaderCanWork(w, now)) {
-    j.needle = Math.min(1, j.needle + dt / JAM_RULES.clear);
-    if (j.needle >= 1) {
-      j.active = false;
-      j.result = "cleared";
+    if (j.result === "failed" && now >= j.retryAt) j.result = "trying";
+    if (j.result === "trying") {
+      j.needle += j.direction * dt * JAM_RULES.speed;
+      if (j.needle > 1) {
+        j.needle = 2 - j.needle;
+        j.direction = -1;
+      }
+      if (j.needle < 0) {
+        j.needle = -j.needle;
+        j.direction = 1;
+      }
     }
   }
   if (
@@ -397,34 +462,54 @@ export function stepWeapon(
     p.vy -= BALLISTICS.gravity * dt;
     p.age += dt;
     const to = [p.x, p.y, p.z];
+    const groundFraction = terrainSegmentHit(terrain, from, to) ?? Infinity;
     const { fraction: nearest, target } = nearestHostileHit(
       from,
       to,
       cover,
       w.targets,
-      p.y <= 0 ? from[1] / (from[1] - p.y) : Infinity,
+      groundFraction,
     );
     if (nearest <= 1) {
       const point = from.map((v, axis) => v + (to[axis] - v) * nearest);
       const damage = SHELL_DAMAGE[p.shell];
+      const splashOrigin = terrain
+        ? [
+            point[0],
+            Math.max(point[1], terrainHeightAt(terrain, point[0], point[2])) +
+              0.03,
+            point[2],
+          ]
+        : point;
       // Only hostile targets participate: the firing tank is never a damage recipient.
       for (const t of w.targets) {
+        const targetHeight = (t.y ?? 0) + t.height / 2;
         const distance = Math.hypot(
           t.x - point[0],
-          t.height / 2 - point[1],
+          targetHeight - point[1],
           t.z - point[2],
         );
         const amount =
           t === target
             ? damage.direct
             : distance <= damage.radius &&
+                (!terrain ||
+                  terrainSegmentHit(terrain, splashOrigin, [
+                    t.x,
+                    targetHeight,
+                    t.z,
+                  ]) === undefined) &&
                 !cover.some(
                   (c) =>
                     boxHit(
                       point,
-                      [t.x, t.height / 2, t.z],
-                      [c.x - c.width / 2, 0, c.z - c.depth / 2],
-                      [c.x + c.width / 2, c.height, c.z + c.depth / 2],
+                      [t.x, targetHeight, t.z],
+                      [c.x - c.width / 2, c.y ?? 0, c.z - c.depth / 2],
+                      [
+                        c.x + c.width / 2,
+                        (c.y ?? 0) + c.height,
+                        c.z + c.depth / 2,
+                      ],
                     ) !== undefined,
                 )
               ? damage.splash
@@ -435,7 +520,7 @@ export function stepWeapon(
         w.smoke.push({
           id: p.id,
           x: point[0],
-          y: 2.5,
+          y: terrainHeightAt(terrain, point[0], point[2]) + 2.5,
           z: point[2],
           radius: SMOKE_RADIUS,
           until: now + SMOKE_SECONDS,
@@ -446,7 +531,7 @@ export function stepWeapon(
         x: point[0],
         y: point[1],
         z: point[2],
-        until: now + 0.6,
+        until: now + SHELL_IMPACT_SECONDS,
       });
       return false;
     }
@@ -469,6 +554,14 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
     ].every(Number.isFinite) &&
     w.mg.heat >= 0 &&
     w.mg.heat <= 1 &&
+    (w.mg.belt === undefined ||
+      (!!w.mg.belt &&
+        Number.isInteger(w.mg.belt.rounds) &&
+        w.mg.belt.rounds >= 0 &&
+        w.mg.belt.rounds <= MG_RULES.beltCapacity &&
+        Number.isFinite(w.mg.belt.reloadUntil) &&
+        w.mg.belt.reloadUntil >= 0 &&
+        (w.mg.belt.reloadUntil === 0 || w.mg.belt.rounds === 0))) &&
     Array.isArray(w.mg.tracers) &&
     w.mg.tracers.every((t) =>
       [t.id, t.x, t.y, t.z, t.endX, t.endY, t.endZ, t.until].every(
@@ -478,6 +571,20 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
     ["he", "ap", "smoke"].includes(w.selectedShell) &&
     (w.chamberShell === null ||
       ["he", "ap", "smoke"].includes(w.chamberShell)) &&
+    (w.lastShotPose === undefined ||
+      (!!w.lastShotPose &&
+        (w.lastShotPose.y === undefined || Number.isFinite(w.lastShotPose.y)) &&
+        (w.lastShotPose.hullPitch === undefined ||
+          (Number.isFinite(w.lastShotPose.hullPitch) &&
+            Number.isFinite(w.lastShotPose.turretYaw) &&
+            Number.isFinite(w.lastShotPose.turretPitch))) &&
+        [
+          w.lastShotPose.x,
+          w.lastShotPose.z,
+          w.lastShotPose.yaw,
+          w.lastShotPose.hullYaw,
+          w.lastShotPose.pitch,
+        ].every(Number.isFinite))) &&
     typeof w.crouching === "boolean" &&
     ["empty", "loading", "loaded", "ejecting"].includes(w.chamber) &&
     [w.loadProgress, w.ejectAt, w.shotsFired, w.stunnedUntil].every(
@@ -509,6 +616,10 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
     Array.isArray(w.targets) &&
     w.targets.every(
       (t) =>
+        (t.y === undefined || Number.isFinite(t.y)) &&
+        (t.fireSlope === undefined || Number.isFinite(t.fireSlope)) &&
+        (t.patrolWaypoint === undefined ||
+          (Number.isInteger(t.patrolWaypoint) && t.patrolWaypoint >= 0)) &&
         [
           t.id,
           t.x,
@@ -534,6 +645,8 @@ export function validWeapon(w: WeaponState | undefined): w is WeaponState {
           "reloading",
           "blind-fire",
           "searching",
+          "guarding",
+          "patrolling",
         ].includes(t.phase),
     ) &&
     Array.isArray(w.impacts) &&

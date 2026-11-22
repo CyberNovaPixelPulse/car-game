@@ -1,39 +1,108 @@
+import {
+  ratchetAngle,
+  ratchetVelocity,
+  RATCHET_REGRIP_SECONDS,
+} from "./tank-ratchet";
+import type { CrewRole } from "./crew";
 import type { TankState } from "./tank-core";
 
 /** Loader-only synthesized work cues (jam, machine gun, mode, calibration). Snapshot edges are cues, never rule clocks. */
 export class TankMechanicalAudio {
+  private cannonShots?: number;
+  private cannonBuffer?: AudioBuffer;
+  private ratchetBuffer?: AudioBuffer;
+  private lastTooth?: number;
+  private regripEndsAt = 0;
   private jam = false;
   private cooling = false;
   private mode = "loading";
-  private calibrationId = 0;
+  private calibrationId?: number;
   private calibrationResult = "idle";
   reset() {
-    this.jam = false;
-    this.cooling = false;
-    this.mode = "loading";
-    this.calibrationId = 0;
-    this.calibrationResult = "idle";
+    // The first valid snapshot seeds every edge before playback resumes.
+    this.calibrationId = undefined;
+    this.cannonShots = undefined;
+    this.lastTooth = undefined;
+    this.regripEndsAt = 0;
   }
-  present(state: TankState, audio: AudioContext | undefined, enabled: boolean) {
+  present(
+    state: TankState,
+    audio: AudioContext | undefined,
+    enabled: boolean,
+    role: CrewRole = "loader",
+  ) {
     const w = state.weapon;
+    const previousShots = this.cannonShots;
+    this.cannonShots = w.shotsFired;
+    if (
+      role === "gunner" &&
+      previousShots !== undefined &&
+      w.shotsFired > previousShots &&
+      enabled &&
+      audio?.state === "running"
+    ) {
+      if (this.cannonBuffer?.sampleRate !== audio.sampleRate)
+        this.cannonBuffer = cannonBlast(audio);
+      playBuffer(audio, this.cannonBuffer);
+    }
+    if (role !== "loader") return;
     const calibration = state.repair.calibration;
-    if (enabled && audio?.state === "running") {
+    const audible =
+      this.calibrationId !== undefined && enabled && audio?.state === "running";
+    if (audible) {
       if (
         calibration.id !== this.calibrationId &&
         calibration.result === "active"
       )
         this.calibrationCue(audio, "active");
       else if (
-        calibration.result !== this.calibrationResult &&
+        this.calibrationResult === "active" &&
+        calibration.id === this.calibrationId &&
         ["success", "perfect", "failed"].includes(calibration.result)
       )
         this.calibrationCue(audio, calibration.result);
     }
+    const { activeSeconds } = state.repair;
+    const failed = calibration.result === "failed";
+    // Success returns the hand on the game clock even when R is released.
+    // After failure the hands reach again only as the host credits new work.
+    const gripClock = failed ? activeSeconds : state.time;
+    if (this.calibrationId !== calibration.id) this.regripEndsAt = 0;
+    else if (
+      this.calibrationResult === "active" &&
+      calibration.result !== "active"
+    )
+      this.regripEndsAt = failed
+        ? activeSeconds + RATCHET_REGRIP_SECONDS.failed
+        : (calibration.confirmedAt ?? state.time) +
+          RATCHET_REGRIP_SECONDS.success;
+    const ratcheting =
+      w.mode === "repair" &&
+      state.repair.status === "repairing" &&
+      calibration.result !== "active" &&
+      gripClock >= this.regripEndsAt;
+    const tooth = ratcheting
+      ? Math.floor(ratchetAngle(activeSeconds) / (Math.PI / 12))
+      : undefined;
+    // A pawl clicks only on the upwards return. Seed the first tooth whenever
+    // the hand takes up the tool, and never burst through missed network frames.
+    if (
+      audible &&
+      tooth !== undefined &&
+      this.lastTooth !== undefined &&
+      tooth > this.lastTooth &&
+      ratchetVelocity(activeSeconds) > 0
+    ) {
+      if (this.ratchetBuffer?.sampleRate !== audio.sampleRate)
+        this.ratchetBuffer = ratchetClick(audio);
+      playBuffer(audio, this.ratchetBuffer);
+    }
+    this.lastTooth = tooth;
     this.calibrationId = calibration.id;
     this.calibrationResult = calibration.result;
     const cooling = state.time < w.mg.coolUntil;
     const play = (kind: "slide" | "latch" | "case" | "shot" | "jam") => {
-      if (enabled && audio?.state === "running") this.strike(audio, kind);
+      if (audible) this.strike(audio, kind);
     };
     // Main-gun rack, ram, breech and case sounds live in TankVehicleAudio so
     // every crew member hears them; this module keeps loader-only work cues.
@@ -125,4 +194,59 @@ export class TankMechanicalAudio {
       ringGain.disconnect();
     };
   }
+}
+
+// A pitched low body beneath the short crack keeps the cannon distinct from
+// the existing small metallic shots, including on speakers with little bass.
+function cannonBlast(audio: AudioContext) {
+  const buffer = audio.createBuffer(
+    1,
+    Math.ceil(audio.sampleRate * 0.52),
+    audio.sampleRate,
+  );
+  const samples = buffer.getChannelData(0);
+  const smoothing = 1 - Math.exp((-2 * Math.PI * 450) / audio.sampleRate);
+  let rumble = 0;
+  let phase = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const t = i / audio.sampleRate;
+    const noise = Math.random() * 2 - 1;
+    rumble += (noise - rumble) * smoothing;
+    phase += (2 * Math.PI * (46 + 100 * Math.exp(-t * 24))) / audio.sampleRate;
+    const attack = Math.min(1, t / 0.002);
+    const body =
+      (0.28 * Math.sin(phase) + 0.11 * Math.sin(2 * phase)) * Math.exp(-t * 10);
+    samples[i] =
+      attack *
+      (body +
+        0.42 * noise * Math.exp(-t * 64) +
+        0.49 * rumble * Math.exp(-t * 11));
+  }
+  return buffer;
+}
+
+function ratchetClick(audio: AudioContext) {
+  const buffer = audio.createBuffer(
+    1,
+    Math.ceil(audio.sampleRate * 0.035),
+    audio.sampleRate,
+  );
+  const samples = buffer.getChannelData(0);
+  for (let i = 0; i < samples.length; i++) {
+    const t = i / audio.sampleRate;
+    const strike = (Math.random() * 2 - 1) * 0.13 * Math.exp(-t * 520);
+    const ring =
+      0.15 * Math.sin(2 * Math.PI * 2080 * t) +
+      0.07 * Math.sin(2 * Math.PI * 3460 * t);
+    samples[i] = Math.min(1, t / 0.0007) * (strike + ring * Math.exp(-t * 185));
+  }
+  return buffer;
+}
+
+function playBuffer(audio: AudioContext, buffer: AudioBuffer) {
+  const sound = audio.createBufferSource();
+  sound.buffer = buffer;
+  sound.connect(audio.destination);
+  sound.onended = () => sound.disconnect();
+  sound.start(audio.currentTime);
 }

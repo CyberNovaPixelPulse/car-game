@@ -4,6 +4,15 @@ import {
   FIRING_FEEDBACK,
 } from "./tank-settings";
 import { smokeBlocks, type SmokeCloud } from "./tank-smoke";
+import {
+  terrainHeightAt,
+  terrainSegmentHit,
+  type TerrainHeightGrid,
+} from "./tank-terrain";
+import {
+  FIRST_OCCUPATION_ENEMY_ID,
+  type OccupationEnemy,
+} from "./tank-occupation";
 import { boxHit, createEnemyTarget, type EnemyTarget } from "./tank-weapons";
 
 export { LAST_SEEN_SECONDS } from "./tank-settings";
@@ -13,6 +22,7 @@ export const ENEMY_LABELS = {
 } as const;
 interface Box {
   x: number;
+  y?: number;
   z: number;
   width: number;
   depth: number;
@@ -20,9 +30,63 @@ interface Box {
 }
 interface Vehicle {
   x: number;
+  y?: number;
   z: number;
   hp: number;
 }
+type EnemyShellEvent = { id: number; at: number } & (
+  | { kind: "hull-hit"; heading: number; damage: number }
+  | { kind: "muzzle" | "cover"; x: number; z: number }
+);
+const MAX_SHELL_EVENTS = 24;
+const SHELL_EVENT_RETENTION = 0.8;
+
+export function validEnemyShellEvents(
+  events: EnemyShellEvent[],
+  now: number,
+  shots: number,
+) {
+  if (!Array.isArray(events) || events.length > MAX_SHELL_EVENTS) return false;
+  const seen = new Set<string>();
+  for (const event of events) {
+    if (
+      !event ||
+      !Number.isSafeInteger(event.id) ||
+      event.id <= 0 ||
+      event.id > shots ||
+      !Number.isFinite(event.at) ||
+      event.at < 0 ||
+      event.at > now ||
+      now - event.at >= SHELL_EVENT_RETENTION
+    )
+      return false;
+    if (event.kind === "hull-hit") {
+      if (
+        !Number.isFinite(event.heading) ||
+        !Number.isFinite(event.damage) ||
+        event.damage <= 0
+      )
+        return false;
+    } else if (
+      (event.kind !== "muzzle" && event.kind !== "cover") ||
+      !Number.isFinite(event.x) ||
+      !Number.isFinite(event.z)
+    )
+      return false;
+    // A single projectile can have one muzzle and at most one terminal event.
+    const key = event.id + (event.kind === "muzzle" ? "-shot" : "-impact");
+    if (seen.has(key)) return false;
+    seen.add(key);
+  }
+  return true;
+}
+
+function recordShellEvent(battle: EnemyBattle, event: EnemyShellEvent) {
+  if (battle.shellEvents.length === MAX_SHELL_EVENTS)
+    battle.shellEvents.shift();
+  battle.shellEvents.push(event);
+}
+
 export interface EnemyBattle {
   wave: number;
   won: boolean;
@@ -32,11 +96,13 @@ export interface EnemyBattle {
     y: number;
     z: number;
     vx: number;
+    vy?: number;
     vz: number;
     damage: number;
     age: number;
   }[];
   shots: number;
+  shellEvents: EnemyShellEvent[];
   lastHitAt: number;
   lastDamage: number;
   failed: boolean;
@@ -46,6 +112,7 @@ export const createEnemyBattle = (): EnemyBattle => ({
   won: false,
   projectiles: [],
   shots: 0,
+  shellEvents: [],
   lastHitAt: -100,
   lastDamage: 0,
   failed: false,
@@ -55,8 +122,12 @@ function intersection(a: number[], b: number[], c: Box, margin = 0) {
   return boxHit(
     a,
     b,
-    [c.x - c.width / 2 - margin, 0, c.z - c.depth / 2 - margin],
-    [c.x + c.width / 2 + margin, c.height, c.z + c.depth / 2 + margin],
+    [c.x - c.width / 2 - margin, c.y ?? 0, c.z - c.depth / 2 - margin],
+    [
+      c.x + c.width / 2 + margin,
+      (c.y ?? 0) + c.height,
+      c.z + c.depth / 2 + margin,
+    ],
   );
 }
 /** Visibility graph around expanded cover corners: both crews can drive around solid cover. */
@@ -71,7 +142,12 @@ export function nextCoverWaypoint(
   const clear = (a: number[], b: number[]) =>
     !cover.some(
       (c) =>
-        intersection([a[0], 1, a[1]], [b[0], 1, b[1]], c, radius) !== undefined,
+        intersection(
+          [a[0], (c.y ?? 0) + 1, a[1]],
+          [b[0], (c.y ?? 0) + 1, b[1]],
+          c,
+          radius,
+        ) !== undefined,
     );
   if (clear(start, goal)) return goal;
   const nodes = [
@@ -112,6 +188,55 @@ export function nextCoverWaypoint(
   while (previous[next] > 0) next = previous[next];
   return nodes[next];
 }
+function moveEnemy(
+  enemy: EnemyTarget,
+  goal: Pick<Vehicle, "x" | "z">,
+  cover: readonly Box[],
+  maxStep: number,
+  terrain?: TerrainHeightGrid,
+) {
+  const [x, z] = nextCoverWaypoint(enemy, goal, cover);
+  const dx = x - enemy.x;
+  const dz = z - enemy.z;
+  const distance = Math.hypot(dx, dz);
+  if (distance <= 0.05) return;
+  const step = Math.min(distance, maxStep);
+  enemy.x += (dx / distance) * step;
+  enemy.z += (dz / distance) * step;
+  if (terrain) enemy.y = terrainHeightAt(terrain, enemy.x, enemy.z);
+  enemy.yaw = Math.atan2(dx, -dz);
+}
+
+function stepDeployment(
+  enemy: EnemyTarget,
+  deployment: NonNullable<OccupationEnemy["deployment"]>,
+  cover: readonly Box[],
+  dt: number,
+  terrain?: TerrainHeightGrid,
+) {
+  if (deployment.mode === "guard") {
+    enemy.phase = "guarding";
+    return;
+  }
+  const points = deployment.points;
+  let index = (enemy.patrolWaypoint ?? 0) % points.length;
+  if (Math.hypot(points[index].x - enemy.x, points[index].z - enemy.z) <= 0.35)
+    index = (index + 1) % points.length;
+  enemy.patrolWaypoint = index;
+  moveEnemy(
+    enemy,
+    points[index],
+    cover,
+    ENEMY_RULES.speed[enemy.kind] * dt * 0.65,
+    terrain,
+  );
+  const swing = angle(enemy.yaw - enemy.turretYaw);
+  enemy.turretYaw +=
+    Math.sign(swing) *
+    Math.min(Math.abs(swing), dt * ENEMY_RULES.turn[enemy.kind]);
+  enemy.phase = "patrolling";
+}
+
 export function stepEnemies(
   b: EnemyBattle,
   enemies: EnemyTarget[],
@@ -120,22 +245,43 @@ export function stepEnemies(
   dt: number,
   now: number,
   smoke: readonly SmokeCloud[],
+  terrain?: TerrainHeightGrid,
+  deployments?: readonly OccupationEnemy[],
 ) {
   if (b.failed || b.won) return;
+  while (
+    b.shellEvents.length &&
+    now - b.shellEvents[0].at >= SHELL_EVENT_RETENTION
+  )
+    b.shellEvents.shift();
   for (const e of enemies) {
     if (e.hp <= 0) continue;
+    const eye = [e.x, (e.y ?? 0) + 2.4, e.z];
+    const aimHeight = (goal: Pick<Vehicle, "x" | "z">) =>
+      terrainHeightAt(terrain, goal.x, goal.z) + 2.4;
     const hiddenBySmoke = smokeBlocks(
       smoke,
-      [e.x, 2.4, e.z],
-      [tank.x, 2.4, tank.z],
+      eye,
+      [tank.x, (tank.y ?? 0) + 2.4, tank.z],
       now,
     );
-    const coverBlocked = (goal: Pick<Vehicle, "x" | "z">) =>
-      cover.some(
-        (c) =>
-          intersection([e.x, 2.4, e.z], [goal.x, 2.4, goal.z], c) !== undefined,
+    const blockedTo = (goal: Pick<Vehicle, "x" | "z">) => {
+      const sight = [goal.x, aimHeight(goal), goal.z];
+      return (
+        cover.some((c) => intersection(eye, sight, c) !== undefined) ||
+        (terrain !== undefined &&
+          terrainSegmentHit(terrain, eye, sight) !== undefined)
       );
-    if (!hiddenBySmoke && !coverBlocked(tank)) {
+    };
+    const playerBlocked = blockedTo(tank);
+    const deployment =
+      deployments?.[e.id - FIRST_OCCUPATION_ENEMY_ID]?.deployment;
+    const playerRange = Math.hypot(tank.x - e.x, tank.z - e.z);
+    if (
+      !hiddenBySmoke &&
+      !playerBlocked &&
+      (!deployment || playerRange < ENEMY_RULES.fireRange)
+    ) {
       e.lastSeenX = tank.x;
       e.lastSeenZ = tank.z;
       e.lastSeenAt = now;
@@ -145,6 +291,15 @@ export function stepEnemies(
     // Smoke instead removes the live player position from ALL aim/path decisions.
     const goal = hiddenBySmoke ? { x: e.lastSeenX, z: e.lastSeenZ } : tank;
     const distance = Math.hypot(goal.x - e.x, goal.z - e.z);
+    if (
+      deployment &&
+      e.phase !== "warning" &&
+      (distance >= ENEMY_RULES.fireRange ||
+        (hiddenBySmoke ? !remembered : playerBlocked))
+    ) {
+      stepDeployment(e, deployment, cover, dt, terrain);
+      continue;
+    }
     const desired = Math.atan2(goal.x - e.x, -(goal.z - e.z));
     const searching = hiddenBySmoke && !remembered;
     const scan = searching
@@ -158,7 +313,7 @@ export function stepEnemies(
       e.turretYaw +=
         Math.sign(delta) *
         Math.min(Math.abs(delta), dt * ENEMY_RULES.turn[e.kind]);
-    const blocked = coverBlocked(goal);
+    const blocked = hiddenBySmoke ? blockedTo(goal) : playerBlocked;
     if (e.phase !== "warning") {
       if (
         distance >
@@ -174,6 +329,7 @@ export function stepEnemies(
           const step = Math.min(length, speed * dt);
           e.x += (dx / length) * step;
           e.z += (dz / length) * step;
+          if (terrain) e.y = terrainHeightAt(terrain, e.x, e.z);
           e.yaw = Math.atan2(dx, -dz);
         }
         e.phase = "approaching";
@@ -190,24 +346,36 @@ export function stepEnemies(
     ) {
       e.phase = "warning";
       e.fireAt = now + ENEMY_RULES.warning;
+      if (terrain)
+        e.fireSlope = (aimHeight(goal) - eye[1]) / Math.max(1, distance);
     }
     if (e.phase === "warning" && now >= e.fireAt) {
       // Commit to the announced heading. A moving crew can leave the shot line.
       const dx = Math.sin(e.turretYaw),
         dz = -Math.cos(e.turretYaw);
+      const y = (e.y ?? 0) + 2.4;
+      const vy = (e.fireSlope ?? 0) * ENEMY_RULES.projectileSpeed;
       e.flashUntil = now + FIRING_FEEDBACK.cannon;
       b.projectiles.push({
         id: ++b.shots,
         // Sweep from the firing hull: a muzzle projecting past a nearby wall must not skip it.
         x: e.x,
-        y: 2.4,
+        y,
         z: e.z,
         vx: dx * ENEMY_RULES.projectileSpeed,
+        ...(terrain ? { vy } : {}),
         vz: dz * ENEMY_RULES.projectileSpeed,
         // The three-wave operation gives a coordinated crew time to load, clear
         // jams and traverse the turret, while ignoring incoming fire still loses.
         damage: ENEMY_RULES.damage[e.kind],
         age: 0,
+      });
+      recordShellEvent(b, {
+        kind: "muzzle",
+        id: b.shots,
+        at: now,
+        x: e.x,
+        z: e.z,
       });
       e.readyAt =
         now +
@@ -219,6 +387,7 @@ export function stepEnemies(
   b.projectiles = b.projectiles.filter((p) => {
     const from = [p.x, p.y, p.z];
     p.x += p.vx * dt;
+    p.y += (p.vy ?? 0) * dt;
     p.z += p.vz * dt;
     p.age += dt;
     const to = [p.x, p.y, p.z];
@@ -243,6 +412,21 @@ export function stepEnemies(
         tank.hp = Math.max(0, tank.hp - p.damage);
         b.lastHitAt = now;
         b.lastDamage = p.damage;
+        recordShellEvent(b, {
+          kind: "hull-hit",
+          id: p.id,
+          at: now,
+          heading: Math.atan2(p.vx, -p.vz),
+          damage: p.damage,
+        });
+      } else {
+        recordShellEvent(b, {
+          kind: "cover",
+          id: p.id,
+          at: now,
+          x: from[0] + (to[0] - from[0]) * nearest,
+          z: from[2] + (to[2] - from[2]) * nearest,
+        });
       }
       return false;
     }

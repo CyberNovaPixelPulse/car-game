@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { STILL_HEAD } from "./tank-camera-motion";
+import { applyHeadOffset, headStamp } from "./tank-head-camera";
 import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
 import { type TankState } from "./tank-core";
 import {
@@ -7,15 +9,24 @@ import {
   preloadVehicles,
   noteRenderer,
 } from "./tank-vehicle-model";
+import { buildHill192, HILL_192_LIGHT } from "./hill192-environment";
 import { buildNormandy } from "./tank-environment";
 import { ArtPreparation, finishPreparation } from "./tank-art-preparation";
 import { disposeArt } from "./tank-art-materials";
 import { SmokeScene } from "./tank-smoke-scene";
 import { MuzzleFlash } from "./tank-muzzle-flash";
+import {
+  PlayerCannonBlast,
+  CANNON_BLAST_SECONDS,
+  cannonShotAge,
+} from "./tank-cannon-blast";
 import { BattleEffects } from "./tank-battle-effects";
 import { FIRING_FEEDBACK } from "./tank-settings";
 import { battleProjection, battleView } from "./tank-battle-view";
 import { buildDriverArmour } from "./tank-driver-armour";
+import { TankDriverControls } from "./tank-driver-controls";
+import { TankGunnerControls } from "./tank-gunner-controls";
+import { TankLoaderMachineGun } from "./tank-loader-machine-gun";
 import { scenePixelRatio, type SceneQuality } from "./tank-scene-quality";
 
 /** Metres from the eye within which an enemy tank keeps full detail. */
@@ -31,19 +42,33 @@ export class TankScene {
   private lastDraw = -Infinity;
   private scene = new THREE.Scene();
   private smoke = new SmokeScene(this.scene);
-  private cannonFlash!: MuzzleFlash;
+  private cannonBlast!: PlayerCannonBlast;
   private effects!: BattleEffects;
   private mgFlash!: MuzzleFlash;
   private mgMuzzle = new THREE.Group();
   /** The loader's M2 on its cradle; it bucks back with every round. */
   private mgMount?: THREE.Object3D;
+  private loaderMachineGun?: TankLoaderMachineGun;
+  private loaderMachineGunReady?: Promise<boolean>;
   private mgRest = new THREE.Vector3();
   private mgKick = { shots: -1, at: -100 };
   private mgEject = new THREE.Group();
   private enemyFlashes = new Map<number, MuzzleFlash>();
   private camera = new THREE.PerspectiveCamera(65, 1, 0.1, 180);
+  private mount = new THREE.Group();
+  private sightDirection = new THREE.Vector3();
+  private sight?: HTMLElement;
   private assets = new ArtPreparation();
   private environment = new AbortController();
+  private fieldPrepared = false;
+  private hill192 = false;
+  private hill192Art?: ReturnType<typeof buildHill192>;
+  private sun!: THREE.DirectionalLight;
+  private driverArmour?: Promise<boolean>;
+  private driverControls?: TankDriverControls;
+  private driverControlsReady?: Promise<boolean>;
+  private gunnerControls?: TankGunnerControls;
+  private gunnerControlsReady?: Promise<boolean>;
   private player!: VehicleModel;
   private width = 0;
   private height = 0;
@@ -71,7 +96,7 @@ export class TankScene {
     }
   }
   private build() {
-    this.cannonFlash = new MuzzleFlash(this.scene, 0.6);
+    this.cannonBlast = new PlayerCannonBlast(this.scene, this.assets.manager);
     this.effects = new BattleEffects(this.scene, this.quality);
     this.mgFlash = new MuzzleFlash(this.scene, 0.22);
     const software = noteRenderer(this.renderer);
@@ -88,7 +113,7 @@ export class TankScene {
     this.scene.background = new THREE.Color(0xb9c7c7);
     this.scene.fog = new THREE.Fog(0xb9c7c7, 65, 190);
     this.scene.add(new THREE.HemisphereLight(0xd9e3e9, 0x64654c, 1.25));
-    const sun = new THREE.DirectionalLight(0xffefd6, 2.3);
+    const sun = (this.sun = new THREE.DirectionalLight(0xffefd6, 2.3));
     sun.position.set(-25, 40, 15);
     sun.castShadow = true;
     // Baked tank detail needs a finer shadow map on the target discrete GPU;
@@ -118,12 +143,49 @@ export class TankScene {
         this.scene.backgroundIntensity = 0.8;
       },
     );
-    buildNormandy(this.scene, this.environment.signal, this.assets.manager);
     preloadVehicles(this.assets.manager);
     this.scene.add(this.tank);
+    this.scene.add(this.mount);
     if (this.view === "driver") {
-      buildDriverArmour(this.camera);
-      this.scene.add(this.camera);
+      this.driverArmour = buildDriverArmour(
+        this.mount,
+        this.assets.manager,
+        () => this.disposed,
+      ).catch(() => false);
+      this.driverControlsReady = TankDriverControls.load(
+        this.assets.manager,
+        () => this.disposed,
+      )
+        .then((controls) => {
+          if (!controls) return false;
+          if (this.disposed) {
+            disposeArt(controls.root);
+            return false;
+          }
+          this.driverControls = controls;
+          this.mount.add(controls.root);
+          this.lastVisual = "";
+          return true;
+        })
+        .catch(() => false);
+    }
+    if (this.view === "gunner") {
+      this.gunnerControlsReady = TankGunnerControls.load(
+        this.assets.manager,
+        () => this.disposed,
+      )
+        .then((controls) => {
+          if (!controls) return false;
+          if (this.disposed) {
+            disposeArt(controls.root);
+            return false;
+          }
+          this.gunnerControls = controls;
+          this.mount.add(controls.root);
+          this.lastVisual = "";
+          return true;
+        })
+        .catch(() => false);
     }
     if (this.view === "machine-gun") {
       const steel = new THREE.MeshStandardMaterial({
@@ -135,15 +197,17 @@ export class TankScene {
         color: 0x303a2c,
         roughness: 0.9,
       });
-      const mount = buildBrowning(
-        this.camera,
+      const gun = buildBrowning(
+        this.mount,
         steel,
         paint,
-        0.25,
-        -0.28,
-        -0.35,
+        0,
+        -0.24,
+        -0.7,
         this.assets.manager,
+        true,
       );
+      const mount = gun.root;
       this.mgMuzzle.position.z = -1.68;
       mount.add(this.mgMuzzle);
       this.mgMount = mount;
@@ -153,7 +217,23 @@ export class TankScene {
       mount.traverse((object) => {
         if (object instanceof THREE.Mesh) object.castShadow = false;
       });
-      this.scene.add(this.camera);
+      this.loaderMachineGunReady = TankLoaderMachineGun.load(
+        gun,
+        this.assets.manager,
+        () => this.disposed,
+      )
+        .then((operator) => {
+          if (!operator) return false;
+          if (this.disposed) {
+            disposeArt(operator.root);
+            return false;
+          }
+          this.loaderMachineGun = operator;
+          this.mount.add(operator.root);
+          this.lastVisual = "";
+          return true;
+        })
+        .catch(() => false);
     }
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(this.canvas);
@@ -185,9 +265,48 @@ export class TankScene {
     this.camera.updateProjectionMatrix();
     this.lastVisual = "";
   }
+  private prepareField(state: TankState) {
+    if (this.fieldPrepared) return;
+    this.fieldPrepared = true;
+    this.hill192 = state.occupation?.levelId === "hill-192";
+    if (this.hill192) {
+      this.hill192Art = buildHill192(
+        this.scene,
+        this.environment.signal,
+        this.assets.manager,
+      );
+      this.scene.fog = new THREE.Fog(0xb9c2bf, 162, 715);
+      this.scene.backgroundRotation.y = HILL_192_LIGHT.skyYaw;
+      this.scene.environmentRotation.y = HILL_192_LIGHT.skyYaw;
+      this.sun.intensity = 1.24;
+      this.sun.color.setHex(0xffedce);
+      this.sun.shadow.normalBias = 0.025;
+      this.sun.shadow.radius = 2;
+      this.camera.far = 740;
+      this.camera.updateProjectionMatrix();
+      this.scene.add(this.sun.target);
+    } else {
+      buildNormandy(this.scene, this.environment.signal, this.assets.manager);
+    }
+  }
   async prepare(state: TankState) {
+    this.prepareField(state);
     await this.assets.wait();
+    if (this.hill192Art && !(await this.hill192Art.ready))
+      throw new Error("無法載入 192 高地場景，請重試準備。");
+    const driverArmourReady = await this.driverArmour;
+    const driverControlsReady = await this.driverControlsReady;
+    const gunnerControlsReady = await this.gunnerControlsReady;
+    const loaderMachineGunReady = await this.loaderMachineGunReady;
     if (this.disposed) throw new Error("視野準備已取消。");
+    if (driverArmourReady === false)
+      throw new Error("無法載入駕駛觀察窗，請重試準備。");
+    if (driverControlsReady === false)
+      throw new Error("無法載入駕駛動作，請重試準備。");
+    if (gunnerControlsReady === false)
+      throw new Error("無法載入砲手動作，請重試準備。");
+    if (loaderMachineGunReady === false)
+      throw new Error("無法載入車頂機槍動作，請重試準備。");
     this.render(state); // Instantiate authority-provided vehicle art, without advancing any rules.
     await this.assets.wait();
     if (this.disposed) throw new Error("視野準備已取消。");
@@ -197,13 +316,20 @@ export class TankScene {
     this.render(state);
     await finishPreparation(this.renderer, () => this.disposed);
   }
-  render(state: TankState) {
+  leaveMachineGun() {
+    this.loaderMachineGun?.leave();
+  }
+  render(state: TankState, offset = STILL_HEAD, held = 0) {
+    this.prepareField(state);
     const t = state.tank;
+    const height = t.y ?? 0;
     // Render state is a local GPU concern. Simulation/network clocks keep running at full cadence.
     const pose = [
       t.x,
+      height,
       t.z,
       t.yaw,
+      t.pitch,
       state.turret.yaw,
       state.turret.pitch,
       ...state.weapon.targets.flatMap((e) => [
@@ -215,10 +341,11 @@ export class TankScene {
         e.hp > 0,
       ]),
     ].join(":");
+    const shotAge = cannonShotAge(state);
     const animated =
       state.weapon.smoke.some((c) => state.time < c.until) ||
       state.weapon.impacts.length > 0 ||
-      state.time < state.weapon.flashUntil ||
+      shotAge < CANNON_BLAST_SECONDS ||
       state.time < state.weapon.mg.flashUntil ||
       state.weapon.targets.some((e) => state.time < e.flashUntil) ||
       state.weapon.targets.some((e) => e.hp <= 0) ||
@@ -228,6 +355,11 @@ export class TankScene {
       this.view === "machine-gun" ? state.weapon.mg : state.turret;
     const visual = [
       pose,
+      headStamp(offset),
+      this.driverControls?.advance(state.time, held),
+      this.gunnerControls && state.turret.yawRate,
+      this.gunnerControls && state.turret.pitchRate,
+      this.loaderMachineGun?.stamp(state.weapon, state.time),
       aimState.yaw,
       aimState.pitch,
       state.weapon.targets.map((e) => e.phase).join(),
@@ -250,12 +382,34 @@ export class TankScene {
     this.lastDraw = now;
     this.tank.visible = this.view === "gunner";
     this.player.animate(t.x, t.z, t.yaw);
-    this.tank.position.set(t.x, 0, t.z);
-    this.tank.rotation.y = -t.yaw;
-    this.turret.rotation.y = -state.turret.yaw;
-    this.elevation.rotation.x = state.turret.pitch;
-    this.effects.recoilBarrel(this.elevation);
-    this.effects.rockHull(this.tank, state.turret.yaw);
+    const fired =
+      shotAge < CANNON_BLAST_SECONDS ? state.weapon.lastShotPose : undefined;
+    // Sample the model's own pivots at fire time, then draw it at the current pose.
+    this.posePlayer(
+      fired?.x ?? t.x,
+      fired?.z ?? t.z,
+      fired ? (fired.y ?? 0) : height,
+      fired?.hullYaw ?? t.yaw,
+      fired?.turretYaw ??
+        (fired ? fired.yaw - fired.hullYaw : state.turret.yaw),
+      fired?.turretPitch ?? fired?.pitch ?? state.turret.pitch,
+      fired ? fired.hullPitch : t.pitch,
+    );
+    this.cannonBlast.present(
+      this.player.muzzle,
+      state.weapon.shotsFired,
+      shotAge,
+    );
+    if (fired)
+      this.posePlayer(
+        t.x,
+        t.z,
+        height,
+        t.yaw,
+        state.turret.yaw,
+        state.turret.pitch,
+        t.pitch,
+      );
     const view = battleView(
       t,
       this.view === "machine-gun" ? state.weapon.mg : state.turret,
@@ -267,6 +421,35 @@ export class TankScene {
       view.y + Math.sin(view.pitch) * 40,
       view.z - Math.cos(view.yaw) * Math.cos(view.pitch) * 40,
     );
+    if (this.hill192) {
+      const [east, up, south] = this.hill192Art?.sun ?? HILL_192_LIGHT.sun;
+      this.sun.position.set(
+        t.x + east * 68,
+        height + up * 68,
+        t.z + south * 68,
+      );
+      this.sun.target.position.set(t.x, height, t.z);
+      this.hill192Art?.update(t.x, t.z);
+    }
+    this.mount.position.copy(this.camera.position);
+    this.mount.quaternion.copy(this.camera.quaternion);
+    this.camera.getWorldDirection(this.sightDirection);
+    applyHeadOffset(this.camera, offset, this.view === "driver");
+    this.driverControls?.pose(offset);
+    this.gunnerControls?.pose(state.turret, offset);
+    if (this.view !== "driver") {
+      this.sight ??=
+        this.canvas.parentElement?.querySelector<HTMLElement>(".sight") ??
+        undefined;
+      if (this.sight) {
+        // Project a direction, independent of range or obscured geometry.
+        this.sightDirection.add(this.camera.position);
+        this.camera.updateMatrixWorld();
+        this.sightDirection.project(this.camera);
+        this.sight.style.left = `${50 + this.sightDirection.x * 50}%`;
+        this.sight.style.top = `${50 - this.sightDirection.y * 50}%`;
+      }
+    }
     // Wave IDs belong to authority. Remove retired groups instead of leaving phantom enemies.
     for (const [id, mesh] of this.targetMeshes) {
       if (!state.weapon.targets.some((target) => target.id === id)) {
@@ -296,7 +479,7 @@ export class TankScene {
           target.z - this.camera.position.z,
         ) < LOD_RANGE,
       );
-      mesh.position.set(target.x, 0, target.z);
+      mesh.position.set(target.x, target.y ?? 0, target.z);
       mesh.rotation.y = -target.yaw;
       model.turret.rotation.y = -(target.turretYaw - target.yaw);
       model.setCondition(target.hp > 0, target.phase === "warning");
@@ -329,12 +512,6 @@ export class TankScene {
       }
       mesh.position.set(p.x, p.y, p.z);
     }
-    this.cannonFlash.present(
-      this.player.muzzle,
-      state.weapon.flashUntil,
-      state.time,
-      FIRING_FEEDBACK.cannon,
-    );
     if (this.mgMount) {
       const mg = state.weapon.mg;
       if (this.mgKick.shots >= 0 && mg.shots > this.mgKick.shots)
@@ -349,6 +526,7 @@ export class TankScene {
         this.mgRest.z + 0.035 * kick,
       );
       this.mgMount.rotation.x = 0.02 * kick;
+      this.loaderMachineGun?.present(state.weapon, state.time);
     }
     if (this.view === "machine-gun")
       this.mgFlash.present(
@@ -360,19 +538,33 @@ export class TankScene {
     this.smoke.render(state.weapon.smoke, state.time);
     this.renderEffects(state);
     this.effects.update(state, {
-      playerMuzzle: this.player.muzzle,
       enemyMuzzle: (id) => this.enemyModels.get(id)?.muzzle,
       mg: this.mgMount
         ? { muzzle: this.mgMuzzle, eject: this.mgEject }
         : undefined,
-      view: this.view,
     });
-    this.effects.shakeCamera(this.camera);
+    this.effects.recoilBarrel(this.elevation);
+    this.effects.rockHull(this.tank, state.turret.yaw, t.pitch);
     this.effects.setLens(
       this.camera,
       this.renderer.getDrawingBufferSize(this.lensSize).y,
     );
     this.renderer.render(this.scene, this.camera);
+  }
+  private posePlayer(
+    x: number,
+    z: number,
+    height: number,
+    hullYaw: number,
+    turretYaw: number,
+    pitch: number,
+    hullPitch?: number,
+  ) {
+    this.tank.position.set(x, height, z);
+    if (hullPitch === undefined) this.tank.rotation.y = -hullYaw;
+    else this.tank.rotation.set(hullPitch, -hullYaw, 0, "YXZ");
+    this.turret.rotation.y = -turretYaw;
+    this.elevation.rotation.x = pitch;
   }
   private renderEffects(state: TankState) {
     for (const [id, line] of this.mgTracers) {
@@ -437,7 +629,7 @@ export class TankScene {
     this.assets.cancel();
     this.environment.abort();
     this.sky?.dispose();
-    this.cannonFlash?.dispose();
+    this.cannonBlast?.dispose();
     this.effects?.dispose();
     this.mgFlash?.dispose();
     for (const flash of this.enemyFlashes.values()) flash.dispose();

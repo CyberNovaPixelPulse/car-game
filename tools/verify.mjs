@@ -40,7 +40,7 @@ if (mode === "status") {
     pid: process.pid,
     scope:
       mode === "fast"
-        ? "typecheck + policy and game rule tests + relay health + browser test collection"
+        ? "typecheck + policy, game, crew pose and audio tests + relay health + browser test collection"
         : "requested bounded E2E; resource guard may reject before browser launch",
     status: "running",
     startedAt: new Date().toISOString(),
@@ -90,7 +90,18 @@ if (mode === "status") {
               "tsx",
               "--test",
               "tools/validation-policy.test.ts",
+              "tools/loader-arm-poses.test.ts",
+              "tools/loader-workstation.test.ts",
+              "tools/crew-body.test.ts",
+              "tools/gunner-crew-pose.test.ts",
+              "tools/hill192-art.test.ts",
+              "tools/tank-mechanical-audio.test.ts",
               "tools/tank-core.test.ts",
+              "tools/tank-hull-pose.test.ts",
+              "tools/tank-machine-gun.test.ts",
+              "tools/tank-occupation.test.ts",
+              "tools/tank-terrain.test.ts",
+              "tools/hill192-recon.test.ts",
               "tools/room-rules.test.ts",
               "tools/peer-server.test.ts",
             ],
